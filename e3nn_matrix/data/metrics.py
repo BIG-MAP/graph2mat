@@ -29,12 +29,12 @@ class OrbitalMatrixMetric:
         return 0., {}
 
     @classmethod
-    def from_loss_func(cls, fn: Callable) -> Type["OrbitalMatrixMetric"]:
+    def from_metric_func(cls, fn: Callable) -> Type["OrbitalMatrixMetric"]:
         """Creates an OrbitalMatrixMetric class from a function that computes the loss."""
-        return type(fn.__name__, (cls, ), {"get_loss": staticmethod(fn)})
+        return type(fn.__name__, (cls, ), {"get_metric": staticmethod(fn)})
 
 
-@OrbitalMatrixMetric.from_loss_func
+@OrbitalMatrixMetric.from_metric_func
 def block_type_mse(nodes_pred, nodes_ref, edges_pred, edges_ref, **kwargs) -> Tuple[float, Dict[str, float]]:
     node_error, edge_error = get_predictions_error(nodes_pred, nodes_ref, edges_pred, edges_ref)
 
@@ -48,7 +48,7 @@ def block_type_mse(nodes_pred, nodes_ref, edges_pred, edges_ref, **kwargs) -> Tu
 
     return node_loss + edge_loss, stats
 
-@OrbitalMatrixMetric.from_loss_func
+@OrbitalMatrixMetric.from_metric_func
 def elementwise_mse(nodes_pred, nodes_ref, edges_pred, edges_ref, **kwargs) -> Tuple[float, Dict[str, float]]:
     node_error, edge_error = get_predictions_error(nodes_pred, nodes_ref, edges_pred, edges_ref)
 
@@ -67,7 +67,7 @@ def elementwise_mse(nodes_pred, nodes_ref, edges_pred, edges_ref, **kwargs) -> T
 
     return loss, stats
 
-@OrbitalMatrixMetric.from_loss_func
+@OrbitalMatrixMetric.from_metric_func
 def node_mse(nodes_pred, nodes_ref, edges_pred, edges_ref, **kwargs) -> Tuple[float, Dict[str, float]]:
     node_error, edge_error = get_predictions_error(nodes_pred, nodes_ref, edges_pred, edges_ref)
 
@@ -81,7 +81,7 @@ def node_mse(nodes_pred, nodes_ref, edges_pred, edges_ref, **kwargs) -> Tuple[fl
 
     return node_loss, stats
 
-@OrbitalMatrixMetric.from_loss_func
+@OrbitalMatrixMetric.from_metric_func
 def edge_mse(nodes_pred, nodes_ref, edges_pred, edges_ref, **kwargs) -> Tuple[float, Dict[str, float]]:
     node_error, edge_error = get_predictions_error(nodes_pred, nodes_ref, edges_pred, edges_ref)
 
