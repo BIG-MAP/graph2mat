@@ -1,3 +1,5 @@
+import json
+import math
 from pathlib import Path
 from typing import Union, Optional, Literal
 
@@ -16,14 +18,38 @@ class MatrixDataModule(pl.LightningDataModule):
         basis_files: Union[str, None] = None,
         z_table: Union[AtomicTableWithEdges, None] = None,
         root_dir: str = ".",
-        train_runs: Optional[str] = None, 
+        train_runs: Optional[str] = None,
         val_runs: Optional[str] = None,
+        test_runs: Optional[str] = None,
         predict_structs: Optional[str] = None,
+        runs_json: Optional[str] = None,
         symmetric_matrix: bool = False,
         sub_atomic_matrix: bool = True,
-        batch_size: int = 5,  
+        batch_size: int = 5,
         loader_threads: int=1,
     ):
+        """
+
+        Parameters
+        ----------
+            out_matrix : Literal['density_matrix', 'hamiltonian', 'energy_density_matrix', 'dynamical_matrix']
+            basis_files : Union[str, None]
+            z_table : Union[AtomicTableWithEdges, None]
+            root_dir : str
+            train_runs : Optional[str]
+            val_runs : Optional[str]
+            test_runs : Optional[str]
+            predict_structs : Optional[str]
+            runs_json: Optional[str]
+                Path to json-file with a dictionary where the keys are train/val/test/predict.
+                and the dictionary values are list of paths to the run files relative to `root_dir`
+                The paths will be overwritten by train_runs/val_runs/test_runs/predict_structs if given.
+            symmetric_matrix : bool
+            sub_atomic_matrix : bool
+            batch_size : int
+            loader_threads : int
+
+        """
         super().__init__()
         self.save_hyperparameters()
 
@@ -36,8 +62,10 @@ class MatrixDataModule(pl.LightningDataModule):
 
         self.train_runs = train_runs
         self.val_runs = val_runs
+        self.test_runs = test_runs
+        self.runs_json = runs_json
 
-        self.predict_structs = predict_structs
+        self.predict_runs = predict_structs
         self.sub_atomic_matrix = sub_atomic_matrix
 
         self.batch_size = batch_size
@@ -53,71 +81,54 @@ class MatrixDataModule(pl.LightningDataModule):
         self.test_data = None
         self.predict_data = None
 
-        # Instantiate a random state to sample from data in case we need it.
-        rng = np.random.RandomState(32)
 
-        # Set the training data
-        if self.train_runs is not None:
+        # Load json file with paths for each split
+        if self.runs_json is not None:
+            with open(self.runs_json, "r") as f:
+                runs_dict = json.load(f)
+        else:
+            runs_dict = {}
 
-            # Get all the training data
-            runs = Path(self.root_dir).glob(self.train_runs)
-            train_data = [
-                OrbitalMatrixData.from_config(
-                    load_orbital_config_from_run(run, out_matrix=self.out_matrix),
-                    z_table=self.z_table, sub_atomic_matrix=self.sub_atomic_matrix,
-                    symmetric_matrix=self.symmetric_matrix
-                )
-                for run in runs
-            ]
-
-            # Now check if we should also take some data out of the training data to use it for
-            # validation.
-            if self.val_runs is None:
-                # User didn't specify a validation directory, just randomly draw from the training.
-                perms = rng.permutation(len(train_data))
-
-                self.train_data = [train_data[x] for x in np.sort(perms[10:-10])]
-                self.val_data = [train_data[x] for x in np.sort(perms[0:10])]
-                self.test_data = [train_data[x] for x in np.sort(perms[-10:])]
+        # Set the paths for each split
+        for split in ["train", "val", "test", "predict"]:
+            glob_path = getattr(self, "%s_runs" % split)
+            # Use the glob paths if given
+            if glob_path is not None:
+                runs = Path(self.root_dir).glob(glob_path)
+            # Else use the json file
+            elif split in runs_dict:
+                runs = [Path(self.root_dir) / p for p in runs_dict[split]]
             else:
-                # User specified some validation runs, so use all of this runs for training
-                self.train_data = train_data
+                runs = None
 
-        # Set the validation and testing data
-        if self.val_runs is not None:
-            # Get list of all validation runs
-            val_runs = list(Path(self.root_dir).glob(self.val_runs))
+            if runs is not None:
+                # For predictions we do not have a matrix to read
+                if split == "predict":
+                    out_matrix = None
+                else:
+                    out_matrix = self.out_matrix
+                # Read the data
+                data = [
+                    OrbitalMatrixData.from_config(
+                        load_orbital_config_from_run(run, out_matrix=out_matrix),
+                        z_table=self.z_table, sub_atomic_matrix=self.sub_atomic_matrix,
+                        symmetric_matrix=self.symmetric_matrix
+                    )
+                    for run in runs
+                ]
+                setattr(self, "%s_data" % split, data)
 
-            # Randomly select 20 of them
-            perms = rng.permutation(len(val_runs))
-            val_runs = [val_runs[x] for x in np.sort(perms[:20])]
+        # Now check if we should take some data out of the training data to use it for
+        # validation.
+        if self.val_data is None and self.train_data is not None:
+            # Instantiate a random state to sample from data
+            rng = np.random.RandomState(32)
+            # User didn't specify a validation directory, just randomly draw 10 percent from the training.
+            perms = rng.permutation(len(self.train_data))
+            num_val = int(math.ceil(len(self.train_data)/10))
 
-            # Get the data for the selected runs.
-            val_data = [
-                OrbitalMatrixData.from_config(
-                    load_orbital_config_from_run(run, out_matrix=self.out_matrix),
-                    z_table=self.z_table, sub_atomic_matrix=self.sub_atomic_matrix,
-                    symmetric_matrix=self.symmetric_matrix
-                )
-                for run in val_runs
-            ]
-
-            # Split between validation and test.
-            self.val_data = val_data[:10]
-            self.test_data = val_data[-10:]
-
-        # Set the prediction data
-        if self.predict_structs is not None:
-            self.predict_paths = list(Path(self.root_dir).glob(self.predict_structs))
-
-            self.predict_data = [
-                OrbitalMatrixData.from_config(
-                    load_orbital_config_from_run(run, out_matrix=None),
-                    z_table=self.z_table, sub_atomic_matrix=self.sub_atomic_matrix,
-                    symmetric_matrix=self.symmetric_matrix
-                )
-                for run in self.predict_paths
-            ]   
+            self.val_data = [self.train_data[x] for x in np.sort(perms[0:num_val])]
+            self.train_data = [self.train_data[x] for x in np.sort(perms[num_val:])]
 
     def train_dataloader(self):
         assert self.train_data is not None, "No training data was provided, please set the ``train_runs`` argument."
@@ -128,7 +139,7 @@ class MatrixDataModule(pl.LightningDataModule):
         return DataLoader(self.val_data, batch_size=self.batch_size, shuffle=False, drop_last=False, num_workers=self.hparams.loader_threads)
 
     def test_dataloader(self):
-        assert self.test_data is not None, "No test data was provided, please set either the ``train_runs`` or the ``val_runs`` argument."
+        assert self.test_data is not None, "No test data was provided, please set the ``test_runs`` argument."
         return DataLoader(self.test_data, batch_size=self.batch_size, shuffle=False, drop_last=False, num_workers=self.hparams.loader_threads)
 
     def predict_dataloader(self):
