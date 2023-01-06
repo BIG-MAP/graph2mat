@@ -60,6 +60,8 @@ class LitOrbitalMatrixModel(pl.LightningModule):
         )
 
         self.log("val_loss", loss, prog_bar=True, logger=True)
+        # save validation loss as the hyperparameter opt metric (used by tensorboard)
+        self.log("hp_metric", loss)
 
         for k, v in stats.items():
             self.log(f"val_{k}", v)
