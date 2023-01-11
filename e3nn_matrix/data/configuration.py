@@ -14,6 +14,7 @@ Positions = np.ndarray  # [..., 3]
 Forces = np.ndarray  # [..., 3]
 Cell = np.ndarray  # [3,3]
 Pbc = tuple  # (3,)
+PhysicsMatrixType = Literal["density_matrix", "hamiltonian", "energy_density_matrix", "dynamical_matrix"]
 
 DEFAULT_CONFIG_TYPE = "Default"
 
@@ -42,7 +43,7 @@ class OrbitalConfiguration:
 
 def load_orbital_config_from_run(
     runfilepath: Union[str, Path], 
-    out_matrix: Literal[None, "density_matrix", "hamiltonian", "energy_density_matrix", "dynamical_matrix"] = None
+    out_matrix: Optional[PhysicsMatrixType] = None
 ) -> OrbitalConfiguration:
     """Initializes an OrbitalConfiguration object from the main input file of a run.
     Parameters
