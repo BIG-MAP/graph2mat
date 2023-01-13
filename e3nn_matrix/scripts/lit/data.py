@@ -122,7 +122,10 @@ class MatrixDataModule(pl.LightningDataModule):
 
         # Load json file with paths for each split
         if self.runs_json is not None:
-            with open(self.runs_json, "r") as f:
+            json_path = Path(self.runs_json)
+            if not json_path.is_absolute():
+                json_path = Path(root) / json_path
+            with open(json_path, "r") as f:
                 runs_dict = json.load(f)
         else:
             runs_dict = {}
