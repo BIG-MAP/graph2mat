@@ -67,3 +67,18 @@ class LitOrbitalMatrixModel(pl.LightningModule):
             self.log(f"val_{k}", v)
 
         return out
+
+    def test_step(self, batch, batch_idx):
+        out = self.model(batch)
+
+        loss, stats = self.loss_fn(
+            nodes_pred=out['node_labels'], nodes_ref=batch['atom_labels'],
+            edges_pred=out['edge_labels'], edges_ref=batch['edge_labels']
+        )
+
+        self.log("test_loss", loss, prog_bar=True, logger=True)
+
+        for k, v in stats.items():
+            self.log(f"test_{k}", v)
+
+        return out
