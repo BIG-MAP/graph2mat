@@ -8,7 +8,7 @@ from pytorch_lightning.callbacks import BasePredictionWriter, Callback
 import sisl
 import numpy as np
 
-from e3nn_matrix.data.batch_utils import batch_to_sparse_orbital
+from e3nn_matrix.data.batch_utils import batch_to_sparse_orbital, batch_to_orbital_matrix_data
 from e3nn_matrix.data.sparse import nodes_and_edges_to_sparse_orbital
 from e3nn_matrix.data.periodic_table import AtomicTableWithEdges
 from e3nn_matrix.viz import plot_orbital_matrix
@@ -28,9 +28,7 @@ class MatrixWriter(BasePredictionWriter):
         batch_idx: int,
         dataloader_idx: int):
 
-        # Get the list of paths from which the batch was generated.
-        paths = trainer.datamodule.predict_paths
-        # And the atomic table, which will help us constructing the matrices from
+        # Get the atomic table, which will help us constructing the matrices from
         # the batched flat arrays.
         z_table: AtomicTableWithEdges = trainer.datamodule.z_table
         # Find out whether the model was trained with the imposition that the matrix
@@ -46,22 +44,22 @@ class MatrixWriter(BasePredictionWriter):
             "dynamical_matrix": sisl.DynamicalMatrix,
         }[trainer.datamodule.out_matrix]
 
-        matrix_iter = batch_to_sparse_orbital(
+        # Get iterator to loop through matrices in batch
+        matrix_iter = batch_to_orbital_matrix_data(
             batch,
-            z_table,
-            matrix_cls,
             prediction,
+            z_table,
             symmetric_matrix,
-            trainer.datamodule.sub_atomic_matrix
         )
 
         # Loop through structures in the batch
-        for data_idx, matrix in zip(batch_indices, matrix_iter):
+        for matrix_data in matrix_iter:
             # Get the path from which this structure was read.
-            path = paths[data_idx]
+            path = matrix_data.metadata["path"]
+            sparse_orbital_matrix = matrix_data.to_sparse_orbital_matrix(z_table, matrix_cls, symmetric_matrix, trainer.datamodule.sub_atomic_matrix)
 
             # And write the matrix to it.
-            matrix.write(path.parent / self.output_file)
+            sparse_orbital_matrix.write(path.parent / self.output_file)
 
 class ComputeNormalizedError(Callback):
     def __init__(self, split: Literal["train", "val", "test"]="test", output_file:Union[Path,str,None]=None, grid_spacing: float=0.1):

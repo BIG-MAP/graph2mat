@@ -1,38 +1,36 @@
-from typing import Any, Type, Union, Dict, Iterator
+from typing import Any, Type, Union, Dict, Iterator, Optional
 
 import numpy as np
 import torch
 import sisl
 
 from .periodic_table import AtomicTableWithEdges
+from ..torch.data import OrbitalMatrixData
 
-def batch_to_sparse_orbital(
+def batch_to_orbital_matrix_data(
     batch: Any,
-    z_table: AtomicTableWithEdges,
-    matrix_cls: Type[sisl.SparseOrbital],
-    prediction: Union[Dict,None]=None,
+    prediction: Optional[Dict]=None,
+    z_table: Optional[AtomicTableWithEdges]=None,
     symmetric_matrix: bool=False,
-    add_atomic_contribution: bool=False,
-    ) -> Iterator[sisl.SparseOrbital]:
+    ) -> Iterator[OrbitalMatrixData]:
     """
     Convert a batch of data points to a sparse matrix representation for each configuration
     Parameters
     ----------
         batch : Any
-        z_table : AtomicTableWithEdges
-        matrix_cls : Type[sisl.SparseOrbital] Class used for the output matrix
-        prediction : Union[Dict, None]
-            If not None, use entries with keys 'node_labels' and 'edge_labels' for the matrix elements
-        symmetric_matrix : bool
-            If true, the labels only correspond to 'half' of the symmetric matrix
-        add_atomic_contribution : bool
-            If true, add the isolated atom contributions to the density
+        prediction : Optional[Dict]
+            If not None, use entries with keys 'node_labels' and 'edge_labels' for the node and edge labels
+        z_table: Optional[AtomicTableWithEdges]
+            If prediction is not None, z_table is required to arrange the prediction labels correctly
+        symmetric_matrix: bool
+            If predictions is not None, symmetric_matrix is required to arrange the labels correctly
     Yields
     ------
-        Sparse orbital matrix (of class matrix_cls) for each configuration in batch
+        OrbitalMatrixData for each example in the batch
     """
 
     if prediction is not None:
+        assert z_table is not None, "z_table is required argument if prediction is given"
         # Pointer arrays to understand where the data for each structure starts in the batch. 
         atom_ptr = batch.ptr.numpy(force=True)
         edge_ptr = np.zeros_like(atom_ptr)
@@ -61,19 +59,48 @@ def batch_to_sparse_orbital(
             # Get one example from batch
             example = batch.get_example(i)
             # Override node and edge labels if predictions are given
-            if prediction is not None:
-                node_labels = prediction['node_labels'].numpy(force=True)
-                edge_labels = prediction['edge_labels'].numpy(force=True)
-                new_atom_label = node_labels[node_labels_ptr[atom_start]:node_labels_ptr[atom_end]]
-                new_edge_label = edge_labels[edge_labels_ptr[edge_start]:edge_labels_ptr[edge_end]]
+            node_labels = prediction['node_labels'].numpy(force=True)
+            edge_labels = prediction['edge_labels'].numpy(force=True)
+            new_atom_label = node_labels[node_labels_ptr[atom_start]:node_labels_ptr[atom_end]]
+            new_edge_label = edge_labels[edge_labels_ptr[edge_start]:edge_labels_ptr[edge_end]]
+            if example.atom_labels is not None:
                 np.testing.assert_array_equal(new_atom_label.shape, example.atom_labels.numpy(force=True).shape)
+            if example.edge_labels is not None:
                 np.testing.assert_array_equal(new_edge_label.shape, example.edge_labels.numpy(force=True).shape)
-                example.atom_labels = torch.tensor(new_atom_label)
-                example.edge_labels = torch.tensor(new_edge_label)
-            # Construct the matrix
-            matrix = example.to_sparse_orbital_matrix(z_table, matrix_cls, symmetric_matrix, add_atomic_contribution)
-            yield matrix
+            example.atom_labels = torch.tensor(new_atom_label)
+            example.edge_labels = torch.tensor(new_edge_label)
+            yield example
     else:
         for i in range(batch.num_graphs):
             example = batch.get_example(i)
-            yield example.to_sparse_orbital_matrix(z_table, matrix_cls, symmetric_matrix, add_atomic_contribution)
+            yield example
+
+def batch_to_sparse_orbital(
+    batch: Any,
+    z_table: AtomicTableWithEdges,
+    matrix_cls: Type[sisl.SparseOrbital],
+    prediction: Union[Dict,None]=None,
+    symmetric_matrix: bool=False,
+    add_atomic_contribution: bool=False,
+    ) -> Iterator[sisl.SparseOrbital]:
+    """
+    Convert a batch of data points to a sparse matrix representation for each configuration
+    Parameters
+    ----------
+        batch : Any
+        z_table : AtomicTableWithEdges
+        matrix_cls : Type[sisl.SparseOrbital] Class used for the output matrix
+        prediction : Union[Dict, None]
+            If not None, use entries with keys 'node_labels' and 'edge_labels' for the matrix elements
+        symmetric_matrix : bool
+            If true, the labels only correspond to 'half' of the symmetric matrix
+        add_atomic_contribution : bool
+            If true, add the isolated atom contributions to the density
+    Yields
+    ------
+        Sparse orbital matrix (of class matrix_cls) for each configuration in batch
+    """
+
+    for matrix in batch_to_orbital_matrix_data(batch, prediction=prediction, z_table=z_table, symmetric_matrix=symmetric_matrix):
+        matrix = matrix.to_sparse_orbital_matrix(z_table, matrix_cls, symmetric_matrix, add_atomic_contribution)
+        yield matrix

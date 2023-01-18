@@ -1,4 +1,4 @@
-from typing import Optional, Union, Literal
+from typing import Optional, Union, Literal, Dict, Any
 
 from pathlib import Path
 from dataclasses import dataclass
@@ -31,6 +31,7 @@ class OrbitalConfiguration:
 
     weight: float = 1.0  # weight of config in loss
     config_type: Optional[str] = DEFAULT_CONFIG_TYPE  # config_type of config
+    metadata: Optional[Dict[str, Any]] = None
 
     @classmethod
     def from_geometry(cls, geometry: sisl.Geometry, **kwargs) -> "OrbitalConfiguration":
@@ -43,7 +44,7 @@ class OrbitalConfiguration:
 
 def load_orbital_config_from_run(
     runfilepath: Union[str, Path], 
-    out_matrix: Optional[PhysicsMatrixType] = None
+    out_matrix: Optional[PhysicsMatrixType] = None,
 ) -> OrbitalConfiguration:
     """Initializes an OrbitalConfiguration object from the main input file of a run.
     Parameters
@@ -76,4 +77,4 @@ def load_orbital_config_from_run(
         geometry = main_input.read_geometry()
         matrix_block = None
 
-    return OrbitalConfiguration.from_geometry(geometry=geometry, matrix=matrix_block)
+    return OrbitalConfiguration.from_geometry(geometry=geometry, matrix=matrix_block, metadata={"path": runfilepath})

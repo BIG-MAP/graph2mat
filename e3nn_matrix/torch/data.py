@@ -1,7 +1,7 @@
 """Implements the Data class to use in pytorch models."""
 import torch
 import numpy as np
-from typing import Optional, Tuple, Type
+from typing import Optional, Tuple, Type, Dict, Any
 
 import sisl
 
@@ -32,6 +32,7 @@ class OrbitalMatrixData(torch_geometric.data.Data):
     atom_types: torch.Tensor
     edge_types: torch.Tensor
     edge_type_nlabels: torch.Tensor
+    metadata: Dict[str, Any]
 
     # Because we want an output in the basis of spherical harmonics, we will need to change
     # the basis. See: https://docs.e3nn.org/en/stable/guide/change_of_basis.html
@@ -61,7 +62,8 @@ class OrbitalMatrixData(torch_geometric.data.Data):
         edge_labels: Optional[torch.Tensor]=None, # [total_edge_elements]
         atom_types: Optional[torch.Tensor]=None, # [n_nodes]
         edge_types: Optional[torch.Tensor]=None, # [n_edges]
-        edge_type_nlabels: Optional[torch.Tensor]=None # [n_edge_types]
+        edge_type_nlabels: Optional[torch.Tensor]=None, # [n_edge_types]
+        metadata: Optional[Dict[str, Any]]=None
     ):
         # Check shapes
         num_nodes = node_attrs.shape[0] if node_attrs is not None else None
@@ -88,6 +90,7 @@ class OrbitalMatrixData(torch_geometric.data.Data):
             "atom_types": atom_types,
             "edge_types": edge_types,
             "edge_type_nlabels": edge_type_nlabels.reshape(1, -1) if edge_type_nlabels is not None else None,
+            "metadata": metadata,
         }
         super().__init__(**data)
 
@@ -309,7 +312,8 @@ class OrbitalMatrixData(torch_geometric.data.Data):
             edge_labels=edge_labels,
             atom_types=torch.tensor(indices, dtype=torch.long),
             edge_types=torch.tensor(edge_types, dtype=torch.long),
-            edge_type_nlabels=torch.tensor(edge_type_nlabels, dtype=torch.int64)
+            edge_type_nlabels=torch.tensor(edge_type_nlabels, dtype=torch.int64),
+            metadata=config.metadata,
         )
 
     def to_sparse_orbital_matrix(
