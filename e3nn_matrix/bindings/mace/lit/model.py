@@ -2,6 +2,7 @@ from typing import Type, Union
 
 from e3nn import o3
 import torch
+import sisl
 
 #from context import mace
 from e3nn_matrix.data.metrics import OrbitalMatrixMetric, block_type_mse
@@ -46,11 +47,17 @@ class LitOrbitalMatrixMACE(LitOrbitalMatrixModel):
         ):
 
         super().__init__(root_dir=root_dir, basis_files=basis_files, z_table=z_table, loss=loss)
+        self.save_hyperparameters()
 
         if isinstance(hidden_irreps, str):
             hidden_irreps = o3.Irreps(hidden_irreps)
         if isinstance(edge_hidden_irreps, str):
             edge_hidden_irreps = o3.Irreps(edge_hidden_irreps)
+
+        if self.z_table is None:
+            # Create a placeholder z_table if nothing is given
+            orbital = sisl.SphericalOrbital(l=0, rf_or_func=lambda x:x)
+            self.z_table = AtomicTableWithEdges([sisl.Atom(Z=1, orbitals=[orbital])])
 
         self.model = OrbitalMatrixMACE(
             r_max=self.z_table.maxR() * 2,

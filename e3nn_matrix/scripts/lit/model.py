@@ -25,7 +25,10 @@ class LitOrbitalMatrixModel(pl.LightningModule):
         self.save_hyperparameters()
 
         if z_table is None:
-            self.z_table = AtomicTableWithEdges.from_basis_glob(Path(root_dir).glob(basis_files))
+            if basis_files is None:
+                self.z_table = None
+            else:
+                self.z_table = AtomicTableWithEdges.from_basis_glob(Path(root_dir).glob(basis_files))
         else:
             self.z_table = z_table
 

@@ -1,3 +1,4 @@
+from typing import Dict, Set
 import os
 from pytorch_lightning.cli import LightningCLI
 
@@ -56,3 +57,11 @@ class OrbitalMatrixCLI(LightningCLI):
         defaults["trainer.callbacks"] = default_callbacks
 
         parser.set_defaults(defaults)
+
+    @staticmethod
+    def subcommands() -> Dict[str, Set[str]]:
+        """Defines the list of available subcommands and the arguments to skip."""
+        # TODO: Not clear what "to skip" means?
+        subcmd_dict = super(OrbitalMatrixCLI, OrbitalMatrixCLI).subcommands()
+        subcmd_dict["serve"] = {"model", "datamodule"}
+        return subcmd_dict

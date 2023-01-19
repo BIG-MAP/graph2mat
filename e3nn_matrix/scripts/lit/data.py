@@ -18,7 +18,7 @@ from e3nn_matrix.torch.dataset import OrbitalMatrixDataset, InMemoryData, Rotati
 
 class MatrixDataModule(pl.LightningDataModule):
     def __init__(self,
-        out_matrix: PhysicsMatrixType,
+        out_matrix: Optional[PhysicsMatrixType] = None,
         basis_files: Optional[str] = None,
         z_table: Optional[AtomicTableWithEdges] = None,
         root_dir: str = ".",
@@ -73,7 +73,7 @@ class MatrixDataModule(pl.LightningDataModule):
 
         self.basis_files = basis_files
         self.z_table = z_table
-        self.out_matrix: PhysicsMatrixType = out_matrix
+        self.out_matrix: Optional[PhysicsMatrixType] = out_matrix
         self.symmetric_matrix = symmetric_matrix
 
         self.train_runs = train_runs

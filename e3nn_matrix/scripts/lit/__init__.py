@@ -6,3 +6,4 @@ from .model import LitOrbitalMatrixModel
 from .callbacks import *
 from .data import MatrixDataModule
 from .cli import OrbitalMatrixCLI
+from .trainer import MatrixTrainer
