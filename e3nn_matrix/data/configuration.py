@@ -61,9 +61,12 @@ def load_orbital_config_from_run(
     main_input = sisl.get_sile(runfilepath)
 
     if out_matrix is not None:
+        # Temporal fix until sisl 0.13.0 is published. Otherwise,
+        # the geometry from the energy density matrix is not read correctly.
+        geometry = main_input.read_geometry()
         # Get the method to read the desired matrix and read it
         read = getattr(main_input, f"read_{out_matrix}")
-        matrix = read()
+        matrix = read(geometry=geometry)
 
         # Determine the dataclass that should store the matrix and build the block dict
         # sparse structure.
