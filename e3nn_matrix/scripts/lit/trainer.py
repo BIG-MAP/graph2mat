@@ -27,9 +27,11 @@ class MatrixTrainer(Trainer):
         self,
         model: LightningModule,
         ckpt_path: str,
-        output_file: str,
+        output_file: str = "predicted.DM",
         datamodule: Optional[LightningDataModule] = None,
-        listen_port: int=56000,
+        host="localhost",
+        port: int=56000,
+        allow_overwrite: bool = False,
     ):
         r"""
         Runs a server that provides predictions with a trained model.
@@ -43,6 +45,8 @@ class MatrixTrainer(Trainer):
             datamodule: Not used, but cli will provide this argument
             listen_port: Which port to use for connections
         """
+        from flask import Flask, request
+
         model = model.load_from_checkpoint(ckpt_path)
         model.eval()
 
@@ -60,44 +64,40 @@ class MatrixTrainer(Trainer):
             "hamiltonian": sisl.Hamiltonian,
             "dynamical_matrix": sisl.DynamicalMatrix,
         }[out_matrix]
-        # Disable training specific stuff
 
-        hostname = "localhost"
-        with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
-            s.bind((hostname, listen_port))
-            print("listening on socket %s" % s)
-            s.listen()
-            conn, addr = s.accept()
-            with conn:
-                print(f"Connected by {addr}")
-                fileio = conn.makefile("r")
-                for line in fileio:
-                    line_received = line.strip()
-                    print(line_received)
-                    runfile = Path(line_received)
-                    config = load_orbital_config_from_run(runfile, out_matrix=None)
-                    matrix_data = OrbitalMatrixData.from_config(
-                        config,
-                        z_table=model.z_table,
-                        sub_atomic_matrix=datamodule.sub_atomic_matrix,
-                        symmetric_matrix=model.hparams.symmetric_matrix,
-                    )
-                    with torch.no_grad():
-                        prediction = model(matrix_data)
+        app = Flask(__name__)
 
-                    path = matrix_data.metadata["path"]
-                    output_path = path.parent / output_file
-                    print("Writing to %s" % output_path)
-                    _write_matrix_data_to_file(
-                        output_path,
-                        matrix_data,
-                        model.z_table,
-                        matrix_cls,
-                        model.hparams.symmetric_matrix,
-                        datamodule.sub_atomic_matrix,
-                        prediction=prediction)
-                    conn.send((str(output_path)+'\n').encode("UTF-8"))
-                    print("Done")
+        @app.route('/predict', methods=['GET'])
+        def search():
+            args = request.args
+            input_file = args.get('geometry', 'siesta.XV')
+            out_file = args.get('output', output_file)
 
-        print("Socket closed")
+            runfile = Path(input_file)
+            config = load_orbital_config_from_run(runfile, out_matrix=None)
+            matrix_data = OrbitalMatrixData.from_config(
+                config,
+                z_table=model.z_table,
+                sub_atomic_matrix=datamodule.sub_atomic_matrix,
+                symmetric_matrix=model.hparams.symmetric_matrix,
+            )
+            with torch.no_grad():
+                prediction = model(matrix_data)
+
+            path = matrix_data.metadata["path"]
+            output_path = path.parent / out_file
+
+            if allow_overwrite and output_path.exists():
+                raise ValueError(f"Output file {output_path} already exists")
+
+            _write_matrix_data_to_file(
+                output_path,
+                matrix_data,
+                model.z_table,
+                matrix_cls,
+                model.hparams.symmetric_matrix,
+                datamodule.sub_atomic_matrix,
+                prediction=prediction)
+
+        return app.run(host=host, port=port)
 
