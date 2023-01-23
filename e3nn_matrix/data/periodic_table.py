@@ -79,6 +79,19 @@ class AtomicTableWithEdges(AtomicNumberTable):
         self.edge_block_shape = self.basis_size[atom_combinations]
         self.edge_block_size = self.edge_block_shape.prod(axis=0)
 
+    def __eq__(self, other):
+        same = all(x==y for x, y in itertools.zip_longest(self.atoms, other.atoms))
+        same &= all(x==y for x, y in itertools.zip_longest(self.zs, other.zs))
+        same &= all(np.allclose(x, y) for x, y in itertools.zip_longest(self.atomic_DM, other.atomic_DM))
+        same &= np.allclose(self.edge_type, other.edge_type)
+        same &= np.allclose(self.R, other.R)
+        same &= np.allclose(self.basis_size, other.basis_size)
+        same &= np.allclose(self.atom_block_shape, other.atom_block_shape)
+        same &= np.allclose(self.atom_block_size, other.atom_block_size)
+        same &= np.allclose(self.edge_block_shape, other.edge_block_shape)
+        same &= np.allclose(self.edge_block_size, other.edge_block_size)
+        return same
+
     def atom_type_to_edge_type(self, atom_type:np.ndarray) -> Union[int, np.ndarray]:
         """Converts from an array of shape (2, n_edges) containing the pair
         of atom types for each edge to an array of shape (n_edges,) containing

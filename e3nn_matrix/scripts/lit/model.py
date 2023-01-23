@@ -1,5 +1,6 @@
 from pathlib import Path
 from typing import Type, Union
+import warnings
 
 import pytorch_lightning as pl
 import torch
@@ -85,3 +86,14 @@ class LitOrbitalMatrixModel(pl.LightningModule):
             self.log(f"test_{k}", v)
 
         return out
+
+    def on_save_checkpoint(self, checkpoint) -> None:
+        "Objects to include in checkpoint file"
+        checkpoint["z_table"] = self.z_table
+
+    def on_load_checkpoint(self, checkpoint) -> None:
+        "Objects to retrieve from checkpoint file"
+        try:
+            self.z_table = checkpoint["z_table"]
+        except KeyError:
+            warnings.warn("Failed to load z_table from checkpoint: Key does not exist.")
