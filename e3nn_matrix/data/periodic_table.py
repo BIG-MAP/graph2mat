@@ -133,19 +133,20 @@ class AtomicTableWithEdges(AtomicNumberTable):
             basis_glob = Path().glob(basis_glob)
 
         basis = []
-        file_names = []
-        file_contents = []
+        #file_names = []
+        #file_contents = []
         for basis_file in sorted(basis_glob):
-            file_names.append(basis_file.name)
-            with open(basis_file, "r") as f:
-                file_contents.append(f.read())
+            # TODO: Find out what to do with binary basis files formats
+            #file_names.append(basis_file.name)
+            #with open(basis_file, "r") as f:
+            #    file_contents.append(f.read())
             basis.append(
                 sisl.get_sile(basis_file).read_basis()
             )
 
         obj = cls(basis)
-        obj.file_names = file_names
-        obj.file_contents = file_contents
+        #obj.file_names = file_names
+        #obj.file_contents = file_contents
         return obj
 
     def _set_state_by_atoms(self, atoms: Sequence[sisl.Atom]):
