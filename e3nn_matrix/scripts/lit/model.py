@@ -59,7 +59,8 @@ class LitOrbitalMatrixModel(pl.LightningModule):
 
         loss, stats = self.loss_fn(
             nodes_pred=out['node_labels'], nodes_ref=batch['atom_labels'],
-            edges_pred=out['edge_labels'], edges_ref=batch['edge_labels']
+            edges_pred=out['edge_labels'], edges_ref=batch['edge_labels'],
+            log_verbose=True
         )
 
         self.log("val_loss", loss, prog_bar=True, logger=True)
