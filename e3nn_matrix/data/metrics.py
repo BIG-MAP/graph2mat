@@ -54,6 +54,8 @@ def block_type_mse(nodes_pred, nodes_ref, edges_pred, edges_ref, log_verbose=Fal
         stats.update({
             "node_mean": abs_node_error.mean(),
             "edge_mean": abs_edge_error.mean(),
+            "node_std": abs_node_error.std(),
+            "edge_std": abs_edge_error.std(),
             "node_max": abs_node_error.max(),
             "edge_max": abs_edge_error.max(),
         })
@@ -84,6 +86,8 @@ def elementwise_mse(nodes_pred, nodes_ref, edges_pred, edges_ref, log_verbose=Fa
         stats.update({
             "node_mean": abs_node_error.mean(),
             "edge_mean": abs_edge_error.mean(),
+            "node_std": abs_node_error.std(),
+            "edge_std": abs_edge_error.std(),
             "node_max": abs_node_error.max(),
             "edge_max": abs_edge_error.max(),
         })
@@ -109,6 +113,8 @@ def node_mse(nodes_pred, nodes_ref, edges_pred, edges_ref, log_verbose=False, **
         stats.update({
             "node_mean": abs_node_error.mean(),
             "edge_mean": abs_edge_error.mean(),
+            "node_std": abs_node_error.std(),
+            "edge_std": abs_edge_error.std(),
             "node_max": abs_node_error.max(),
             "edge_max": abs_edge_error.max(),
         })
@@ -134,6 +140,8 @@ def edge_mse(nodes_pred, nodes_ref, edges_pred, edges_ref, log_verbose=False, **
         stats.update({
             "node_mean": abs_node_error.mean(),
             "edge_mean": abs_edge_error.mean(),
+            "node_std": abs_node_error.std(),
+            "edge_std": abs_edge_error.std(),
             "node_max": abs_node_error.max(),
             "edge_max": abs_edge_error.max(),
         })
@@ -172,6 +180,8 @@ def block_type_mse_threshold(nodes_pred, nodes_ref, edges_pred, edges_ref, thres
         stats.update({
             "node_mean": abs_node_error.mean(),
             "edge_mean": abs_edge_error.mean(),
+            "node_std": abs_node_error.std(),
+            "edge_std": abs_edge_error.std(),
             "node_max": abs_node_error.max(),
             "edge_max": abs_edge_error.max(),
         })
@@ -219,6 +229,8 @@ def block_type_mse_sigmoid_thresh(nodes_pred, nodes_ref, edges_pred, edges_ref,
         stats.update({
             "node_mean": abs_node_error.mean(),
             "edge_mean": abs_edge_error.mean(),
+            "node_std": abs_node_error.std(),
+            "edge_std": abs_edge_error.std(),
             "node_max": abs_node_error.max(),
             "edge_max": abs_edge_error.max(),
         })
