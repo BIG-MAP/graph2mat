@@ -1,7 +1,8 @@
-from typing import List, Sequence, Union, Generator, Iterable
+from typing import List, Sequence, Union, Generator, Iterable, Optional
 
 import itertools
 from pathlib import Path
+from io import StringIO
 
 import numpy as np
 import sisl
@@ -35,6 +36,11 @@ class AtomicTableWithEdges(AtomicNumberTable):
     atom_block_size: np.ndarray
     edge_block_shape: np.ndarray
     edge_block_size: np.ndarray
+
+    # These are used for saving the object in a more
+    # human readable and portable way than regular pickling.
+    file_names: Optional[List[str]]
+    file_contents: Optional[List[str]]
 
     def __init__(self, atoms: Sequence[sisl.Atom]):
         from .matrices.density_matrix import get_atomic_DM
@@ -78,6 +84,9 @@ class AtomicTableWithEdges(AtomicNumberTable):
         atom_combinations = np.array(list(itertools.combinations_with_replacement(range(natoms), 2))).T
         self.edge_block_shape = self.basis_size[atom_combinations]
         self.edge_block_size = self.edge_block_shape.prod(axis=0)
+
+        self.file_names = None
+        self.file_contents = None
 
     def __eq__(self, other):
         same = all(x==y for x, y in itertools.zip_longest(self.atoms, other.atoms))
@@ -124,12 +133,53 @@ class AtomicTableWithEdges(AtomicNumberTable):
             basis_glob = Path().glob(basis_glob)
 
         basis = []
+        file_names = []
+        file_contents = []
         for basis_file in sorted(basis_glob):
+            file_names.append(basis_file.name)
+            with open(basis_file, "r") as f:
+                file_contents.append(f.read())
             basis.append(
                 sisl.get_sile(basis_file).read_basis()
             )
 
-        return cls(basis)
+        obj = cls(basis)
+        obj.file_names = file_names
+        obj.file_contents = file_contents
+        return obj
+
+    def _set_state_by_atoms(self, atoms: Sequence[sisl.Atom]):
+        self.__init__(atoms)
+
+    def _set_state_by_filecontents(self, file_names: List[str], file_contents: List[str]):
+        assert len(file_names) == len(file_contents)
+        atom_list = []
+        for fname, fcontents in zip(file_names, file_contents):
+            f = StringIO(fcontents)
+            sile_class = sisl.get_sile_class(fname)
+            with sile_class(f) as sile:
+                 atom_list.append(sile.read_basis())
+        self.__init__(atom_list)
+        self.file_names = file_names.copy()
+        self.file_contents = file_contents.copy()
+
+    # Create pickling routines
+    def __getstate__(self):
+        """ Return the state of this object """
+        if self.file_names is not None and self.file_contents is not None:
+            return {"file_names": self.file_names,
+                    "file_contents": self.file_contents}
+        else:
+            return {"atoms": self.atoms}
+
+    def __setstate__(self, d):
+        """ Re-create the state of this object """
+        file_names = d.get("file_names")
+        file_contents = d.get("file_contents")
+        if file_names is not None and file_contents is not None:
+            self._set_state_by_filecontents(file_names, file_contents)
+        else:
+            self._set_state_by_atoms(d["atoms"])
 
 def get_atomic_number_table_from_zs(zs: Iterable[int]) -> AtomicNumberTable:
     z_set = set()
