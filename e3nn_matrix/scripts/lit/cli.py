@@ -1,6 +1,7 @@
 from typing import Dict, Set
 import os
 from pytorch_lightning.cli import LightningCLI
+import torch
 
 class OrbitalMatrixCLI(LightningCLI):
     def add_arguments_to_parser(self, parser):
@@ -65,3 +66,29 @@ class OrbitalMatrixCLI(LightningCLI):
         subcmd_dict = super(OrbitalMatrixCLI, OrbitalMatrixCLI).subcommands()
         subcmd_dict["serve"] = {"model", "datamodule"}
         return subcmd_dict
+
+    def before_instantiate_classes(self) -> None:
+        # This is executed after config/argparser has been instanced
+        # but before data and model has been instantiated.
+
+        # The data module can not load the z_table from a checkpoint
+        # because when checkpoint loading happens, the data loaders
+        # might already be instanced.
+        # Therefore we try to load the z_table from checkpoint and
+        # put it in the config as an object before the data module is loaded.
+        self._load_z_table_from_checkpoint()
+
+    def _load_z_table_from_checkpoint(self):
+        # Check if ckpt_path is given in subcommand
+        subcommand = self.config.subcommand
+        # Get namespace for current subcommand
+        config_ns = getattr(self.config, subcommand)
+        # Get the path of the checkpoint
+        ckpt_path = getattr(config_ns, "ckpt_path", None)
+        if ckpt_path:
+            # Load the z_table and assign to model and data
+            checkpoint = torch.load(ckpt_path)
+            z_table = checkpoint.get("z_table")
+            if z_table:
+                config_ns.data.z_table = z_table
+                config_ns.model.z_table = z_table
