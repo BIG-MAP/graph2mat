@@ -43,6 +43,7 @@ class LitOrbitalMatrixMACE(LitOrbitalMatrixModel):
         only_last_readout: bool = False,
         optim_wdecay: float=5e-7,
         optim_amsgrad: bool=True,
+        optim_lr: float=1e-3,
         loss: Type[OrbitalMatrixMetric] = block_type_mse,
         ):
 
@@ -126,7 +127,7 @@ class LitOrbitalMatrixMACE(LitOrbitalMatrixModel):
                     "weight_decay": 0.0,
                 },
             ],
-            lr=1e-3,
+            lr=self.hparams.optim_lr,
             amsgrad=amsgrad,
         )
 
