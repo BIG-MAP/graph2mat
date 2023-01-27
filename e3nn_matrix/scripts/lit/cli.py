@@ -86,8 +86,12 @@ class OrbitalMatrixCLI(LightningCLI):
         # Get the path of the checkpoint
         ckpt_path = getattr(config_ns, "ckpt_path", None)
         if ckpt_path:
-            # Load the z_table and assign to model and data
-            checkpoint = torch.load(ckpt_path)
+            # Load the z_table and assign to model and data.
+            # We only need the z_table data, which contains numpy arrays, but
+            # the checkpoint contains the whole model, with torch tensors. The torch tensors might be located
+            # on GPU (or any other device), which is possibly not available when we load the checkpoint. Map
+            # those tensors to CPU so that there are no loading errors.
+            checkpoint = torch.load(ckpt_path, map_location=torch.device('cpu'))
             z_table = checkpoint.get("z_table")
             if z_table:
                 config_ns.data.z_table = z_table
