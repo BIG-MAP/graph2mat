@@ -1,5 +1,5 @@
 import logging
-import multiprocessing
+from torch import multiprocessing
 from pathlib import Path
 from typing import Sequence, Union, Optional
 import threading
