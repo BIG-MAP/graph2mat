@@ -1,9 +1,10 @@
 from pathlib import Path
 from typing import Optional, Union
-import socket
-import logging
+import contextlib
+import copy
 
 from pytorch_lightning import Trainer, LightningModule, LightningDataModule
+import numpy as np
 import torch
 import sisl
 
@@ -76,17 +77,72 @@ class MatrixTrainer(Trainer):
             args = request.args
             input_file = args.get('geometry', 'siesta.XV')
             out_file = args.get('output', output_file)
+            out_force_file = args.get('output_force', None)
+            out_grad_file = args.get('output_grad', None)
 
             runfile = Path(input_file)
             config = load_orbital_config_from_run(runfile, out_matrix=None)
+
             matrix_data = OrbitalMatrixData.from_config(
                 config,
                 z_table=model.z_table,
                 sub_atomic_matrix=datamodule.sub_atomic_matrix,
                 symmetric_matrix=model.hparams.symmetric_matrix,
             )
-            with torch.no_grad():
-                prediction = model(matrix_data)
+
+            if out_force_file is None and out_grad_file is None:
+                # No gradients are needed, calculate with no_grad contextmanager
+                grad_ctxt = torch.no_grad()
+            else:
+                grad_ctxt = contextlib.nullcontext()
+
+            # Load hamiltonian matrix if available
+            if out_force_file is not None:
+                config = load_orbital_config_from_run(runfile, out_matrix="hamiltonian")
+                hamiltonian_matrix_data = OrbitalMatrixData.from_config(
+                    config,
+                    z_table=model.z_table,
+                    sub_atomic_matrix=False,
+                    symmetric_matrix=False,
+                )
+            else:
+                hamiltonian_matrix_data = None
+
+            # Run model
+            with grad_ctxt:
+                prediction = model(matrix_data,
+                    calculate_forces=(out_force_file is not None),
+                    calculate_grads=(out_grad_file is not None),
+                    hamiltonian=hamiltonian_matrix_data
+                )
+
+            # Write forces to file
+            if out_force_file is not None:
+                # Convert to numpy
+                out_forces = prediction["forces"].numpy(force=True)
+                path = matrix_data.metadata["path"]
+                output_force_path = path.parent / out_force_file
+                np.savetxt(output_force_path, out_forces)
+
+            # Write gradients to file
+            if out_grad_file is not None:
+                grad_matrix_data = copy.copy(matrix_data)
+                pred_grad = {"node_labels": prediction["node_grads"],
+                        "edge_labels": prediction["edge_grads"]
+                        }
+
+                path = matrix_data.metadata["path"]
+                output_grad_path = path.parent / out_grad_file
+                _write_matrix_data_to_file(
+                    output_grad_path,
+                    grad_matrix_data,
+                    model.z_table,
+                    sisl.SparseOrbital,
+                    symmetric_matrix=False,
+                    sub_atomic_matrix=False,
+                    prediction=pred_grad)
+
+
 
             path = matrix_data.metadata["path"]
             output_path = path.parent / out_file
