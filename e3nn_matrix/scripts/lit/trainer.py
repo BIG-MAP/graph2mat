@@ -47,7 +47,11 @@ class MatrixTrainer(Trainer):
         """
         from flask import Flask, request
 
-        model = model.load_from_checkpoint(ckpt_path)
+        # Instantiate new model from checkpoint. The hyperparameters of the
+        # current model are not from the checkpoint, except for the z_table,
+        # so we need to instantiate a new model by calling the
+        # load_from_checkpoint class method
+        model = model.load_from_checkpoint(ckpt_path, z_table=model.z_table)
         model.eval()
 
         # Find out which matrix class we should use based on what matrix type the data
