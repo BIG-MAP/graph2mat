@@ -14,11 +14,30 @@ from e3nn_matrix.data.periodic_table import AtomicTableWithEdges
 #from e3nn_matrix.bindings.mace.lit import LitOrbitalMatrixMACE
 
 def _write_matrix_data_to_file(filename: Union[Path,str], matrix_data: OrbitalMatrixData, z_table: AtomicTableWithEdges, matrix_cls, symmetric_matrix: bool, sub_atomic_matrix: bool, prediction=None):
-    if prediction is not None:
-        matrix_data.atom_labels = prediction['node_labels']
-        matrix_data.edge_labels = prediction['edge_labels']
+    matrix_data_cp = copy.deepcopy(matrix_data)
 
-    sparse_orbital_matrix = matrix_data.to_sparse_orbital_matrix(z_table, matrix_cls, symmetric_matrix, sub_atomic_matrix)
+    if prediction is not None:
+        matrix_data_cp.atom_labels = prediction['node_labels']
+        matrix_data_cp.edge_labels = prediction['edge_labels']
+
+    if len(matrix_data_cp.atom_labels.shape) > 1:
+        # More than one element per node and edge
+        assert matrix_data_cp.edge_labels.shape[1:] == matrix_data_cp.atom_labels.shape[1:]
+        flat_atom = matrix_data_cp.atom_labels.flatten(start_dim=1, end_dim=-1)
+        flat_edge = matrix_data_cp.edge_labels.flatten(start_dim=1, end_dim=-1)
+        sparse_matrices = []
+        # Create a sparse matrix for each label
+        for atom, edge in zip(torch.unbind(flat_atom, dim=1), torch.unbind(flat_edge, dim=1)):
+            matrix_data_cp.atom_labels = atom
+            matrix_data_cp.edge_labels = edge
+            sparse_orbital_matrix = matrix_data_cp.to_sparse_orbital_matrix(z_table, matrix_cls, symmetric_matrix, sub_atomic_matrix)
+            geometry = sparse_orbital_matrix.geometry
+            sparse_matrices.append(sparse_orbital_matrix.tocsr())
+        # Concatenate the sparse matrices to a single sparse NxNxM matrix
+        sparse_orbital_matrix = matrix_cls.fromsp(geometry, sparse_matrices)
+    else:
+        sparse_orbital_matrix = matrix_data_cp.to_sparse_orbital_matrix(z_table, matrix_cls, symmetric_matrix, sub_atomic_matrix)
+
     # And write the matrix to it.
     sparse_orbital_matrix.write(filename)
 
@@ -126,7 +145,6 @@ class MatrixTrainer(Trainer):
 
             # Write gradients to file
             if out_grad_file is not None:
-                grad_matrix_data = copy.copy(matrix_data)
                 pred_grad = {"node_labels": prediction["node_grads"],
                         "edge_labels": prediction["edge_grads"]
                         }
@@ -135,10 +153,10 @@ class MatrixTrainer(Trainer):
                 output_grad_path = path.parent / out_grad_file
                 _write_matrix_data_to_file(
                     output_grad_path,
-                    grad_matrix_data,
+                    matrix_data,
                     model.z_table,
-                    sisl.SparseOrbital,
-                    symmetric_matrix=False,
+                    matrix_cls,
+                    symmetric_matrix=model.hparams.symmetric_matrix,
                     sub_atomic_matrix=False,
                     prediction=pred_grad)
 
