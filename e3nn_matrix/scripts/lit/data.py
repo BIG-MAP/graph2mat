@@ -4,7 +4,9 @@ from pathlib import Path
 from typing import Optional
 import tempfile
 import logging
+import os
 import shutil
+import uuid
 
 import pytorch_lightning as pl
 import numpy as np
@@ -88,14 +90,19 @@ class MatrixDataModule(pl.LightningDataModule):
         self.copy_root_to_tmp = copy_root_to_tmp
         self.store_in_memory = store_in_memory
         self.rotating_pool_size = rotating_pool_size
+        self.prepare_data_per_node = True
+        if self.copy_root_to_tmp:
+            self.tmp_dir = Path(tempfile.gettempdir()) / ("e3nn_matrix_data_%d_%s" % (os.getpid(), str(uuid.uuid4())))
+        else:
+            self.tmp_dir = None
+
 
     def prepare_data(self):
         if self.copy_root_to_tmp:
-            self.tmp_dir = tempfile.mkdtemp(prefix="e3nn_matrix_data")
+            assert self.tmp_dir is not None
+            os.makedirs(self.tmp_dir)
             logging.info("copying %s to %s" % (self.root_dir, self.tmp_dir))
             shutil.copytree(self.root_dir, self.tmp_dir, dirs_exist_ok=True)
-        else:
-            self.tmp_dir = None
 
     def teardown(self, stage:str):
         if self.tmp_dir is not None:
