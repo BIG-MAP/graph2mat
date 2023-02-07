@@ -2,6 +2,7 @@ from pathlib import Path
 from typing import Optional, Union
 import contextlib
 import copy
+import pickle
 
 from pytorch_lightning import Trainer, LightningModule, LightningDataModule
 import numpy as np
@@ -39,7 +40,11 @@ def _write_matrix_data_to_file(filename: Union[Path,str], matrix_data: OrbitalMa
         sparse_orbital_matrix = matrix_data_cp.to_sparse_orbital_matrix(z_table, matrix_cls, symmetric_matrix, sub_atomic_matrix)
 
     # And write the matrix to it.
-    sparse_orbital_matrix.write(filename)
+    if Path(filename).suffix == ".pkl":
+        with open(filename, "wb") as f:
+            pickle.dump(sparse_orbital_matrix, f)
+    else:
+        sparse_orbital_matrix.write(filename)
 
 
 class MatrixTrainer(Trainer):
@@ -155,7 +160,7 @@ class MatrixTrainer(Trainer):
                     output_grad_path,
                     matrix_data,
                     model.z_table,
-                    matrix_cls,
+                    sisl.SparseOrbital,
                     symmetric_matrix=model.hparams.symmetric_matrix,
                     sub_atomic_matrix=False,
                     prediction=pred_grad)
