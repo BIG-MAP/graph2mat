@@ -1,7 +1,9 @@
 from typing import Dict, Set
+import copy
 import os
-from pytorch_lightning.cli import LightningCLI
+from pytorch_lightning.cli import LightningCLI, SaveConfigCallback, LightningArgumentParser
 import torch
+from jsonargparse import Namespace
 
 class OrbitalMatrixCLI(LightningCLI):
     def add_arguments_to_parser(self, parser):
@@ -96,3 +98,27 @@ class OrbitalMatrixCLI(LightningCLI):
             if z_table:
                 config_ns.data.z_table = z_table
                 config_ns.model.z_table = z_table
+
+class SaveConfigSkipZTableCallback(SaveConfigCallback):
+    def __init__(
+        self,
+        parser: LightningArgumentParser,
+        config: Namespace,
+        config_filename: str = "config.yaml",
+        overwrite: bool = False,
+        multifile: bool = False,
+    ) -> None:
+        # Make a shallow copy of config and overwrite z_table argument
+        # to not save z_table to yaml which makes no sense
+        config = copy.copy(config)
+        if hasattr(config.data, "z_table"):
+            config.data.z_table = None
+            config.model.z_table = None
+        super().__init__(
+            parser=parser,
+            config=config,
+            config_filename=config_filename,
+            overwrite=overwrite,
+            multifile=multifile,
+        )
+
