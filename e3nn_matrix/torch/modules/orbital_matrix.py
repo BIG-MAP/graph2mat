@@ -236,7 +236,8 @@ class OrbitalMatrixReadout(torch.nn.Module):
                         block_symmetry=blocks_symmetry,
                         operation=edge_operation,
                         # Input parameters coming from the graph
-                        edge_feats_irreps=edge_hidden_irreps,
+                        edge_feats_irreps=edge_feats_irreps,
+                        edge_messages_irreps=edge_hidden_irreps,
                         node_feats_irreps=node_feats_irreps,
                     )
                 )

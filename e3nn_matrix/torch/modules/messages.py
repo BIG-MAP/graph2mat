@@ -38,6 +38,7 @@ class EdgeMessageBlock(torch.nn.Module):
         )
 
         # Convolution weights
+        assert edge_feats_irreps.lmax == 0, "Edge features must be a scalar array to preserve equivariance"
         input_dim = edge_feats_irreps.num_irreps
         self.conv_tp_weights = nn.FullyConnectedNet(
             [input_dim] + 3 * [64] + [self.conv_tp.weight_numel], torch.nn.SiLU(),
