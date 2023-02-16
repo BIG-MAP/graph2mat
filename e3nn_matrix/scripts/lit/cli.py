@@ -58,6 +58,7 @@ class OrbitalMatrixCLI(LightningCLI):
             },
         ]
         defaults["trainer.callbacks"] = default_callbacks
+        parser.add_argument("--multiprocessing_sharing_strategy", default="", type=str)
 
         parser.set_defaults(defaults)
 
@@ -79,6 +80,12 @@ class OrbitalMatrixCLI(LightningCLI):
         # Therefore we try to load the z_table from checkpoint and
         # put it in the config as an object before the data module is loaded.
         self._load_z_table_from_checkpoint()
+
+        import torch.multiprocessing
+        config_ns = getattr(self.config, self.config.subcommand)
+        if config_ns.multiprocessing_sharing_strategy:
+            assert config_ns.multiprocessing_sharing_strategy in torch.multiprocessing.get_all_sharing_strategies()
+            torch.multiprocessing.set_sharing_strategy(config_ns.multiprocessing_sharing_strategy)
 
     def _load_z_table_from_checkpoint(self):
         # Check if ckpt_path is given in subcommand
