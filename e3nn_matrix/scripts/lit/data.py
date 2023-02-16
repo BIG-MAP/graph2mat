@@ -197,7 +197,7 @@ class MatrixDataModule(pl.LightningDataModule):
             data_handle = self.train_dataset.get_data_pool()
         else:
             data_handle = self.train_dataset
-        return DataLoader(data_handle, batch_size=self.batch_size, shuffle=True, drop_last=False, num_workers=self.hparams.loader_threads)
+        return DataLoader(data_handle, batch_size=self.batch_size, shuffle=True, drop_last=False, num_workers=self.hparams.loader_threads, persistent_workers=True)
 
     def val_dataloader(self):
         assert self.val_dataset is not None, "No validation data was provided, please set either the ``train_runs`` or the ``val_runs`` argument."
