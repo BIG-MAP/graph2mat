@@ -192,7 +192,12 @@ class MatrixDataModule(pl.LightningDataModule):
 
     def train_dataloader(self):
         assert self.train_dataset is not None, "No training data was provided, please set the ``train_runs`` argument."
-        return DataLoader(self.train_dataset, batch_size=self.batch_size, shuffle=True, drop_last=False, num_workers=self.hparams.loader_threads)
+        if self.rotating_pool_size:
+            assert isinstance(self.train_dataset, RotatingPoolData)
+            data_handle = self.train_dataset.get_data_pool()
+        else:
+            data_handle = self.train_dataset
+        return DataLoader(data_handle, batch_size=self.batch_size, shuffle=True, drop_last=False, num_workers=self.hparams.loader_threads, persistent_workers=bool(self.hparams.loader_threads))
 
     def val_dataloader(self):
         assert self.val_dataset is not None, "No validation data was provided, please set either the ``train_runs`` or the ``val_runs`` argument."

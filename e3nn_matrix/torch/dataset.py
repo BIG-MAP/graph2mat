@@ -1,5 +1,5 @@
 import logging
-import multiprocessing
+from torch import multiprocessing
 from pathlib import Path
 from typing import Sequence, Union, Optional
 import threading
@@ -89,13 +89,15 @@ class RotatingPoolData(torch.utils.data.Dataset):
         self.parent_data = dataset
         self.rng = np.random.default_rng()
         self.counter = SimpleCounter()
+        self.manager = multiprocessing.Manager()
         logging.debug("Filling rotating data pool of size %d" % pool_size)
-        self.data_pool = [
+        data_list = [
             self.parent_data[i]
             for i in self.rng.integers(
                 0, high=len(self.parent_data), size=self.pool_size, endpoint=False
             ).tolist()
         ]
+        self.data_pool = self.manager.list(data_list)
         self.loader_queue = multiprocessing.Queue(2)
 
         # Start loaders
@@ -117,3 +119,14 @@ class RotatingPoolData(torch.utils.data.Dataset):
 
     def __getitem__(self, index):
         return self.data_pool[index]
+
+    def get_data_pool(self):
+        """
+        Get the minimal dataset handle object for transfering to dataloader workers
+
+        Returns
+        -------
+            Multiprocessing proxy data object
+
+        """
+        return self.data_pool
