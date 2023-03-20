@@ -78,8 +78,6 @@ class ComputeNormalizedError(Callback):
         self.split = split
         self.grid_spacing = grid_spacing
         self._reset_counters()
-        if self.output_file is not None:
-            raise NotImplementedError("Writing the result to file is not yet implemented")
 
     def _reset_counters(self):
         self.total_error = 0.0
@@ -111,16 +109,15 @@ class ComputeNormalizedError(Callback):
         if self.split == "test":
             self._on_epoch_end(trainer, pl_module)
 
-
-    def on_train_batch_end(self, trainer, pl_module, outputs, batch, batch_idx):
+    def on_train_batch_end(self, trainer, pl_module, outputs, batch, batch_idx, dataloader_idx=None):
         if self.split == "train":
             self._on_batch_end(trainer, pl_module, outputs, batch, batch_idx, dataloader_idx)
 
-    def on_validation_batch_end(self, trainer, pl_module, outputs, batch, batch_idx, dataloader_idx):
+    def on_validation_batch_end(self, trainer, pl_module, outputs, batch, batch_idx, dataloader_idx=None):
         if self.split == "val":
             self._on_batch_end(trainer, pl_module, outputs, batch, batch_idx, dataloader_idx)
 
-    def on_test_batch_end(self, trainer, pl_module, outputs, batch, batch_idx, dataloader_idx):
+    def on_test_batch_end(self, trainer, pl_module, outputs, batch, batch_idx, dataloader_idx=None):
         if self.split == "test":
             self._on_batch_end(trainer, pl_module, outputs, batch, batch_idx, dataloader_idx)
 
@@ -143,33 +140,29 @@ class ComputeNormalizedError(Callback):
             "dynamical_matrix": sisl.DynamicalMatrix,
         }[trainer.datamodule.out_matrix]
 
-        matrix_iter_pred = batch_to_sparse_orbital(
+        matrix_iter_pred = batch_to_orbital_matrix_data(
             batch,
-            z_table,
-            matrix_cls,
             outputs,
-            symmetric_matrix,
-            trainer.datamodule.sub_atomic_matrix
-        )
-        matrix_iter_ref = batch_to_sparse_orbital(
-            batch,
             z_table,
-            matrix_cls,
-            prediction=None,
-            symmetric_matrix=symmetric_matrix,
-            add_atomic_contribution=trainer.datamodule.sub_atomic_matrix,
+            symmetric_matrix,
+        )
+        matrix_iter_ref = batch_to_orbital_matrix_data(
+            batch,
         )
 
         # Get indices of data examples of current batch
         #batch_indices = trainer.predict_loop.epoch.current_batch_indices
         # Loop through structures in the batch
         for matrix_pred, matrix_ref in zip( matrix_iter_pred, matrix_iter_ref):
-            grid_pred = sisl.Grid(self.grid_spacing, geometry=matrix_pred.geometry)
-            grid_ref = sisl.Grid(self.grid_spacing, geometry=matrix_ref.geometry)
+            sp_matrix_pred = matrix_pred.to_sparse_orbital_matrix(z_table, matrix_cls, symmetric_matrix, trainer.datamodule.sub_atomic_matrix)
+            sp_matrix_ref = matrix_ref.to_sparse_orbital_matrix(z_table, matrix_cls, symmetric_matrix, trainer.datamodule.sub_atomic_matrix)
+
+            grid_pred = sisl.Grid(self.grid_spacing, geometry=sp_matrix_pred.geometry)
+            grid_ref = sisl.Grid(self.grid_spacing, geometry=sp_matrix_ref.geometry)
             np.testing.assert_array_equal(grid_pred.shape, grid_ref.shape)
 
-            matrix_pred.density(grid_pred)
-            matrix_ref.density(grid_ref)
+            sp_matrix_pred.density(grid_pred)
+            sp_matrix_ref.density(grid_ref)
             grid_abs_error = abs(grid_pred - grid_ref)
             this_config_error = grid_abs_error.grid.sum()
             this_config_electrons = grid_ref.grid.sum()
@@ -183,11 +176,10 @@ class ComputeNormalizedError(Callback):
 
 
             if self.output_file is not None:
-                # Write in same dir from which this structure was read.
-                # TODO: write to file, but there is currently different
-                # convention between predict structures and other structures
-                #path = paths[data_idx].parent / self.output_file 
-                pass
+                path = matrix_ref.metadata["path"].parent / self.output_file
+                with open(path, "w") as f:
+                    print(path)
+                    f.write("%.9f\n" % this_config_norm_error)
 
     def _on_epoch_end(self, trainer, pl_module):
         avg_per_config_error = self.per_config_total_error / self.total_num_configs
