@@ -62,7 +62,7 @@ class MatrixWriter(BasePredictionWriter):
             sparse_orbital_matrix.write(path.parent / self.output_file)
 
 class ComputeNormalizedError(Callback):
-    def __init__(self, split: Literal["train", "val", "test"]="test", output_file:Union[Path,str,None]=None, grid_spacing: float=0.1, single_file_output: bool=False):
+    def __init__(self, split: Literal["train", "val", "test"]="test", output_file:Union[Path,str,None]=None, grid_spacing: float=0.1, output_single_file: bool=False):
         """
         Parameters
         ----------
@@ -77,7 +77,7 @@ class ComputeNormalizedError(Callback):
         self.output_file = output_file
         self.split = split
         self.grid_spacing = grid_spacing
-        self.single_file_output = single_file_output
+        self.output_single_file = output_single_file
         self._reset_counters()
 
     def _reset_counters(self):
@@ -178,7 +178,7 @@ class ComputeNormalizedError(Callback):
 
             if self.output_file is not None:
                 path = matrix_ref.metadata["path"].parent
-                if self.single_file_output:
+                if self.output_single_file:
                     self.output_fd.write("%s,%.9f\n" % (path, this_config_norm_error))
                 else:
                     with open(path / self.output_file, "w") as f:
@@ -191,12 +191,12 @@ class ComputeNormalizedError(Callback):
         pl_module.log("%s_avg_per_config_error_percent" % self.split, avg_per_config_error*100, logger=True, on_epoch=True)
         pl_module.log("%s_avg_error_percent" % self.split, avg_error*100, logger=True, on_epoch=True)
 
-        if self.output_file is not None and self.single_file_output:
+        if self.output_file is not None and self.output_single_file:
             self.output_fd.close()
 
     def _on_epoch_start(self, trainer, pl_module):
         self._reset_counters()
-        if self.output_file is not None and self.single_file_output:
+        if self.output_file is not None and self.output_single_file:
             self.output_fd = open(self.output_file, "w")
 
 
