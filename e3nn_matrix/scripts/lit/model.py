@@ -8,6 +8,7 @@ import torch
 #from context import mace
 from e3nn_matrix.data.metrics import OrbitalMatrixMetric, block_type_mse
 from e3nn_matrix.data.periodic_table import AtomicTableWithEdges
+from e3nn_matrix import __version__
 
 class LitOrbitalMatrixModel(pl.LightningModule):
     model: torch.nn.Module
@@ -91,6 +92,7 @@ class LitOrbitalMatrixModel(pl.LightningModule):
     def on_save_checkpoint(self, checkpoint) -> None:
         "Objects to include in checkpoint file"
         checkpoint["z_table"] = self.z_table
+        checkpoint["version"] = __version__
 
     def on_load_checkpoint(self, checkpoint) -> None:
         "Objects to retrieve from checkpoint file"
@@ -98,3 +100,13 @@ class LitOrbitalMatrixModel(pl.LightningModule):
             self.z_table = checkpoint["z_table"]
         except KeyError:
             warnings.warn("Failed to load z_table from checkpoint: Key does not exist.")
+
+        try:
+            ckpt_version = checkpoint["version"]
+        except KeyError:
+            ckpt_version = None
+            warnings.warn("Unable to determine version that created checkpoint file")
+        if ckpt_version:
+            if not (ckpt_version == __version__):
+                warnings.warn("The checkpoint version %s does not match the current package version %s" % (ckpt_version, __version__))
+
