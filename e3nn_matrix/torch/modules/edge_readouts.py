@@ -68,15 +68,12 @@ class EdgeBlockNodeMix(EdgeBlock):
         # Network to reduce node representations to scalar features
         self.nodes_linear = o3.Linear(node_feats_irreps, edge_feats_irreps)
 
-        # Tensor product between edge features from sender and receiver
-        self.edges_tp = o3.FullyConnectedTensorProduct(edge_messages_irreps, edge_messages_irreps, irreps_out)
-
-
         # The weights of the tensor are produced by a fully connected neural network
         # that takes the scalar representations of nodes and edges as input
         irreps_mid, instructions = tp_out_irreps_with_instructions(
             edge_messages_irreps, edge_messages_irreps, irreps_out,
         )
+        # Tensor product between edge features from sender and receiver
         self.edges_tp = o3.TensorProduct(
             edge_messages_irreps,
             edge_messages_irreps,
