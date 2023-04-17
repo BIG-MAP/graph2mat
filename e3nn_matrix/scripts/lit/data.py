@@ -6,7 +6,6 @@ import tempfile
 import logging
 import os
 import shutil
-import uuid
 
 import pytorch_lightning as pl
 import numpy as np
@@ -92,7 +91,7 @@ class MatrixDataModule(pl.LightningDataModule):
         self.rotating_pool_size = rotating_pool_size
         self.prepare_data_per_node = True
         if self.copy_root_to_tmp:
-            self.tmp_dir = Path(tempfile.gettempdir()) / ("e3nn_matrix_data_%d_%s" % (os.getpid(), str(uuid.uuid4())))
+            self.tmp_dir = Path(tempfile.gettempdir()) / "e3nn_matrix"
         else:
             self.tmp_dir = None
 
