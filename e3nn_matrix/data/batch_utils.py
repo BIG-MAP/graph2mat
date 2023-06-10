@@ -50,7 +50,6 @@ def batch_to_orbital_matrix_data(
 
         edge_labels_ptr = z_table.edge_block_pointer(edge_types)
 
-
         # Loop through structures in the batch
         for i, (atom_start, edge_start) in enumerate(zip(atom_ptr[:-1], edge_ptr[:-1])):
             atom_end = atom_ptr[i + 1]
@@ -59,16 +58,18 @@ def batch_to_orbital_matrix_data(
             # Get one example from batch
             example = batch.get_example(i)
             # Override node and edge labels if predictions are given
-            node_labels = prediction['node_labels'].numpy(force=True)
-            edge_labels = prediction['edge_labels'].numpy(force=True)
+            node_labels = prediction['node_labels']
+            edge_labels = prediction['edge_labels']
             new_atom_label = node_labels[node_labels_ptr[atom_start]:node_labels_ptr[atom_end]]
             new_edge_label = edge_labels[edge_labels_ptr[edge_start]:edge_labels_ptr[edge_end]]
+
             if example.atom_labels is not None:
-                np.testing.assert_array_equal(new_atom_label.shape, example.atom_labels.numpy(force=True).shape)
+                assert len(new_atom_label) == len(example.atom_labels)
             if example.edge_labels is not None:
-                np.testing.assert_array_equal(new_edge_label.shape, example.edge_labels.numpy(force=True).shape)
-            example.atom_labels = torch.tensor(new_atom_label)
-            example.edge_labels = torch.tensor(new_edge_label)
+                assert len(new_edge_label) == len(example.edge_labels)
+                
+            example.atom_labels = new_atom_label
+            example.edge_labels = new_edge_label
             yield example
     else:
         for i in range(batch.num_graphs):

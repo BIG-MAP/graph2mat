@@ -1,16 +1,18 @@
 """Pytorch_lightning callbacks for I/O, progress tracking and visualization, etc..."""
 from pathlib import Path
-from typing import Sequence, Union, Literal, Dict, Any
+from typing import Sequence, Union, Literal, Dict, Any, Type
 import io
+import csv
 
 import pytorch_lightning as pl
 from pytorch_lightning.callbacks import BasePredictionWriter, Callback
 import sisl
 import numpy as np
 
-from e3nn_matrix.data.batch_utils import batch_to_sparse_orbital, batch_to_orbital_matrix_data
+from e3nn_matrix.data.batch_utils import batch_to_orbital_matrix_data
 from e3nn_matrix.data.sparse import nodes_and_edges_to_sparse_orbital
 from e3nn_matrix.data.periodic_table import AtomicTableWithEdges
+from e3nn_matrix.data.metrics import OrbitalMatrixMetric
 from e3nn_matrix.viz import plot_orbital_matrix
 
 class MatrixWriter(BasePredictionWriter):
@@ -61,146 +63,132 @@ class MatrixWriter(BasePredictionWriter):
             # And write the matrix to it.
             sparse_orbital_matrix.write(path.parent / self.output_file)
 
-class ComputeNormalizedError(Callback):
-    def __init__(self, split: Literal["train", "val", "test"]="test", output_file:Union[Path,str,None]=None, grid_spacing: float=0.1, output_single_file: bool=False):
-        """
-        Parameters
-        ----------
-            split : Literal['train', 'val', 'test'] Select which split to calculate error on
-            output_file : Filename to write result to
-            grid_spacing : float, Grid spacing in Angstrom used for numerical integration
-        Raises
-        ------
-            NotImplementedError : If output_file is given
-        """
-        super().__init__()
-        self.output_file = output_file
-        self.split = split
-        self.grid_spacing = grid_spacing
-        self.output_single_file = output_single_file
-        self._reset_counters()
 
-    def _reset_counters(self):
-        self.total_error = 0.0
-        self.total_electrons = 0.0
-        self.per_config_total_error = 0.0
-        self.total_num_configs = 0.0
+class SamplewiseMetricsLogger(Callback):
+    """Creates a CSV file with multiple metrics for each sample of the dataset.
+    
+    This callback is needed because otherwise the metrics are computed and logged
+    on a per-batch basis.
+
+    Each row of the CSV file is a computation of all metrics for a single sample on a given epoch.
+    Therefore, the csv file contains the following columns: [sample_name, ...metrics..., split_key, epoch_index]
+
+    Parameters
+    ----------
+    metrics : Sequence[Type[OrbitalMatrixMetric]]
+        List of metrics to compute.
+    splits : Sequence[str], optional
+        List of splits for which to compute the metrics. Can be any combination of "train", "val", "test".
+    output_file : Union[str, Path], optional
+        Path to the output CSV file.
+    """
+
+    def __init__(self,
+        metrics: Sequence[Type[OrbitalMatrixMetric]],
+        splits: Sequence = ["test"], # I don't know why, but Sequence[str] breaks the lightning CLI
+        output_file: Union[str, Path] = "sample_metrics.csv"
+    ):
+        super().__init__()
+
+        if splits in ["train", "val", "test"]:
+            splits = [splits]
+        elif isinstance(splits, str):
+            raise ValueError(f"Invalid value for splits: {splits}")
+
+        self.splits = splits
+        self.metrics = [metric() for metric in metrics]
+        self.output_file = output_file
+
+        self._init_file()
 
     def on_train_epoch_start(self, trainer, pl_module):
-        if self.split == "train":
+        if "train" in self.splits:
             self._on_epoch_start(trainer, pl_module)
 
     def on_validation_epoch_start(self, trainer, pl_module):
-        if self.split == "val":
+        if "val" in self.splits:
             self._on_epoch_start(trainer, pl_module)
 
     def on_test_epoch_start(self, trainer, pl_module):
-        if self.split == "test":
+        if "test" in self.splits:
             self._on_epoch_start(trainer, pl_module)
 
     def on_train_epoch_end(self, trainer, pl_module):
-        if self.split == "train":
+        if "train" in self.splits:
             self._on_epoch_end(trainer, pl_module)
 
     def on_validation_epoch_end(self, trainer, pl_module):
-        if self.split == "val":
+        if "val" in self.splits:
             self._on_epoch_end(trainer, pl_module)
 
     def on_test_epoch_end(self, trainer, pl_module):
-        if self.split == "test":
+        if "test" in self.splits:
             self._on_epoch_end(trainer, pl_module)
 
     def on_train_batch_end(self, trainer, pl_module, outputs, batch, batch_idx, dataloader_idx=None):
-        if self.split == "train":
-            self._on_batch_end(trainer, pl_module, outputs, batch, batch_idx, dataloader_idx)
+        if "train" in self.splits:
+            self._on_batch_end("train", trainer, pl_module, outputs, batch, batch_idx, dataloader_idx)
 
     def on_validation_batch_end(self, trainer, pl_module, outputs, batch, batch_idx, dataloader_idx=None):
-        if self.split == "val":
-            self._on_batch_end(trainer, pl_module, outputs, batch, batch_idx, dataloader_idx)
+        if "val" in self.splits:
+            self._on_batch_end("val", trainer, pl_module, outputs, batch, batch_idx, dataloader_idx)
 
     def on_test_batch_end(self, trainer, pl_module, outputs, batch, batch_idx, dataloader_idx=None):
-        if self.split == "test":
-            self._on_batch_end(trainer, pl_module, outputs, batch, batch_idx, dataloader_idx)
-
-    def _on_batch_end(self, trainer, pl_module, outputs, batch, batch_idx, dataloader_idx):
-        # Get the list of paths from which the batch was generated.
-        #paths = trainer.datamodule.predict_paths
-        # And the atomic table, which will help us constructing the matrices from
-        # the batched flat arrays.
-        z_table: AtomicTableWithEdges = trainer.datamodule.z_table
-        # Find out whether the model was trained with the imposition that the matrix
-        # is symmetric.
-        symmetric_matrix = trainer.datamodule.symmetric_matrix
-
-        # Find out which matrix class we should use based on what matrix type the data
-        # has been trained on.
-        matrix_cls = {
-            "density_matrix": sisl.DensityMatrix,
-            "energy_density_matrix": sisl.EnergyDensityMatrix,
-            "hamiltonian": sisl.Hamiltonian,
-            "dynamical_matrix": sisl.DynamicalMatrix,
-        }[trainer.datamodule.out_matrix]
-
-        matrix_iter_pred = batch_to_orbital_matrix_data(
-            batch,
-            outputs,
-            z_table,
-            symmetric_matrix,
-        )
-        matrix_iter_ref = batch_to_orbital_matrix_data(
-            batch,
-        )
-
-        # Get indices of data examples of current batch
-        #batch_indices = trainer.predict_loop.epoch.current_batch_indices
-        # Loop through structures in the batch
-        for matrix_pred, matrix_ref in zip( matrix_iter_pred, matrix_iter_ref):
-            sp_matrix_pred = matrix_pred.to_sparse_orbital_matrix(z_table, matrix_cls, symmetric_matrix, trainer.datamodule.sub_atomic_matrix)
-            sp_matrix_ref = matrix_ref.to_sparse_orbital_matrix(z_table, matrix_cls, symmetric_matrix, trainer.datamodule.sub_atomic_matrix)
-
-            grid_pred = sisl.Grid(self.grid_spacing, geometry=sp_matrix_pred.geometry)
-            grid_ref = sisl.Grid(self.grid_spacing, geometry=sp_matrix_ref.geometry)
-            np.testing.assert_array_equal(grid_pred.shape, grid_ref.shape)
-
-            sp_matrix_pred.density(grid_pred)
-            sp_matrix_ref.density(grid_ref)
-            grid_abs_error = abs(grid_pred - grid_ref)
-            this_config_error = grid_abs_error.grid.sum()
-            this_config_electrons = grid_ref.grid.sum()
-            this_config_norm_error = this_config_error/this_config_electrons
-
-            # Summarize in global counters
-            self.per_config_total_error += this_config_norm_error
-            self.total_error += this_config_error
-            self.total_electrons += this_config_electrons
-            self.total_num_configs += 1
-
-
-            if self.output_file is not None:
-                path = matrix_ref.metadata["path"].parent
-                if self.output_single_file:
-                    self.output_fd.write("%s,%.9f\n" % (path, this_config_norm_error))
-                else:
-                    with open(path / self.output_file, "w") as f:
-                        f.write("%.9f\n" % this_config_norm_error)
-
-    def _on_epoch_end(self, trainer, pl_module):
-        avg_per_config_error = self.per_config_total_error / self.total_num_configs
-        avg_error = self.total_error / self.total_electrons
-
-        pl_module.log("%s_avg_per_config_error_percent" % self.split, avg_per_config_error*100, logger=True, on_epoch=True)
-        pl_module.log("%s_avg_error_percent" % self.split, avg_error*100, logger=True, on_epoch=True)
-
-        if self.output_file is not None and self.output_single_file:
-            self.output_fd.close()
+        if "test" in self.splits:
+            self._on_batch_end("test", trainer, pl_module, outputs, batch, batch_idx, dataloader_idx)
 
     def _on_epoch_start(self, trainer, pl_module):
-        self._reset_counters()
-        if self.output_file is not None and self.output_single_file:
-            self.output_fd = open(self.output_file, "w")
+        self.open_file_handle()
 
+    def _on_batch_end(self, split, trainer, pl_module, outputs, batch, batch_idx, dataloader_idx):
+        # Get the atomic table, which some metrics might need.
+        z_table: AtomicTableWithEdges = trainer.datamodule.z_table
 
+        # Compute all the metrics
+        metrics = [
+            metric(
+                nodes_pred=batch.atom_labels - 1, nodes_ref=batch.atom_labels, 
+                edges_pred=batch.edge_labels, edges_ref=batch.edge_labels, batch=batch,
+                z_table=z_table, config_resolved=True, 
+                symmetric_matrix=trainer.datamodule.symmetric_matrix,
+            )[0] for metric in self.metrics
+        ]
 
+        # Concatenate them (if we wish to accumulate them) TODO
+
+        # Get the index of the current epoch
+        current_epoch = trainer.current_epoch
+        # And the names of the samples that we are going to log
+        sample_names = [Path(metadata["path"]).parent.name for metadata in batch.metadata]
+
+        # Create an iterator that will return the data to be written to the CSV file for each row.
+        # That is, first the sample name, then the metrics, and finally the split and the epoch index.
+        iterator = ([sample_names[i], *data, split, current_epoch] for i, data in enumerate(np.array(metrics).T))
+
+        # Write the data
+        self.csv_writer.writerows(iterator)
+    
+    def _on_epoch_end(self, trainer, pl_module):
+        self.close_file_handle()
+
+    def _init_file(self):
+        # Open the file
+        with open(self.output_file, "w", newline="") as csv_file:
+            # And write the headers, i.e. column names
+            metric_names=[metric.__class__.__name__ for metric in self.metrics]
+            fieldnames = ["sample_name", *metric_names, "split", "epoch"]
+
+            csv_writer = csv.writer(csv_file)
+
+            csv_writer.writerow(fieldnames)
+
+    def open_file_handle(self):
+        # Open the file
+        self.output_fd = open(self.output_file, "a", newline="")
+        self.csv_writer = csv.writer(self.output_fd)
+
+    def close_file_handle(self):
+        self.output_fd.close()    
 
 
 class PlotMatrixValidationError(Callback):

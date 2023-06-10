@@ -18,15 +18,18 @@ def density_matrix(periodic):
 
     rs = RandomState(32)
 
+    r = np.linspace(0, 3)
+    f = np.exp(-r)
+
     C = sisl.Atom("C", orbitals=[
-        sisl.AtomicOrbital(n=2, l=0, R=3),
-        sisl.AtomicOrbital(n=2, l=1, m=-1, R=3), sisl.AtomicOrbital(n=2, l=1, m=0, R=3), sisl.AtomicOrbital(n=2, l=1, m=1, R=3)
+        sisl.AtomicOrbital("2s", (r, f), q0=2),
+        sisl.AtomicOrbital("2px", (r, f), q0=0.666), sisl.AtomicOrbital("2pz", (r, f), q0=0.666), sisl.AtomicOrbital("2py", (r, f), q0=0.666)
     ])
 
     N = sisl.Atom("N", orbitals=[
-        sisl.AtomicOrbital(n=2, l=0, R=3),
-        sisl.AtomicOrbital(n=2, l=1, m=-1, R=3), sisl.AtomicOrbital(n=2, l=1, m=0, R=3), sisl.AtomicOrbital(n=2, l=1, m=1, R=3),
-        #sisl.AtomicOrbital(n=2, l=1, m=-1, R=10), sisl.AtomicOrbital(n=2, l=1, m=0, R=10), sisl.AtomicOrbital(n=2, l=1, m=1, R=10),
+        sisl.AtomicOrbital("2s", (r, f), q0=2),
+        sisl.AtomicOrbital("2px", (r, f), q0=1), sisl.AtomicOrbital("2pz", (r, f), q0=1), sisl.AtomicOrbital("2py", (r, f), q0=1),
+        #sisl.AtomicOrbital("2px", R=10), sisl.AtomicOrbital("2pz", R=10), sisl.AtomicOrbital("2py", R=10),
     ])
 
     geom = sisl.geom.graphene_nanoribbon(width=3, atoms=[C, N])
