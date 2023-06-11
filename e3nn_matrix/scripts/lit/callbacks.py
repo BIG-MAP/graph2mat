@@ -147,8 +147,8 @@ class SamplewiseMetricsLogger(Callback):
         # Compute all the metrics
         metrics = [
             metric(
-                nodes_pred=batch.atom_labels - 1, nodes_ref=batch.atom_labels, 
-                edges_pred=batch.edge_labels, edges_ref=batch.edge_labels, batch=batch,
+                nodes_pred=outputs['node_labels'], nodes_ref=batch.atom_labels, 
+                edges_pred=outputs['edge_labels'], edges_ref=batch.edge_labels, batch=batch,
                 z_table=z_table, config_resolved=True, 
                 symmetric_matrix=trainer.datamodule.symmetric_matrix,
             )[0] for metric in self.metrics
