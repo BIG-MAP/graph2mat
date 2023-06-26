@@ -55,7 +55,7 @@ class LitOrbitalMatrixModel(pl.LightningModule):
         for k, v in stats.items():
             self.log(f"train_{k}", v, on_step=True, on_epoch=True, prog_bar=False, logger=True)
 
-        return loss
+        return {**out, "loss": loss}
 
     def validation_step(self, batch, batch_idx):
         out = self.model(batch)
@@ -73,7 +73,7 @@ class LitOrbitalMatrixModel(pl.LightningModule):
         for k, v in stats.items():
             self.log(f"val_{k}", v)
 
-        return out
+        return {**out, "loss": loss}
 
     def test_step(self, batch, batch_idx):
         out = self.model(batch)
