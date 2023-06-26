@@ -1,4 +1,6 @@
 """Implements the Data class to use in pytorch models."""
+from __future__ import annotations
+
 import torch
 import numpy as np
 from typing import Optional, Tuple, Type, Dict, Any
@@ -14,6 +16,9 @@ from ..data.neighborhood import get_neighborhood
 from ..data.configuration import OrbitalConfiguration
 from ..data.sparse import nodes_and_edges_to_sparse_orbital
 from ..data.periodic_table import AtomicTableWithEdges, atomic_numbers_to_indices
+
+class OrbitalMatrixData:
+    pass
 
 class OrbitalMatrixData(torch_geometric.data.Data):
     num_nodes: torch.Tensor

@@ -10,7 +10,7 @@ from e3nn_matrix.data.periodic_table import AtomicTableWithEdges
 from e3nn_matrix.data.irreps_tools import get_atom_irreps
 from e3nn_matrix.data.sparse import nodes_and_edges_to_coo
 
-from e3nn_matrix.bindings.mace.lit import LitOrbitalMatrixMACE
+from e3nn_matrix.models.mace.lit import LitOrbitalMatrixMACE
 
 import pytest
 

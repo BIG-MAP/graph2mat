@@ -9,7 +9,7 @@ from e3nn_matrix.data.metrics import OrbitalMatrixMetric, block_type_mse
 from e3nn_matrix.data.periodic_table import AtomicTableWithEdges
 from e3nn_matrix.torch.modules import OrbitalMatrixReadout, NodeBlock, EdgeBlock, SimpleNodeBlock, SimpleEdgeBlock
 
-from e3nn_matrix.bindings.mace import OrbitalMatrixMACE
+from e3nn_matrix.models.mace import OrbitalMatrixMACE
 
 from e3nn_matrix.scripts.lit import LitOrbitalMatrixModel
 
