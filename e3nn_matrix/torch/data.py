@@ -17,9 +17,6 @@ from ..data.configuration import OrbitalConfiguration
 from ..data.sparse import nodes_and_edges_to_sparse_orbital
 from ..data.periodic_table import AtomicTableWithEdges, atomic_numbers_to_indices
 
-class OrbitalMatrixData:
-    pass
-
 class OrbitalMatrixData(torch_geometric.data.Data):
     num_nodes: torch.Tensor
     edge_index: torch.Tensor
