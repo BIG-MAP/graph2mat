@@ -14,7 +14,7 @@ def main(ctx: typer.Context):
     from e3nn_matrix.scripts.lit import OrbitalMatrixCLI, MatrixDataModule, MatrixTrainer, SaveConfigSkipZTableCallback
 
     sys.argv = [ctx.command_path, *ctx.args]
-    OrbitalMatrixCLI(LitOrbitalMatrixMACE, MatrixDataModule, trainer_class=MatrixTrainer, save_config_callback=None) # SaveConfigSkipZTableCallback)
+    OrbitalMatrixCLI(LitOrbitalMatrixMACE, MatrixDataModule, trainer_class=MatrixTrainer, save_config_callback=SaveConfigSkipZTableCallback)
 
 if __name__ == "__main__":
     app()
