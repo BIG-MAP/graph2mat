@@ -84,8 +84,8 @@ class SamplewiseMetricsLogger(Callback):
     """
 
     def __init__(self,
-        metrics: Sequence[Type[OrbitalMatrixMetric]],
-        splits: Sequence = ["test"], # I don't know why, but Sequence[str] breaks the lightning CLI
+        metrics: Union[Sequence[Type[OrbitalMatrixMetric]], None] = None,
+        splits: Sequence = ["train", "val", "test"], # I don't know why, but Sequence[str] breaks the lightning CLI
         output_file: Union[str, Path] = "sample_metrics.csv"
     ):
         super().__init__()
@@ -94,6 +94,9 @@ class SamplewiseMetricsLogger(Callback):
             splits = [splits]
         elif isinstance(splits, str):
             raise ValueError(f"Invalid value for splits: {splits}")
+        
+        if metrics is None:
+            metrics = OrbitalMatrixMetric.__subclasses__()
 
         self.splits = splits
         self.metrics = [metric() for metric in metrics]

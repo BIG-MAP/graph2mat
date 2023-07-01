@@ -1,4 +1,4 @@
-from typing import Dict, Set
+from typing import Dict, Set, List, Any
 import copy
 import os
 from pytorch_lightning.cli import LightningCLI, SaveConfigCallback, LightningArgumentParser
@@ -62,24 +62,18 @@ class OrbitalMatrixCLI(LightningCLI):
 
         parser.set_defaults(defaults)
 
-    @staticmethod
-    def subcommands() -> Dict[str, Set[str]]:
-        """Defines the list of available subcommands and the arguments to skip."""
-        # TODO: Not clear what "to skip" means?
-        subcmd_dict = super(OrbitalMatrixCLI, OrbitalMatrixCLI).subcommands()
-        subcmd_dict["serve"] = {"model", "datamodule"}
-        return subcmd_dict
-
     def before_instantiate_classes(self) -> None:
         # This is executed after config/argparser has been instanced
         # but before data and model has been instantiated.
 
-        # The data module can not load the z_table from a checkpoint
-        # because when checkpoint loading happens, the data loaders
-        # might already be instanced.
-        # Therefore we try to load the z_table from checkpoint and
-        # put it in the config as an object before the data module is loaded.
-        self._load_z_table_from_checkpoint()
+        # Pytorch_lightning has this strange behavior that it can not resume
+        # simply from a checkpoint file because it doesn't use the hyperparameters
+        # of the model to instantiate the model. Instead, it needs you to pass
+        # exactly the same config that you used when you created the model. This
+        # is really weird (at least for our case). So what we do here is to put all
+        # the hyperparameters into the config to "trick" lightning into loading
+        # the model and the data processors from the checkpoint.
+        self._load_from_checkpoint()
 
         import torch.multiprocessing
         config_ns = getattr(self.config, self.config.subcommand)
@@ -87,7 +81,7 @@ class OrbitalMatrixCLI(LightningCLI):
             assert config_ns.multiprocessing_sharing_strategy in torch.multiprocessing.get_all_sharing_strategies()
             torch.multiprocessing.set_sharing_strategy(config_ns.multiprocessing_sharing_strategy)
 
-    def _load_z_table_from_checkpoint(self):
+    def _load_from_checkpoint(self):
         # Check if ckpt_path is given in subcommand
         subcommand = self.config.subcommand
         # Get namespace for current subcommand
@@ -95,16 +89,29 @@ class OrbitalMatrixCLI(LightningCLI):
         # Get the path of the checkpoint
         ckpt_path = getattr(config_ns, "ckpt_path", None)
         if ckpt_path:
-            # Load the z_table and assign to model and data.
-            # We only need the z_table data, which contains numpy arrays, but
+            # Load parameters from the checkpoint file.
+            # We only need the z_table data and other hyperparameters, which contain numpy arrays, but
             # the checkpoint contains the whole model, with torch tensors. The torch tensors might be located
             # on GPU (or any other device), which is possibly not available when we load the checkpoint. Map
             # those tensors to CPU so that there are no loading errors.
             checkpoint = torch.load(ckpt_path, map_location=torch.device('cpu'))
-            z_table = checkpoint.get("z_table")
-            if z_table:
-                config_ns.data.z_table = z_table
-                config_ns.model.z_table = z_table
+
+            if os.environ.get("E3MAT_FROMCKPT_DATAPROC", "").lower() not in ["off", "false", "f", "no", "0"]:
+                # Extract the keys of the data module that control how to process the data.
+                # And set them explicitly in the config.
+                for k in ("out_matrix", "sub_atomic_matrix", "symmetric_matrix", "basis_files"):
+                    config_ns.data[k] = checkpoint["datamodule_hyper_parameters"][k]
+
+            if os.environ.get("E3MAT_FROMCKPT_MODEL", "").lower() not in ["off", "false", "f", "no", "0"]:
+                # Extract the parameters that where used to instantiate the model in the first
+                # place and set them in the config.
+                config_ns['model'] = config_ns.__class__(checkpoint['hyper_parameters'])
+
+            if os.environ.get("E3MAT_FROMCKPT_ZTABLE", "").lower() not in ["off", "false", "f", "no", "0"]:
+                z_table = checkpoint.get("z_table")
+                if z_table:
+                    config_ns.data.z_table = z_table
+                    config_ns.model.z_table = z_table
 
 class SaveConfigSkipZTableCallback(SaveConfigCallback):
     def __init__(
