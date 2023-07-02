@@ -35,46 +35,75 @@ class OrbitalConfiguration:
 
     @classmethod
     def from_geometry(cls, geometry: sisl.Geometry, **kwargs) -> "OrbitalConfiguration":
+        """Initializes an OrbitalConfiguration object from a sisl geometry.
+
+        Note that the created object will not have an associated matrix, unless it is passed
+        explicitly as a keyword argument.
+
+        Parameters
+        -----------
+        geometry: sisl.Geometry
+            The geometry to associate to the OrbitalConfiguration.
+        **kwargs:
+            Additional arguments to be passed to the OrbitalConfiguration constructor.
+        """
 
         if "pbc" not in kwargs:
             kwargs['pbc'] = (True, True, True)
 
         return cls(atomic_numbers=geometry.atoms.Z, atoms=geometry.atoms, positions=geometry.xyz, cell=geometry.cell, **kwargs)
+    
+    @classmethod
+    def from_matrix(cls, matrix: sisl.SparseOrbital, **kwargs):
+        """Initializes an OrbitalConfiguration object from a sisl matrix.
 
-
-def load_orbital_config_from_run(
-    runfilepath: Union[str, Path], 
-    out_matrix: Optional[PhysicsMatrixType] = None,
-) -> OrbitalConfiguration:
-    """Initializes an OrbitalConfiguration object from the main input file of a run.
-    Parameters
-    -----------
-    runfilepath: str or Path
-        The path of the main input file. E.g. in SIESTA this is the path to the ".fdf" file
-    out_matrix: {"density_matrix", "hamiltonian", "energy_density_matrix", "dynamical_matrix", None}
-        The matrix to be read from the output of the run. The configuration object will
-        contain the matrix.
-        If it is None, then no matrices are read from the output. This is the case when trying to
-        predict matrices, since you don't have the output yet.
-    """
-    # Initialize the file object for the main input file
-    main_input = sisl.get_sile(runfilepath)
-
-    if out_matrix is not None:
-        # Get the method to read the desired matrix and read it
-        read = getattr(main_input, f"read_{out_matrix}")
-        matrix = read()
-
+        Parameters
+        -----------
+        matrix: sisl.SparseOrbital
+            The matrix to associate to the OrbitalConfiguration. This matrix should have an associated
+            geometry, which will be used.
+        **kwargs:
+            Additional arguments to be passed to the OrbitalConfiguration constructor.
+        """
         # Determine the dataclass that should store the matrix and build the block dict
         # sparse structure.
-        matrix_cls = get_matrix_cls(out_matrix)
+        matrix_cls = get_matrix_cls(matrix.__class__)
         matrix_block = csr_to_block_dict(matrix._csr, matrix.atoms, nsc=matrix.nsc, matrix_cls=matrix_cls)
 
         # The matrix will have an associated geometry, so we will use it.
         geometry = matrix.geometry
-    else:
-        # We have no matrix to read, we will just read the geometry.
-        geometry = main_input.read_geometry()
-        matrix_block = None
 
-    return OrbitalConfiguration.from_geometry(geometry=geometry, matrix=matrix_block, metadata={"path": runfilepath})
+        return cls.from_geometry(geometry=geometry, matrix=matrix_block, **kwargs)
+    
+    @classmethod
+    def from_run(cls, runfilepath: Union[str, Path], out_matrix: Optional[PhysicsMatrixType] = None):
+        """Initializes an OrbitalConfiguration object from the main input file of a run.
+
+        Parameters
+        -----------
+        runfilepath: str or Path
+            The path of the main input file. E.g. in SIESTA this is the path to the ".fdf" file
+        out_matrix: {"density_matrix", "hamiltonian", "energy_density_matrix", "dynamical_matrix", None}
+            The matrix to be read from the output of the run. The configuration object will
+            contain the matrix.
+            If it is None, then no matrices are read from the output. This is the case when trying to
+            predict matrices, since you don't have the output yet.
+        """
+        # Initialize the file object for the main input file
+        main_input = sisl.get_sile(runfilepath)
+        # Build some metadata so that the OrbitalConfiguration object can be traced back to the run.
+        metadata = {"path": runfilepath}
+
+        if out_matrix is not None:
+            # Get the method to read the desired matrix and read it
+            read = getattr(main_input, f"read_{out_matrix}")
+            matrix = read()
+
+            # Now build the OrbitalConfiguration object using this matrix.
+            return cls.from_matrix(matrix=matrix, metadata=metadata)
+        else:
+            # We have no matrix to read, we will just read the geometry.
+            geometry = main_input.read_geometry()
+
+            # And build the OrbitalConfiguration object using this geometry.
+            return cls.from_geometry(geometry=geometry, metadata=metadata)

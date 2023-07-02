@@ -2,6 +2,8 @@ from typing import Union, Type
 
 from warnings import warn
 
+import sisl
+
 from .orbital_matrix import OrbitalMatrix
 from .density_matrix import DensityMatrix
 
@@ -12,13 +14,15 @@ __all__ = [
 
 _KEY_TO_MATRIX_CLS = {
     "density_matrix": DensityMatrix,
+    sisl.DensityMatrix: DensityMatrix
 }
 
-def get_matrix_cls(key: Union[str, None]) -> Type[OrbitalMatrix]:
+def get_matrix_cls(key: Union[str, sisl.SparseOrbital, None]) -> Type[OrbitalMatrix]:
     if key is None:
         return OrbitalMatrix
     else:
-        key = key.lower()
+        if isinstance(key, str):
+            key = key.lower()
         try:
             return _KEY_TO_MATRIX_CLS[key]
         except KeyError:

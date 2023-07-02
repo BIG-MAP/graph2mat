@@ -1,11 +1,16 @@
 """Implements the Data class to use in pytorch models."""
 from __future__ import annotations
 
-import torch
-import numpy as np
 from typing import Optional, Tuple, Type, Dict, Any
+from functools import singledispatchmethod, cached_property
+import dataclasses
+from copy import copy
+from pathlib import Path
 
 import sisl
+import numpy as np
+
+import torch
 
 from mace.tools import (
     to_one_hot,
@@ -13,7 +18,7 @@ from mace.tools import (
 )
 
 from ..data.neighborhood import get_neighborhood
-from ..data.configuration import OrbitalConfiguration
+from ..data.configuration import OrbitalConfiguration, PhysicsMatrixType
 from ..data.sparse import nodes_and_edges_to_sparse_orbital
 from ..data.periodic_table import AtomicTableWithEdges, atomic_numbers_to_indices
 
@@ -374,4 +379,89 @@ class OrbitalMatrixData(torch_geometric.data.Data):
         )
 
         return matrix
+    
 
+@dataclasses.dataclass(frozen=True)
+class MatrixDataProcessor:
+    """Data structure that contains all the parameters to interface the real world with the ML models.
+    
+    Contains all the objects and implements all the logic (using these objects but never modifying them)
+    to convert:
+      - A "real world" object (a structure, a path to a structure, a path to a run, etc.) into 
+        the inputs for the model.
+      - The outputs of the model into a "real world" object (a matrix).
+
+    Therefore, every model should have associated a MatrixDataProcessor object to ensure that the
+    input is correctly preprocessed and the output is interpreted correctly.
+    """
+    z_table: AtomicTableWithEdges
+    out_matrix: Optional[PhysicsMatrixType] = None
+    symmetric_matrix: bool = False
+    sub_atomic_matrix: bool = True
+
+    def copy(self, **kwargs):
+        """Create a copy of the object with the given attributes replaced."""
+        return dataclasses.replace(self, **kwargs)
+
+    @cached_property
+    def matrix_cls(self):
+        return {
+            "density_matrix": sisl.DensityMatrix,
+            "energy_density_matrix": sisl.EnergyDensityMatrix,
+            "hamiltonian": sisl.Hamiltonian,
+            None: None,
+        }[self.out_matrix]
+
+    @singledispatchmethod
+    def process_input(self, obj, labels: bool = True):
+        raise NotImplementedError(f"Don't know how to process object of type {type(obj)}")
+
+    @process_input.register
+    def _(self, geometry: sisl.Geometry, labels: bool = True):
+        if labels:
+            raise ValueError("Cannot infer output labels only from a geometry. Please provide either a matrix or a path to a run file.")
+
+        config = OrbitalConfiguration.from_geometry(geometry)
+        return OrbitalMatrixData.from_config(
+            config,
+            z_table=self.z_table,
+            sub_atomic_matrix=self.sub_atomic_matrix,
+            symmetric_matrix = self.symmetric_matrix,
+        )
+    
+    @process_input.register
+    def _(self, matrix: sisl.SparseOrbital, labels: bool = True):
+        if not labels:
+            return self.process_input(matrix.geometry, labels=False)
+
+        config = OrbitalConfiguration.from_matrix(matrix)
+        return OrbitalMatrixData.from_config(
+            config,
+            z_table=self.z_table,
+            sub_atomic_matrix=self.sub_atomic_matrix,
+            symmetric_matrix = self.symmetric_matrix,
+        )
+
+    @process_input.register
+    def _(self, path: Path, labels: bool = True):
+        out_matrix = self.out_matrix if labels else None
+        config = OrbitalConfiguration.from_run(path, out_matrix=out_matrix)
+        return OrbitalMatrixData.from_config(
+            config,
+            z_table=self.z_table,
+            sub_atomic_matrix=self.sub_atomic_matrix,
+            symmetric_matrix = self.symmetric_matrix,
+        )
+    
+    def output_to_matrix(self, output: dict, input: OrbitalMatrixData):
+        
+        matrix_data = copy(input)
+        matrix_data.atom_labels = output['node_labels']
+        matrix_data.edge_labels = output['edge_labels']
+
+        return matrix_data.to_sparse_orbital_matrix(
+            z_table=self.z_table,
+            matrix_cls=self.matrix_cls, 
+            symmetric_matrix=self.symmetric_matrix,
+            add_atomic_contribution=self.sub_atomic_matrix,
+        )

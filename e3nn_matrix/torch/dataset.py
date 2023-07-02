@@ -1,43 +1,33 @@
 import logging
 from torch import multiprocessing
 from pathlib import Path
-from typing import Sequence, Union, Optional
+from typing import Sequence, Union
 import threading
+
 import numpy as np
+import sisl
 
 import torch.utils.data
 
-from ..data.configuration import load_orbital_config_from_run, PhysicsMatrixType
-from ..data.periodic_table import AtomicTableWithEdges
-from .data import OrbitalMatrixData
+from .data import MatrixDataProcessor
 
 class OrbitalMatrixDataset(torch.utils.data.Dataset):
     def __init__(
         self,
-        runpaths: Sequence[Union[Path, str]],
-        z_table: AtomicTableWithEdges,
-        out_matrix: Optional[PhysicsMatrixType]=None,
-        symmetric_matrix: bool=False,
-        sub_atomic_matrix: bool=True,
+        input_data: Sequence[Union[Path, str, sisl.Geometry]],
+        data_processor: MatrixDataProcessor,
+        load_labels: bool = True,
     ):
-        self.runpaths = runpaths
-        self.out_matrix: Optional[PhysicsMatrixType] = out_matrix
-        self.sub_atomic_matrix = sub_atomic_matrix
-        self.symmetric_matrix = symmetric_matrix
-        self.z_table = z_table
+        self.input_data = input_data
+        self.data_processor = data_processor
+        self.load_labels = load_labels
 
     def __len__(self):
-        return len(self.runpaths)
+        return len(self.input_data)
 
     def __getitem__(self, index: int):
-        path = self.runpaths[index]
-        config = load_orbital_config_from_run(path, out_matrix=self.out_matrix)
-        return OrbitalMatrixData.from_config(
-            config,
-            z_table=self.z_table,
-            sub_atomic_matrix=self.sub_atomic_matrix,
-            symmetric_matrix = self.symmetric_matrix,
-        )
+        item = self.input_data[index]
+        return self.data_processor.process_input(item, labels=self.load_labels)
 
 class InMemoryData(torch.utils.data.Dataset):
     """

@@ -16,6 +16,7 @@ from mace.tools.torch_geometric import DataLoader
 from e3nn_matrix.data.configuration import PhysicsMatrixType
 from e3nn_matrix.data.periodic_table import AtomicTableWithEdges
 from e3nn_matrix.torch.dataset import OrbitalMatrixDataset, InMemoryData, RotatingPoolData
+from e3nn_matrix.torch.data import MatrixDataProcessor
 
 class MatrixDataModule(pl.LightningDataModule):
     def __init__(self,
@@ -95,7 +96,6 @@ class MatrixDataModule(pl.LightningDataModule):
         else:
             self.tmp_dir = None
 
-
     def prepare_data(self):
         if self.copy_root_to_tmp:
             assert self.tmp_dir is not None
@@ -125,7 +125,6 @@ class MatrixDataModule(pl.LightningDataModule):
         self.test_dataset = None
         self.predict_dataset = None
 
-
         # Load json file with paths for each split
         if self.runs_json is not None:
             json_path = Path(self.runs_json)
@@ -135,6 +134,13 @@ class MatrixDataModule(pl.LightningDataModule):
                 runs_dict = json.load(f)
         else:
             runs_dict = {}
+
+        self.data_processor = MatrixDataProcessor(
+            z_table=self.z_table,
+            out_matrix=self.out_matrix,
+            symmetric_matrix=self.symmetric_matrix,
+            sub_atomic_matrix=self.sub_atomic_matrix,
+        )
 
         # Set the paths for each split
         for split in ["train", "val", "test", "predict"]:
@@ -149,19 +155,15 @@ class MatrixDataModule(pl.LightningDataModule):
                 runs = None
 
             if runs is not None:
-                # For predictions we do not have a matrix to read
-                if split == "predict":
-                    out_matrix = None
-                else:
-                    out_matrix = self.out_matrix
                 # Contruct the dataset
+                # For predictions, we don't need to load the labels (actually we don't have them)
+                # For the other splits, we need to load the labels (target matrices)
                 dataset = OrbitalMatrixDataset(
                     list(runs),
-                    z_table=self.z_table,
-                    out_matrix=out_matrix,
-                    symmetric_matrix=self.symmetric_matrix,
-                    sub_atomic_matrix=self.sub_atomic_matrix,
+                    data_processor=self.data_processor,
+                    load_labels=split != "predict"
                 )
+                
                 if self.store_in_memory:
                     if self.rotating_pool_size and split == "train":
                         logging.warning("Does not load training data to memory because rotating_pool_size is set")

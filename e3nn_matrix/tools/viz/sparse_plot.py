@@ -7,7 +7,7 @@ from typing import Dict, Union
 import sisl
 from scipy.sparse import issparse, spmatrix
 
-from ..data.irreps_tools import get_atom_irreps
+from e3nn_matrix.data.irreps_tools import get_atom_irreps
 
 
 def plot_orbital_matrix(

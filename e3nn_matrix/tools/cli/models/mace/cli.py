@@ -10,11 +10,11 @@ app = typer.Typer(help="Interface to MACE models")
 )
 def main(ctx: typer.Context):
     """Main MACE model interface, using pytorch lightning CLI."""
-    from e3nn_matrix.models.mace.lit.model import LitOrbitalMatrixMACE
-    from e3nn_matrix.scripts.lit import OrbitalMatrixCLI, MatrixDataModule, MatrixTrainer, SaveConfigSkipZTableCallback
+    from e3nn_matrix.tools.lightning.models.mace import LitOrbitalMatrixMACE
+    from e3nn_matrix.tools.lightning import OrbitalMatrixCLI, MatrixDataModule, SaveConfigSkipZTableCallback
 
     sys.argv = [ctx.command_path, *ctx.args]
-    OrbitalMatrixCLI(LitOrbitalMatrixMACE, MatrixDataModule, trainer_class=MatrixTrainer, save_config_callback=SaveConfigSkipZTableCallback)
+    OrbitalMatrixCLI(LitOrbitalMatrixMACE, MatrixDataModule, save_config_callback=SaveConfigSkipZTableCallback)
 
 if __name__ == "__main__":
     app()

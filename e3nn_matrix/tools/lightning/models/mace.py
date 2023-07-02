@@ -11,12 +11,13 @@ from e3nn_matrix.torch.modules import OrbitalMatrixReadout, NodeBlock, EdgeBlock
 
 from e3nn_matrix.models.mace import OrbitalMatrixMACE
 
-from e3nn_matrix.scripts.lit import LitOrbitalMatrixModel
+from e3nn_matrix.tools.lightning import LitOrbitalMatrixModel
 
 from mace.modules.blocks import InteractionBlock, RealAgnosticResidualInteractionBlock
 
 class LitOrbitalMatrixMACE(LitOrbitalMatrixModel):
     model: OrbitalMatrixMACE
+    
     def __init__(
         self,
         root_dir: str = ".",
@@ -47,7 +48,7 @@ class LitOrbitalMatrixMACE(LitOrbitalMatrixModel):
         loss: Type[OrbitalMatrixMetric] = block_type_mse,
         ):
 
-        super().__init__(root_dir=root_dir, basis_files=basis_files, z_table=z_table, loss=loss)
+        super().__init__(root_dir=root_dir, basis_files=basis_files, z_table=z_table, loss=loss, model_cls=OrbitalMatrixMACE)
         self.save_hyperparameters()
 
         if isinstance(hidden_irreps, str):
@@ -55,12 +56,7 @@ class LitOrbitalMatrixMACE(LitOrbitalMatrixModel):
         if isinstance(edge_hidden_irreps, str):
             edge_hidden_irreps = o3.Irreps(edge_hidden_irreps)
 
-        if self.z_table is None:
-            # Create a placeholder z_table if nothing is given
-            orbital = sisl.SphericalOrbital(l=0, rf_or_func=lambda x:x)
-            self.z_table = AtomicTableWithEdges([sisl.Atom(Z=1, orbitals=[orbital])])
-
-        self.model = OrbitalMatrixMACE(
+        self.init_model(
             r_max=self.z_table.maxR() * 2,
             num_bessel=num_bessel,
             num_polynomial_cutoff=num_polynomial_cutoff,

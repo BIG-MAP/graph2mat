@@ -11,10 +11,14 @@ from e3nn_matrix.data.periodic_table import AtomicTableWithEdges
 from e3nn_matrix import __version__
 
 class LitOrbitalMatrixModel(pl.LightningModule):
+
+    z_table: AtomicTableWithEdges
     model: torch.nn.Module
-    
+    model_kwargs: dict
+
     def __init__(
         self,
+        model_cls: Type[torch.nn.Module],
         root_dir: str = ".",
         basis_files: Union[str, None] = None,
         z_table: Union[AtomicTableWithEdges, None] = None,
@@ -35,8 +39,15 @@ class LitOrbitalMatrixModel(pl.LightningModule):
             self.z_table = z_table
 
         self.loss_fn = loss()
+        
+        self.model_cls = model_cls
+        self.model = None # Subclasses are responsible for initializing the model by calling init_model.
 
-        self.model = None # Here the model should be initialized.
+    def init_model(self, **kwargs):
+        """Initializes the model, storing the arguments used."""
+        self.model_kwargs = kwargs
+        self.model = self.model_cls(**self.model_kwargs)
+        return self.model
 
     def forward(self, x):
         return self.model(x)
@@ -80,7 +91,8 @@ class LitOrbitalMatrixModel(pl.LightningModule):
 
         loss, stats = self.loss_fn(
             nodes_pred=out['node_labels'], nodes_ref=batch['atom_labels'],
-            edges_pred=out['edge_labels'], edges_ref=batch['edge_labels']
+            edges_pred=out['edge_labels'], edges_ref=batch['edge_labels'],
+            log_verbose=True
         )
 
         self.log("test_loss", loss, prog_bar=True, logger=True)
@@ -94,6 +106,12 @@ class LitOrbitalMatrixModel(pl.LightningModule):
         "Objects to include in checkpoint file"
         checkpoint["z_table"] = self.z_table
         checkpoint["version"] = __version__
+
+        # Store the model class and the kwargs used to initialize it. This is
+        # useful so that the model can be loaded independently, without having
+        # to use pytorch lightning.
+        checkpoint["model_kwargs"] = self.model_kwargs
+        
 
     def on_load_checkpoint(self, checkpoint) -> None:
         "Objects to retrieve from checkpoint file"

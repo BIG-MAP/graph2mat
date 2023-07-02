@@ -10,7 +10,7 @@ from e3nn_matrix.data.periodic_table import AtomicTableWithEdges
 from e3nn_matrix.data.irreps_tools import get_atom_irreps
 from e3nn_matrix.data.sparse import nodes_and_edges_to_coo
 
-from e3nn_matrix.models.mace.lit import LitOrbitalMatrixMACE
+from e3nn_matrix.tools.lightning.models.mace import LitOrbitalMatrixMACE
 
 import pytest
 
@@ -39,18 +39,21 @@ def z_table(basis_shape):
 
     return AtomicTableWithEdges([H, O])
 
-@pytest.fixture(scope="module")
-def model(z_table):
-    return LitOrbitalMatrixMACE(
-        z_table=z_table,
-        symmetric_matrix=True,
-        avg_num_neighbors=1,
-        correlation=2,
-        max_ell=2,
-        num_interactions=2,
-        hidden_irreps="10x0e + 10x1o + 10x2e",
-        edge_hidden_irreps="4x0e + 4x1o + 4x2e",
-    )
+@pytest.fixture(scope="module", params=["mace"])
+def model(z_table, request):
+    model_name = request.param
+
+    if model_name == "mace":
+        return LitOrbitalMatrixMACE(
+            z_table=z_table,
+            symmetric_matrix=True,
+            avg_num_neighbors=1,
+            correlation=2,
+            max_ell=2,
+            num_interactions=2,
+            hidden_irreps="10x0e + 10x1o + 10x2e",
+            edge_hidden_irreps="4x0e + 4x1o + 4x2e",
+        )
 
 @pytest.fixture(scope="module", params=("bimolec", "square"))
 def geometry(request, z_table):

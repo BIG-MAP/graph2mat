@@ -13,7 +13,7 @@ from e3nn_matrix.data.batch_utils import batch_to_orbital_matrix_data
 from e3nn_matrix.data.sparse import nodes_and_edges_to_sparse_orbital
 from e3nn_matrix.data.periodic_table import AtomicTableWithEdges
 from e3nn_matrix.data.metrics import OrbitalMatrixMetric
-from e3nn_matrix.viz import plot_orbital_matrix
+from e3nn_matrix.tools.viz import plot_orbital_matrix
 
 class MatrixWriter(BasePredictionWriter):
     """Callback to write predicted matrices to disk."""

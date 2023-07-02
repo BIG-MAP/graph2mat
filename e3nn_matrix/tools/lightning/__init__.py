@@ -6,4 +6,3 @@ from .model import LitOrbitalMatrixModel
 from .callbacks import *
 from .data import MatrixDataModule
 from .cli import OrbitalMatrixCLI, SaveConfigSkipZTableCallback
-from .trainer import MatrixTrainer
