@@ -1,12 +1,12 @@
 from typing import Dict, Set, List, Any
 import copy
 import os
-from pytorch_lightning.cli import LightningCLI, SaveConfigCallback, LightningArgumentParser
+from pytorch_lightning.cli import LightningCLI, SaveConfigCallback, LightningArgumentParser, ArgsType
 import torch
 from jsonargparse import Namespace
 
 class OrbitalMatrixCLI(LightningCLI):
-    def add_arguments_to_parser(self, parser):
+    def add_arguments_to_parser(self, parser: LightningArgumentParser):
         parser.link_arguments("data.root_dir", "model.root_dir")
         parser.link_arguments("data.basis_files", "model.basis_files")
         parser.link_arguments("data.z_table", "model.z_table")
@@ -62,56 +62,83 @@ class OrbitalMatrixCLI(LightningCLI):
 
         parser.set_defaults(defaults)
 
-    def before_instantiate_classes(self) -> None:
-        # This is executed after config/argparser has been instanced
-        # but before data and model has been instantiated.
+    def parse_arguments(self, parser: LightningArgumentParser, args: ArgsType) -> None:
+        """Parses command line arguments and stores it in ``self.config``."""
+
+        super().parse_arguments(parser, args)
 
         # Pytorch_lightning has this strange behavior that it can not resume
         # simply from a checkpoint file because it doesn't use the hyperparameters
         # of the model to instantiate the model. Instead, it needs you to pass
         # exactly the same config that you used when you created the model. This
-        # is really weird (at least for our case). So what we do here is to put all
-        # the hyperparameters into the config to "trick" lightning into loading
-        # the model and the data processors from the checkpoint.
-        self._load_from_checkpoint()
+        # is really weird (at least for our case). So what we do here is: if the user
+        # has provided a checkpoint file, use all the parameters of the checkpoint file
+        # as defaults.
 
-        import torch.multiprocessing
-        config_ns = getattr(self.config, self.config.subcommand)
-        if config_ns.multiprocessing_sharing_strategy:
-            assert config_ns.multiprocessing_sharing_strategy in torch.multiprocessing.get_all_sharing_strategies()
-            torch.multiprocessing.set_sharing_strategy(config_ns.multiprocessing_sharing_strategy)
-
-    def _load_from_checkpoint(self):
         # Check if ckpt_path is given in subcommand
         subcommand = self.config.subcommand
         # Get namespace for current subcommand
         config_ns = getattr(self.config, subcommand)
         # Get the path of the checkpoint
         ckpt_path = getattr(config_ns, "ckpt_path", None)
-        if ckpt_path:
-            # Load parameters from the checkpoint file.
-            # We only need the z_table data and other hyperparameters, which contain numpy arrays, but
-            # the checkpoint contains the whole model, with torch tensors. The torch tensors might be located
-            # on GPU (or any other device), which is possibly not available when we load the checkpoint. Map
-            # those tensors to CPU so that there are no loading errors.
-            checkpoint = torch.load(ckpt_path, map_location=torch.device('cpu'))
 
-            if os.environ.get("E3MAT_FROMCKPT_DATAPROC", "").lower() not in ["off", "false", "f", "no", "0"]:
-                # Extract the keys of the data module that control how to process the data.
-                # And set them explicitly in the config.
-                for k in ("out_matrix", "sub_atomic_matrix", "symmetric_matrix", "basis_files"):
-                    config_ns.data[k] = checkpoint["datamodule_hyper_parameters"][k]
+        # If there is a checkpoint path, we need to reparse the arguments, using the 
+        # checkpoint parameters as defaults.
+        if ckpt_path is not None:
+            defaults = self._config_from_ckpt(ckpt_path)
 
-            if os.environ.get("E3MAT_FROMCKPT_MODEL", "").lower() not in ["off", "false", "f", "no", "0"]:
-                # Extract the parameters that where used to instantiate the model in the first
-                # place and set them in the config.
-                config_ns['model'] = config_ns.__class__(checkpoint['hyper_parameters'])
+            subcommand_parser = self._parser(subcommand)
 
-            if os.environ.get("E3MAT_FROMCKPT_ZTABLE", "").lower() not in ["off", "false", "f", "no", "0"]:
-                z_table = checkpoint.get("z_table")
-                if z_table:
-                    config_ns.data.z_table = z_table
-                    config_ns.model.z_table = z_table
+            # Arguments are defined as "k.subkey" in lightning. E.g. model.num_neighbours
+            # So we need to convert the dict to those keys. Another problem is that some
+            # arguments are linked and therefore "data.x" might not exist because it is linked
+            # to "model.x". That's why we need to set the defaults one by one inside a try/except
+            # block (I found no way to check if the argument is defined in the parser).
+            for k in defaults:
+                for subkey in defaults[k]:
+                    try:
+                        subcommand_parser.set_defaults({f"{k}.{subkey}": defaults[k][subkey]})
+                    except KeyError:
+                        pass
+
+            # We have set all the right defaults now! So we can reparse the arguments.
+            super().parse_arguments(parser, args)
+
+    def before_instantiate_classes(self) -> None:
+        # This is executed after config/argparser has been instanced
+        # but before data and model has been instantiated.
+        import torch.multiprocessing
+        config_ns = getattr(self.config, self.config.subcommand)
+        if config_ns.multiprocessing_sharing_strategy:
+            assert config_ns.multiprocessing_sharing_strategy in torch.multiprocessing.get_all_sharing_strategies()
+            torch.multiprocessing.set_sharing_strategy(config_ns.multiprocessing_sharing_strategy)
+
+    def _config_from_ckpt(self, ckpt_path: str):
+        # Load parameters from the checkpoint file.
+        # We only need to load hyperparameters, not weights. Therefore, we don't care whether things were in
+        # the GPU. The torch tensors might be located on GPU (or any other device), which is possibly not 
+        # available when we load the checkpoint. Map those tensors to CPU so that there are no loading errors.
+        checkpoint = torch.load(ckpt_path, map_location=torch.device('cpu'))
+
+        config = {}
+
+        if os.environ.get("E3MAT_FROMCKPT_DATAPROC", "").lower() not in ["off", "false", "f", "no", "0"]:
+            # Extract the keys of the data module that control how to process the data.
+            # And set them explicitly in the config.
+            config['data'] = checkpoint['datamodule_hyper_parameters']
+
+        if os.environ.get("E3MAT_FROMCKPT_MODEL", "").lower() not in ["off", "false", "f", "no", "0"]:
+            # Extract the parameters that where used to instantiate the model in the first
+            # place and set them in the config.
+            config['model'] = checkpoint['hyper_parameters']
+
+        if os.environ.get("E3MAT_FROMCKPT_ZTABLE", "").lower() not in ["off", "false", "f", "no", "0"]:
+            z_table = checkpoint.get("z_table")
+            if z_table:
+                config['model']['z_table'] = z_table
+                config['data']['z_table'] = z_table
+
+        return config
 
 class SaveConfigSkipZTableCallback(SaveConfigCallback):
     def __init__(

@@ -89,6 +89,9 @@ class AtomicTableWithEdges(AtomicNumberTable):
         self.file_contents = None
 
     def __eq__(self, other):
+        if not isinstance(other, self.__class__):
+            return False
+
         same = all(x==y for x, y in itertools.zip_longest(self.atoms, other.atoms))
         same &= all(x==y for x, y in itertools.zip_longest(self.zs, other.zs))
         same &= all(np.allclose(x, y) for x, y in itertools.zip_longest(self.atomic_DM, other.atomic_DM))
