@@ -299,6 +299,10 @@ class OrbitalMatrixReadout(torch.nn.Module):
             edge_index=edge_index,
         )
 
+        # Initialize variables that will used in the loop, so that we can delete
+        # them safely when the loop ends.   
+        type_messages = type_feats = mask = output = individual_output = None
+
         # Call each unique self interaction function with only the features 
         # of nodes that correspond to that type.
         for node_type, func in enumerate(self.self_interactions):
@@ -319,6 +323,9 @@ class OrbitalMatrixReadout(torch.nn.Module):
 
             for i, individual_output in zip(mask.nonzero(), output):
                 node_labels[i] = individual_output
+        
+        # Delete variables that are no longer needed to help reduce memory usage.
+        del node_messages, type_messages, type_feats, output, mask, individual_output
 
         node_labels = torch.concatenate(node_labels)
 
@@ -339,6 +346,10 @@ class OrbitalMatrixReadout(torch.nn.Module):
         torch.cumsum(edge_type_nlabels.ravel(), dim=0, out=edge_type_ptrs[1:])
         # Then we can allocate a tensor to store all of them.
         edge_labels = torch.empty(edge_type_ptrs[-1], dtype=torch.get_default_dtype(), device=edge_feats.device)
+
+        # Initialize variables that will used in the loop, so that we can delete
+        # them safely when the loop ends.
+        type_messages = type_feats = mask = output = None
 
         # Call each unique interaction function with only the features 
         # of edges that correspond to that type.
@@ -392,6 +403,9 @@ class OrbitalMatrixReadout(torch.nn.Module):
                 next_els = els + end - start
                 edge_labels[start:end] = output[els:next_els]
                 els = next_els
+
+        # Delete variables that are no longer needed to help reduce memory usage.
+        del edge_messages, type_messages, type_feats, output, mask, edge_type_ptrs
 
         # Return both the node and edge labels.
         return (node_labels, edge_labels)

@@ -151,10 +151,11 @@ class OrbitalMatrixMACE(torch.nn.Module):
                 )
 
                 self.readouts.append(readout)
-            
+
     def forward(self, data: OrbitalMatrixData, training=False) -> Dict[str, Any]:
         # Setup
-        data.positions.requires_grad = True
+        # This is only if we want to compute matrix gradients. For now, we don't.
+        #data.positions.requires_grad = True
 
         # Embeddings
         node_feats = self.node_embedding(data.node_attrs)

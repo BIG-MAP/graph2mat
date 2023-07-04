@@ -65,6 +65,8 @@ class EdgeMessageBlock(torch.nn.Module):
             node_feats[sender], edge_attrs, tp_weights
         )  # [n_edges, irreps]
 
+        del tp_weights
+
         return self.linear(mji)
 
 class NodeMessageBlock(torch.nn.Module):
@@ -114,12 +116,23 @@ class NodeMessageBlock(torch.nn.Module):
             irreps_mid, self.irreps_out, internal_weights=True, shared_weights=True
         )
 
-        # Selector TensorProduct
-        self.skip_tp = o3.FullyConnectedTensorProduct(
-            node_feats_irreps, node_attrs_irreps, hidden_irreps
-        )
-
         self.avg_num_neighbors = avg_num_neighbors
+
+    def _load_from_state_dict(self, local_state_dict, prefix, *args, **kwargs):
+        """We do a little hack here because previously there was a skip_tp module
+        that did nothing. So if the training was done with previous versions of
+        the code, the state dict will have a skip_tp key with a state.
+        
+        This function might be removed in the future when all models have been
+        trained with the new code.
+        """
+        
+        avoid_prefix = prefix + "skip_tp"
+        for k in list(local_state_dict):
+            if k.startswith(avoid_prefix):
+                del local_state_dict[k]
+
+        super()._load_from_state_dict(local_state_dict, prefix, *args, **kwargs)
 
     def forward(
         self,
@@ -132,15 +145,16 @@ class NodeMessageBlock(torch.nn.Module):
         sender, receiver = edge_index
         num_nodes = node_feats.shape[0]
 
-        sc = self.skip_tp(node_feats, node_attrs)
         node_feats = self.linear_up(node_feats)
         tp_weights = self.conv_tp_weights(edge_feats)
         mji = self.conv_tp(
             node_feats[sender], edge_attrs, tp_weights
         )  # [n_edges, irreps]
+        del tp_weights
         message = scatter_sum(
             src=mji, index=receiver, dim=0, dim_size=num_nodes
         )  # [n_nodes, irreps]
+        del mji
         message = self.linear(message) / self.avg_num_neighbors
 
         return message
