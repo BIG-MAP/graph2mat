@@ -7,13 +7,13 @@ app = typer.Typer()
 
 @app.callback(invoke_without_command=True)
 def main(
-    models: Annotated[List[str], typer.Option(
+    models: Annotated[List[str], typer.Argument(
         help="""List of models to load. Each model can be provided either as a .ckpt file, a .yaml specification
         or a directory that contains a 'spec.yaml' file.
         Regardless of what you provide, you can specify the name of the model like 'model_name:file.ckpt',
         that is, separated from the file name using a semicolon."""
     )
-    ] = [] , 
+    ], 
     host: Annotated[str, typer.Option(help="Host to launch the server.", envvar="E3MAT_SERVER_HOST")] = "localhost", 
     port: Annotated[int, typer.Option(help="Port where the server should listen.", envvar="E3MAT_SERVER_PORT")] = 56000, 
     cpu: Annotated[bool, typer.Option(help="Load parameters in the CPU regardless of whether they were in the GPU.")] = True,
@@ -21,7 +21,7 @@ def main(
 ):
     import uvicorn
 
-    from e3nn_matrix.server import create_server_app_from_filesystem
+    from e3nn_matrix.tools.server import create_server_app_from_filesystem
 
     # Sanitize the ckpt files, building a dictionary with names and files.
     ckpt_files_dict = {}

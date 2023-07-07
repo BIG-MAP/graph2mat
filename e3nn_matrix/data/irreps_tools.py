@@ -1,3 +1,5 @@
+from typing import Union, Sequence, Iterable
+
 import sisl
 import numpy as np
 
@@ -41,3 +43,32 @@ def get_atom_irreps(atom: sisl.Atom):
             atom_irreps.append((int(n_l), (l, (-1)**l)))
 
     return o3.Irreps(atom_irreps)
+
+def get_atom_from_irreps(
+    irreps: Union[o3.Irreps, str], 
+    orb_kwargs: Iterable[dict] = ({}, ), 
+    atom_args: Sequence = (), 
+    **kwargs
+):
+    """Returns a sisl atom with the basis specified by irreps."""
+
+    orbitals = []
+    for orbital_l, orbital_kwargs in zip(o3.Irreps(irreps).ls, orb_kwargs):
+
+        if len(orbital_kwargs) == 0:
+            orbital_kwargs = {
+                "rf_or_func": None,
+            }
+
+        for m in range(-orbital_l, orbital_l+1):
+            orbital = sisl.SphericalOrbital(l=orbital_l, m=m, **orbital_kwargs)
+
+            orbitals.append(orbital)
+
+    if len(atom_args) == 0:
+        kwargs = {
+            "Z": 1,
+            **kwargs,
+        }
+
+    return sisl.Atom(*atom_args, orbitals=orbitals, **kwargs)

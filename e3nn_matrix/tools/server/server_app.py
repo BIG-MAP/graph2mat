@@ -12,7 +12,10 @@ from io import StringIO
 import sisl
 import numpy as np
 
-from e3nn_matrix.torch.data import OrbitalMatrixData, MatrixDataProcessor
+import torch
+
+from e3nn_matrix.data.processing import MatrixDataProcessor
+from e3nn_matrix.torch.data import BasisMatrixData, BasisMatrixTorchData
 from e3nn_matrix.torch.load import load_from_lit_ckpt
 
 try:
@@ -39,7 +42,7 @@ class Files(TypedDict):
     structs: Union[Path, str]
 
 class ModelSpecification(TypedDict):
-    prediction_function: Callable[[OrbitalMatrixData], Dict[str, np.ndarray]]
+    prediction_function: Callable[[BasisMatrixData], Dict[str, np.ndarray]]
     data_processor: MatrixDataProcessor
     description: str
     files: Files
@@ -149,15 +152,16 @@ def create_server_app(
         # Get model.
         model = models[model_name.value]
 
-        # USE THE MODEL
-        # First, we need to process the input data, to get inputs as the model expects.
-        input_data = model['data_processor'].process_input(geometry, labels=False)
+        with torch.no_grad():
+            # USE THE MODEL
+            # First, we need to process the input data, to get inputs as the model expects.
+            input_data = BasisMatrixTorchData.new(geometry, data_processor=model['data_processor'], labels=False)
 
-        # Then, we run the model.
-        out = model['prediction_function'](input_data)
+            # Then, we run the model.
+            out = model['prediction_function'](input_data)
 
-        # And finally, we convert the output to a matrix.
-        matrix = model['data_processor'].output_to_matrix(out, input_data)
+            # And finally, we convert the output to a matrix.
+            matrix = model['data_processor'].output_to_matrix(out, input_data)
         
         # WRITE THE MATRIX TO A TEMPORARY FILE
         tmp_file = tempfile.NamedTemporaryFile(suffix=".DM", delete=False)
@@ -207,14 +211,16 @@ def create_server_app(
             geometry = sisl.get_sile(runfile).read_geometry()
 
             # USE THE MODEL
-            # First, we need to process the input data, to get inputs as the model expects.
-            input_data = model['data_processor'].process_input(geometry, labels=False)
+            with torch.no_grad():
+                # USE THE MODEL
+                # First, we need to process the input data, to get inputs as the model expects.
+                input_data = BasisMatrixData.new(geometry, data_processor=model['data_processor'], labels=False)
 
-            # Then, we run the model.
-            out = model['prediction_function'](input_data)
+                # Then, we run the model.
+                out = model['prediction_function'](input_data)
 
-            # And finally, we convert the output to a matrix.
-            matrix = model['data_processor'].output_to_matrix(out, input_data)
+                # And finally, we convert the output to a matrix.
+                matrix = model['data_processor'].output_to_matrix(out, input_data)
 
             if allow_overwrite and out_file.exists():
                 raise ValueError(f"Output file {out_file} already exists and overwrite is not allowed.")

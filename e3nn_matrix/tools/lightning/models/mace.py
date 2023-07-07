@@ -6,23 +6,23 @@ import sisl
 
 #from context import mace
 from e3nn_matrix.data.metrics import OrbitalMatrixMetric, block_type_mse
-from e3nn_matrix.data.periodic_table import AtomicTableWithEdges
-from e3nn_matrix.torch.modules import OrbitalMatrixReadout, NodeBlock, EdgeBlock, SimpleNodeBlock, SimpleEdgeBlock
+from e3nn_matrix.data.table import BasisTableWithEdges
+from e3nn_matrix.torch.modules import BasisMatrixReadout, NodeBlock, EdgeBlock, SimpleNodeBlock, SimpleEdgeBlock
 
 from e3nn_matrix.models.mace import OrbitalMatrixMACE
 
-from e3nn_matrix.tools.lightning import LitOrbitalMatrixModel
+from e3nn_matrix.tools.lightning import LitBasisMatrixModel
 
 from mace.modules.blocks import InteractionBlock, RealAgnosticResidualInteractionBlock
 
-class LitOrbitalMatrixMACE(LitOrbitalMatrixModel):
+class LitOrbitalMatrixMACE(LitBasisMatrixModel):
     model: OrbitalMatrixMACE
     
     def __init__(
         self,
         root_dir: str = ".",
         basis_files: Union[str, None] = None,
-        z_table: Union[AtomicTableWithEdges, None] = None,
+        basis_table: Union[BasisTableWithEdges, None] = None,
         #r_max: float=3.0,
         num_bessel: int=10,
         num_polynomial_cutoff: int=3,
@@ -37,7 +37,7 @@ class LitOrbitalMatrixMACE(LitOrbitalMatrixModel):
         #atomic_numbers: List[int],
         correlation: int=1,
         #unique_atoms: Sequence[sisl.Atom],
-        matrix_readout: Type[OrbitalMatrixReadout] = OrbitalMatrixReadout,
+        matrix_readout: Type[BasisMatrixReadout] = BasisMatrixReadout,
         symmetric_matrix: bool = False,
         node_block_readout: Type[NodeBlock] = SimpleNodeBlock,
         edge_block_readout: Type[EdgeBlock] = SimpleEdgeBlock,
@@ -48,7 +48,7 @@ class LitOrbitalMatrixMACE(LitOrbitalMatrixModel):
         loss: Type[OrbitalMatrixMetric] = block_type_mse,
         ):
 
-        super().__init__(root_dir=root_dir, basis_files=basis_files, z_table=z_table, loss=loss, model_cls=OrbitalMatrixMACE)
+        super().__init__(root_dir=root_dir, basis_files=basis_files, basis_table=basis_table, loss=loss, model_cls=OrbitalMatrixMACE)
         self.save_hyperparameters()
 
         if isinstance(hidden_irreps, str):
@@ -57,20 +57,19 @@ class LitOrbitalMatrixMACE(LitOrbitalMatrixModel):
             edge_hidden_irreps = o3.Irreps(edge_hidden_irreps)
 
         self.init_model(
-            r_max=self.z_table.maxR() * 2,
+            r_max=self.basis_table.maxR() * 2,
             num_bessel=num_bessel,
             num_polynomial_cutoff=num_polynomial_cutoff,
             max_ell=max_ell,
             interaction_cls=interaction_cls,
             interaction_cls_first=interaction_cls_first,
             num_interactions=num_interactions,
-            num_elements=len(self.z_table.atoms),
+            num_elements=len(self.basis_table.basis),
             hidden_irreps=hidden_irreps,
             edge_hidden_irreps=edge_hidden_irreps,
             avg_num_neighbors=avg_num_neighbors,
-            atomic_numbers=self.z_table.zs,
             correlation=correlation,
-            unique_atoms=self.z_table.atoms,
+            unique_basis=self.basis_table.basis,
             matrix_readout=matrix_readout,
             symmetric_matrix=symmetric_matrix,
             node_block_readout=node_block_readout,

@@ -11,7 +11,7 @@ from scipy.spatial.transform import Rotation
 
 from e3nn_matrix.data.configuration import OrbitalConfiguration
 from e3nn_matrix.torch.data import OrbitalMatrixData
-from e3nn_matrix.data.periodic_table import AtomicTableWithEdges
+from e3nn_matrix.data.table import AtomicTableWithEdges
 from e3nn_matrix.data.irreps_tools import get_atom_irreps
 from e3nn_matrix.data.sparse import nodes_and_edges_to_coo, nodes_and_edges_to_sparse_orbital
 

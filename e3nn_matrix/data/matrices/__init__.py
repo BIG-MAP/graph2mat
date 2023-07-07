@@ -4,11 +4,12 @@ from warnings import warn
 
 import sisl
 
-from .orbital_matrix import OrbitalMatrix
-from .density_matrix import DensityMatrix
+from .basis_matrix import BasisMatrix
+from .physics.orbital_matrix import OrbitalMatrix
+from .physics.density_matrix import DensityMatrix
 
 __all__ = [
-    "OrbitalMatrix", "DensityMatrix",
+    "BasisMatrix", "OrbitalMatrix", "DensityMatrix",
     "get_matrix_cls"
 ]
 

@@ -1,11 +1,35 @@
-from typing import Union, Type, Optional, Tuple, TypedDict
+from typing import Union, Type, Optional, Tuple
 
 from pathlib import Path
 
-from e3nn_matrix.data.periodic_table import AtomicTableWithEdges
-from e3nn_matrix.torch.data import MatrixDataProcessor
+from e3nn_matrix.data.processing import MatrixDataProcessor
 
 import torch
+
+def sanitize_checkpoint(checkpoint: dict) -> dict:
+    """Makes sure that the checkpoint is compatible with the current version of e3nn_matrix."""
+
+    checkpoint = checkpoint.copy()
+
+    if "z_table" in checkpoint:
+        checkpoint['basis_table'] = checkpoint.pop('z_table')
+    
+    data_ckpt = checkpoint['datamodule_hyper_parameters']
+    model_ckpt = checkpoint['hyper_parameters']
+
+    for sub_ckpt in (data_ckpt, model_ckpt):
+        if "z_table" in sub_ckpt:
+            sub_ckpt['basis_table'] = sub_ckpt.pop('z_table')
+        if "unique_atoms" in sub_ckpt:
+            sub_ckpt['unique_basis'] = sub_ckpt.pop('unique_atoms')
+        if "sub_atomic_matrix" in sub_ckpt:
+            sub_ckpt['sub_point_matrix'] = sub_ckpt.pop('sub_atomic_matrix')
+
+    if "model_kwargs" in checkpoint:
+        if "atomic_numbers" in checkpoint:
+            checkpoint.pop("atomic_numbers")
+    
+    return checkpoint
 
 def load_from_lit_ckpt(
     ckpt_file: Union[Path, str], cpu: bool = True, as_torch: bool = False, model_class: Optional[Type[torch.nn.Module]] = None
@@ -34,10 +58,12 @@ def load_from_lit_ckpt(
     """
     ckpt = torch.load(ckpt_file, map_location='cpu' if cpu else None)
 
-    if not as_torch:
-        from e3nn_matrix.models.mace.lit import LitOrbitalMatrixMACE
+    ckpt = sanitize_checkpoint(ckpt)
 
-        model = LitOrbitalMatrixMACE.load_from_checkpoint(ckpt_file, z_table=ckpt["z_table"], map_location='cpu' if cpu else None)
+    if not as_torch:
+        from e3nn_matrix.tools.lightning.models.mace import LitOrbitalMatrixMACE
+
+        model = LitOrbitalMatrixMACE.load_from_checkpoint(ckpt_file, basis_table=ckpt["basis_table"], map_location='cpu' if cpu else None)
     else:
         if "model_kwargs" in ckpt:
             if model_class is None:
@@ -55,9 +81,9 @@ def load_from_lit_ckpt(
 
     data_processor = MatrixDataProcessor(
         out_matrix=ckpt["datamodule_hyper_parameters"]["out_matrix"],
-        sub_atomic_matrix=ckpt["datamodule_hyper_parameters"]["sub_atomic_matrix"],
+        sub_point_matrix=ckpt["datamodule_hyper_parameters"]["sub_point_matrix"],
         symmetric_matrix=ckpt["datamodule_hyper_parameters"]["symmetric_matrix"],
-        z_table=ckpt["z_table"],
+        basis_table=ckpt["basis_table"],
     )
 
     return model, data_processor

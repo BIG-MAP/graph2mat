@@ -14,15 +14,16 @@ import torch.utils.data
 from mace.tools.torch_geometric import DataLoader
 
 from e3nn_matrix.data.configuration import PhysicsMatrixType
-from e3nn_matrix.data.periodic_table import AtomicTableWithEdges
+from e3nn_matrix.data.table import BasisTableWithEdges, AtomicTableWithEdges
+from e3nn_matrix.data.processing import MatrixDataProcessor
+from e3nn_matrix.torch.data import BasisMatrixTorchData
 from e3nn_matrix.torch.dataset import OrbitalMatrixDataset, InMemoryData, RotatingPoolData
-from e3nn_matrix.torch.data import MatrixDataProcessor
 
 class MatrixDataModule(pl.LightningDataModule):
     def __init__(self,
         out_matrix: Optional[PhysicsMatrixType] = None,
         basis_files: Optional[str] = None,
-        z_table: Optional[AtomicTableWithEdges] = None,
+        basis_table: Optional[BasisTableWithEdges] = None,
         root_dir: str = ".",
         train_runs: Optional[str] = None,
         val_runs: Optional[str] = None,
@@ -43,7 +44,7 @@ class MatrixDataModule(pl.LightningDataModule):
         ----------
             out_matrix :'density_matrix', 'hamiltonian', 'energy_density_matrix', 'dynamical_matrix'
             basis_files : Union[str, None]
-            z_table : Union[AtomicTableWithEdges, None]
+            basis_table : Union[BasisTableWithEdges, None]
             root_dir : str
             train_runs : Optional[str]
             val_runs : Optional[str]
@@ -74,7 +75,7 @@ class MatrixDataModule(pl.LightningDataModule):
         self.root_dir = root_dir
 
         self.basis_files = basis_files
-        self.z_table = z_table
+        self.basis_table = basis_table
         self.out_matrix: Optional[PhysicsMatrixType] = out_matrix
         self.symmetric_matrix = symmetric_matrix
 
@@ -114,10 +115,10 @@ class MatrixDataModule(pl.LightningDataModule):
             root = self.tmp_dir
         else:
             root = self.root_dir
-        if self.z_table is None:
+        if self.basis_table is None:
             # Read the basis from the basis files provided.
             assert self.basis_files is not None
-            self.z_table = AtomicTableWithEdges.from_basis_glob(Path(root).glob(self.basis_files))
+            self.basis_table = AtomicTableWithEdges.from_basis_glob(Path(root).glob(self.basis_files))
 
         # Initialize the data.
         self.train_dataset = None
@@ -136,10 +137,10 @@ class MatrixDataModule(pl.LightningDataModule):
             runs_dict = {}
 
         self.data_processor = MatrixDataProcessor(
-            z_table=self.z_table,
+            basis_table=self.basis_table,
             out_matrix=self.out_matrix,
             symmetric_matrix=self.symmetric_matrix,
-            sub_atomic_matrix=self.sub_atomic_matrix,
+            sub_point_matrix=self.sub_atomic_matrix,
         )
 
         # Set the paths for each split
@@ -161,6 +162,7 @@ class MatrixDataModule(pl.LightningDataModule):
                 dataset = OrbitalMatrixDataset(
                     list(runs),
                     data_processor=self.data_processor,
+                    data_cls=BasisMatrixTorchData,
                     load_labels=split != "predict"
                 )
                 

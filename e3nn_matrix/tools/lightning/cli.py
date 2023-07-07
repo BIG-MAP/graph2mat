@@ -1,15 +1,16 @@
-from typing import Dict, Set, List, Any
 import copy
 import os
 from pytorch_lightning.cli import LightningCLI, SaveConfigCallback, LightningArgumentParser, ArgsType
 import torch
 from jsonargparse import Namespace
 
+from e3nn_matrix.torch.load import sanitize_checkpoint
+
 class OrbitalMatrixCLI(LightningCLI):
     def add_arguments_to_parser(self, parser: LightningArgumentParser):
         parser.link_arguments("data.root_dir", "model.root_dir")
         parser.link_arguments("data.basis_files", "model.basis_files")
-        parser.link_arguments("data.z_table", "model.z_table")
+        parser.link_arguments("data.basis_table", "model.basis_table")
         parser.link_arguments("data.symmetric_matrix", "model.symmetric_matrix")
 
         defaults = {}
@@ -119,6 +120,7 @@ class OrbitalMatrixCLI(LightningCLI):
         # the GPU. The torch tensors might be located on GPU (or any other device), which is possibly not 
         # available when we load the checkpoint. Map those tensors to CPU so that there are no loading errors.
         checkpoint = torch.load(ckpt_path, map_location=torch.device('cpu'))
+        checkpoint = sanitize_checkpoint(checkpoint)
 
         config = {}
 
@@ -132,15 +134,15 @@ class OrbitalMatrixCLI(LightningCLI):
             # place and set them in the config.
             config['model'] = checkpoint['hyper_parameters']
 
-        if os.environ.get("E3MAT_FROMCKPT_ZTABLE", "").lower() not in ["off", "false", "f", "no", "0"]:
-            z_table = checkpoint.get("z_table")
-            if z_table:
-                config['model']['z_table'] = z_table
-                config['data']['z_table'] = z_table
+        if os.environ.get("E3MAT_FROMCKPT_BASISTABLE", "").lower() not in ["off", "false", "f", "no", "0"]:
+            basis_table = checkpoint.get("basis_table")
+            if basis_table:
+                config['model']['basis_table'] = basis_table
+                config['data']['basis_table'] = basis_table
 
         return config
 
-class SaveConfigSkipZTableCallback(SaveConfigCallback):
+class SaveConfigSkipBasisTableCallback(SaveConfigCallback):
     def __init__(
         self,
         parser: LightningArgumentParser,
@@ -149,12 +151,12 @@ class SaveConfigSkipZTableCallback(SaveConfigCallback):
         overwrite: bool = False,
         multifile: bool = False,
     ) -> None:
-        # Make a shallow copy of config and overwrite z_table argument
-        # to not save z_table to yaml which makes no sense
+        # Make a shallow copy of config and overwrite basis_table argument
+        # to not save basis_table to yaml which makes no sense
         config = copy.copy(config)
-        if hasattr(config.data, "z_table"):
-            config.data.z_table = None
-            config.model.z_table = None
+        if hasattr(config.data, "basis_table"):
+            config.data.basis_table = None
+            config.model.basis_table = None
         super().__init__(
             parser=parser,
             config=config,

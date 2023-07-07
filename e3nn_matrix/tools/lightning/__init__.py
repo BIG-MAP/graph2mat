@@ -2,7 +2,7 @@
 using pytorch_lightning.
 """
 
-from .model import LitOrbitalMatrixModel
+from .model import LitBasisMatrixModel
 from .callbacks import *
 from .data import MatrixDataModule
-from .cli import OrbitalMatrixCLI, SaveConfigSkipZTableCallback
+from .cli import OrbitalMatrixCLI, SaveConfigSkipBasisTableCallback

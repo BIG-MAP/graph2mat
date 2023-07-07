@@ -6,7 +6,7 @@ from dataclasses import dataclass
 import numpy as np
 import sisl
 
-from .matrices import OrbitalMatrix, get_matrix_cls
+from .matrices import OrbitalMatrix, BasisMatrix, get_matrix_cls
 from .sparse import csr_to_block_dict
 
 Vector = np.ndarray  # [3,]
@@ -19,10 +19,23 @@ PhysicsMatrixType = Literal["density_matrix", "hamiltonian", "energy_density_mat
 DEFAULT_CONFIG_TYPE = "Default"
 
 @dataclass
-class OrbitalConfiguration:
-    atomic_numbers: np.ndarray
+class BasisConfiguration:
+    point_types: np.ndarray
     positions: Positions  # Angstrom
-    atoms: sisl.Atoms
+    basis: sisl.Atoms
+    cell: Optional[Cell] = None
+    pbc: Optional[Pbc] = None
+    matrix: Optional[BasisMatrix] = None
+
+    weight: float = 1.0  # weight of config in loss
+    config_type: Optional[str] = DEFAULT_CONFIG_TYPE  # config_type of config
+    metadata: Optional[Dict[str, Any]] = None
+
+@dataclass
+class OrbitalConfiguration(BasisConfiguration):
+    point_types: np.ndarray
+    positions: Positions  # Angstrom
+    basis: sisl.Atoms
     energy: Optional[float] = None  # eV
     forces: Optional[Forces] = None  # eV/Angstrom
     cell: Optional[Cell] = None
@@ -32,6 +45,29 @@ class OrbitalConfiguration:
     weight: float = 1.0  # weight of config in loss
     config_type: Optional[str] = DEFAULT_CONFIG_TYPE  # config_type of config
     metadata: Optional[Dict[str, Any]] = None
+
+    @property
+    def atom_types(self) -> np.ndarray:
+        return self.point_types
+    
+    @property
+    def atoms(self) -> sisl.Atoms:
+        return self.basis
+    
+    @classmethod
+    def new(cls, obj: Union[sisl.Geometry, sisl.SparseOrbital, str, Path], labels: bool = True, **kwargs) -> "OrbitalConfiguration":
+        if isinstance(obj, sisl.Geometry):
+            if labels:
+                raise ValueError("Cannot infer output labels only from a geometry. Please provide either a matrix or a path to a run file.")
+            return cls.from_geometry(obj, **kwargs)
+        elif isinstance(obj, sisl.SparseOrbital):
+            return cls.from_matrix(obj, labels=labels, **kwargs)
+        elif isinstance(obj, (str, Path)):
+            if not labels:
+                kwargs["out_matrix"] = None
+            return cls.from_run(obj, **kwargs)
+        else:
+            raise TypeError(f"Cannot create OrbitalConfiguration from {obj.__class__.__name__}.")
 
     @classmethod
     def from_geometry(cls, geometry: sisl.Geometry, **kwargs) -> "OrbitalConfiguration":
@@ -51,10 +87,10 @@ class OrbitalConfiguration:
         if "pbc" not in kwargs:
             kwargs['pbc'] = (True, True, True)
 
-        return cls(atomic_numbers=geometry.atoms.Z, atoms=geometry.atoms, positions=geometry.xyz, cell=geometry.cell, **kwargs)
+        return cls(point_types=geometry.atoms.Z, basis=geometry.atoms, positions=geometry.xyz, cell=geometry.cell, **kwargs)
     
     @classmethod
-    def from_matrix(cls, matrix: sisl.SparseOrbital, **kwargs):
+    def from_matrix(cls, matrix: sisl.SparseOrbital, labels: bool = True, **kwargs):
         """Initializes an OrbitalConfiguration object from a sisl matrix.
 
         Parameters
@@ -62,18 +98,24 @@ class OrbitalConfiguration:
         matrix: sisl.SparseOrbital
             The matrix to associate to the OrbitalConfiguration. This matrix should have an associated
             geometry, which will be used.
+        labels: bool
+            Whether to process the labels from the matrix. If False, the only thing to read
+            will be the atomic structure, which is likely the input of your model.
         **kwargs:
             Additional arguments to be passed to the OrbitalConfiguration constructor.
         """
-        # Determine the dataclass that should store the matrix and build the block dict
-        # sparse structure.
-        matrix_cls = get_matrix_cls(matrix.__class__)
-        matrix_block = csr_to_block_dict(matrix._csr, matrix.atoms, nsc=matrix.nsc, matrix_cls=matrix_cls)
-
         # The matrix will have an associated geometry, so we will use it.
         geometry = matrix.geometry
 
-        return cls.from_geometry(geometry=geometry, matrix=matrix_block, **kwargs)
+        if labels:
+            # Determine the dataclass that should store the matrix and build the block dict
+            # sparse structure.
+            matrix_cls = get_matrix_cls(matrix.__class__)
+            matrix_block = csr_to_block_dict(matrix._csr, matrix.atoms, nsc=matrix.nsc, matrix_cls=matrix_cls)
+
+            kwargs['matrix'] = matrix_block
+
+        return cls.from_geometry(geometry=geometry, **kwargs)
     
     @classmethod
     def from_run(cls, runfilepath: Union[str, Path], out_matrix: Optional[PhysicsMatrixType] = None):

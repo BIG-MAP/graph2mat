@@ -15,7 +15,7 @@ __all__ = [
 ]
 
 class NodeBlock(torch.nn.Module, ABC):
-    """Base class for computing node blocks of an orbital matrix.
+    """Base class for computing node blocks of an basis-basis matrix.
     
     Parameters
     -----------

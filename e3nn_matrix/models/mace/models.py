@@ -1,13 +1,9 @@
 """Variant of the MACE model using the orbital matrix readouts."""
 
-from typing import Any, Dict, List, Type, Sequence
+from typing import Any, Dict, Type, Sequence
 
 import torch
 from e3nn import o3
-
-import sisl
-
-from e3nn_matrix.torch.data import OrbitalMatrixData
 
 from mace.modules.blocks import (
     EquivariantProductBasisBlock,
@@ -15,11 +11,11 @@ from mace.modules.blocks import (
     LinearNodeEmbeddingBlock,
     RadialEmbeddingBlock,
 )
-
-from e3nn_matrix.torch.modules import OrbitalMatrixReadout, EdgeBlock, NodeBlock
-
 from mace.modules.utils import get_edge_vectors_and_lengths
 
+from e3nn_matrix.data.basis import PointBasis
+from e3nn_matrix.torch.data import BasisMatrixTorchData
+from e3nn_matrix.torch.modules import BasisMatrixReadout, EdgeBlock, NodeBlock
 
 class OrbitalMatrixMACE(torch.nn.Module):
     def __init__(
@@ -35,10 +31,9 @@ class OrbitalMatrixMACE(torch.nn.Module):
         hidden_irreps: o3.Irreps,
         edge_hidden_irreps: o3.Irreps,
         avg_num_neighbors: float,
-        atomic_numbers: List[int],
         correlation: int,
-        unique_atoms: Sequence[sisl.Atom],
-        matrix_readout: Type[OrbitalMatrixReadout],
+        unique_basis: Sequence[PointBasis],
+        matrix_readout: Type[BasisMatrixReadout],
         symmetric_matrix: bool,
         node_block_readout: Type[NodeBlock],
         edge_block_readout: Type[EdgeBlock],
@@ -46,7 +41,6 @@ class OrbitalMatrixMACE(torch.nn.Module):
     ):
         super().__init__()
         self.r_max = r_max
-        self.atomic_numbers = atomic_numbers
         # Embedding
         node_attr_irreps = o3.Irreps([(num_elements, (0, 1))])
         node_feats_irreps = o3.Irreps([(hidden_irreps.count(o3.Irrep(0, 1)), (0, 1))])
@@ -108,7 +102,7 @@ class OrbitalMatrixMACE(torch.nn.Module):
                     edge_feats_irreps=edge_feats_irreps,
                     edge_hidden_irreps=edge_hidden_irreps,
                     avg_num_neighbors=avg_num_neighbors,
-                    unique_atoms=unique_atoms,
+                    unique_basis=unique_basis,
                     symmetric=symmetric_matrix,
                     node_operation=node_block_readout, edge_operation=edge_block_readout
                 )
@@ -145,14 +139,14 @@ class OrbitalMatrixMACE(torch.nn.Module):
                     edge_feats_irreps=edge_feats_irreps,
                     edge_hidden_irreps=edge_hidden_irreps,
                     avg_num_neighbors=avg_num_neighbors,
-                    unique_atoms=unique_atoms,
+                    unique_basis=unique_basis,
                     symmetric=symmetric_matrix,
                     node_operation=node_block_readout, edge_operation=edge_block_readout
                 )
 
                 self.readouts.append(readout)
 
-    def forward(self, data: OrbitalMatrixData, training=False) -> Dict[str, Any]:
+    def forward(self, data: BasisMatrixTorchData, training=False) -> Dict[str, Any]:
         # Setup
         # This is only if we want to compute matrix gradients. For now, we don't.
         #data.positions.requires_grad = True
@@ -202,7 +196,7 @@ class OrbitalMatrixMACE(torch.nn.Module):
             # to get the total energy. In this case we just need to compare element by element 
             # from predictions to target.
             inter_node_labels, inter_edge_labels = readout(
-                node_feats=node_feats, node_attrs=data.node_attrs, node_types=data.atom_types,
+                node_feats=node_feats, node_attrs=data.node_attrs, node_types=data.point_types,
                 edge_feats=edge_feats, edge_attrs=edge_attrs, edge_types=data.edge_types, 
                 edge_index=data.edge_index, edge_type_nlabels=data.edge_type_nlabels
             )

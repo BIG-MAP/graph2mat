@@ -1,7 +1,7 @@
 import logging
 from torch import multiprocessing
 from pathlib import Path
-from typing import Sequence, Union
+from typing import Sequence, Union, Type
 import threading
 
 import numpy as np
@@ -9,17 +9,20 @@ import sisl
 
 import torch.utils.data
 
-from .data import MatrixDataProcessor
+from ..data.processing import MatrixDataProcessor
+from .data import BasisMatrixTorchData
 
 class OrbitalMatrixDataset(torch.utils.data.Dataset):
     def __init__(
         self,
         input_data: Sequence[Union[Path, str, sisl.Geometry]],
         data_processor: MatrixDataProcessor,
+        data_cls: Type[BasisMatrixTorchData] = BasisMatrixTorchData,
         load_labels: bool = True,
     ):
         self.input_data = input_data
         self.data_processor = data_processor
+        self.data_cls = data_cls
         self.load_labels = load_labels
 
     def __len__(self):
@@ -27,7 +30,7 @@ class OrbitalMatrixDataset(torch.utils.data.Dataset):
 
     def __getitem__(self, index: int):
         item = self.input_data[index]
-        return self.data_processor.process_input(item, labels=self.load_labels)
+        return self.data_cls.new(item, data_processor=self.data_processor, labels=self.load_labels)
 
 class InMemoryData(torch.utils.data.Dataset):
     """

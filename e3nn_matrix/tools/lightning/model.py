@@ -7,12 +7,13 @@ import torch
 
 #from context import mace
 from e3nn_matrix.data.metrics import OrbitalMatrixMetric, block_type_mse
-from e3nn_matrix.data.periodic_table import AtomicTableWithEdges
+from e3nn_matrix.data.table import BasisTableWithEdges, AtomicTableWithEdges
+from e3nn_matrix.torch.load import sanitize_checkpoint
 from e3nn_matrix import __version__
 
-class LitOrbitalMatrixModel(pl.LightningModule):
+class LitBasisMatrixModel(pl.LightningModule):
 
-    z_table: AtomicTableWithEdges
+    basis_table: BasisTableWithEdges
     model: torch.nn.Module
     model_kwargs: dict
 
@@ -21,7 +22,7 @@ class LitOrbitalMatrixModel(pl.LightningModule):
         model_cls: Type[torch.nn.Module],
         root_dir: str = ".",
         basis_files: Union[str, None] = None,
-        z_table: Union[AtomicTableWithEdges, None] = None,
+        basis_table: Union[BasisTableWithEdges, None] = None,
         loss: Type[OrbitalMatrixMetric] = block_type_mse,
         **kwargs
         ):
@@ -30,13 +31,13 @@ class LitOrbitalMatrixModel(pl.LightningModule):
 
         self.save_hyperparameters()
 
-        if z_table is None:
+        if basis_table is None:
             if basis_files is None:
-                self.z_table = None
+                self.basis_table = None
             else:
-                self.z_table = AtomicTableWithEdges.from_basis_glob(Path(root_dir).glob(basis_files))
+                self.basis_table = AtomicTableWithEdges.from_basis_glob(Path(root_dir).glob(basis_files))
         else:
-            self.z_table = z_table
+            self.basis_table = basis_table
 
         self.loss_fn = loss()
         
@@ -56,9 +57,9 @@ class LitOrbitalMatrixModel(pl.LightningModule):
         out = self.model(batch)
 
         loss, stats = self.loss_fn(
-            nodes_pred=out['node_labels'], nodes_ref=batch['atom_labels'],
+            nodes_pred=out['node_labels'], nodes_ref=batch['point_labels'],
             edges_pred=out['edge_labels'], edges_ref=batch['edge_labels'],
-            batch=batch, z_table=self.z_table
+            batch=batch, basis_table=self.basis_table
         )
 
         self.log("train_loss", loss, on_step=True, on_epoch=True, prog_bar=True, logger=True)
@@ -72,9 +73,9 @@ class LitOrbitalMatrixModel(pl.LightningModule):
         out = self.model(batch)
 
         loss, stats = self.loss_fn(
-            nodes_pred=out['node_labels'], nodes_ref=batch['atom_labels'],
+            nodes_pred=out['node_labels'], nodes_ref=batch['point_labels'],
             edges_pred=out['edge_labels'], edges_ref=batch['edge_labels'],
-            log_verbose=True
+            batch=batch, basis_table=self.basis_table, log_verbose=True
         )
 
         self.log("val_loss", loss, prog_bar=True, logger=True)
@@ -90,9 +91,9 @@ class LitOrbitalMatrixModel(pl.LightningModule):
         out = self.model(batch)
 
         loss, stats = self.loss_fn(
-            nodes_pred=out['node_labels'], nodes_ref=batch['atom_labels'],
+            nodes_pred=out['node_labels'], nodes_ref=batch['point_labels'],
             edges_pred=out['edge_labels'], edges_ref=batch['edge_labels'],
-            log_verbose=True
+            batch=batch, basis_table=self.basis_table, log_verbose=True
         )
 
         self.log("test_loss", loss, prog_bar=True, logger=True)
@@ -104,21 +105,23 @@ class LitOrbitalMatrixModel(pl.LightningModule):
 
     def on_save_checkpoint(self, checkpoint) -> None:
         "Objects to include in checkpoint file"
-        checkpoint["z_table"] = self.z_table
+        checkpoint["basis_table"] = self.basis_table
         checkpoint["version"] = __version__
 
         # Store the model class and the kwargs used to initialize it. This is
         # useful so that the model can be loaded independently, without having
         # to use pytorch lightning.
         checkpoint["model_kwargs"] = self.model_kwargs
-        
 
     def on_load_checkpoint(self, checkpoint) -> None:
         "Objects to retrieve from checkpoint file"
+        san_checkpoint = sanitize_checkpoint(checkpoint)
+        checkpoint.update(san_checkpoint)
+
         try:
-            self.z_table = checkpoint["z_table"]
+            self.basis_table = checkpoint["basis_table"]
         except KeyError:
-            warnings.warn("Failed to load z_table from checkpoint: Key does not exist.")
+            warnings.warn("Failed to load basis_table from checkpoint: Key does not exist.")
 
         try:
             ckpt_version = checkpoint["version"]

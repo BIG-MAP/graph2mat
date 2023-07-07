@@ -3,7 +3,7 @@ import numpy as np
 
 from dataclasses import dataclass
 
-from ..periodic_table import AtomicTableWithEdges
+from ...table import AtomicTableWithEdges
 from .orbital_matrix import OrbitalMatrix
 
 @dataclass

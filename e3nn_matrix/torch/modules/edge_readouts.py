@@ -14,7 +14,7 @@ __all__ = [
 ]
 
 class EdgeBlock(torch.nn.Module, ABC):
-    """Base class for computing edge blocks of an orbital matrix.
+    """Base class for computing edge blocks of a basis-basis matrix.
     Parameters
     -----------
     edge_feats_irreps: o3.Irreps

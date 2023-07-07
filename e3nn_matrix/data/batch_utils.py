@@ -1,18 +1,17 @@
 from typing import Any, Type, Union, Dict, Iterator, Optional
 
 import numpy as np
-import torch
 import sisl
 
-from .periodic_table import AtomicTableWithEdges
-from ..torch.data import OrbitalMatrixData
+from .table import AtomicTableWithEdges
+from .processing import BasisMatrixData
 
 def batch_to_orbital_matrix_data(
     batch: Any,
     prediction: Optional[Dict]=None,
     z_table: Optional[AtomicTableWithEdges]=None,
     symmetric_matrix: bool=False,
-    ) -> Iterator[OrbitalMatrixData]:
+    ) -> Iterator[BasisMatrixData]:
     """
     Convert a batch of data points to a sparse matrix representation for each configuration
     Parameters
@@ -26,7 +25,7 @@ def batch_to_orbital_matrix_data(
             If predictions is not None, symmetric_matrix is required to arrange the labels correctly
     Yields
     ------
-        OrbitalMatrixData for each example in the batch
+        BasisMatrixData for each example in the batch
     """
 
     if prediction is not None:
@@ -103,5 +102,5 @@ def batch_to_sparse_orbital(
     """
 
     for matrix in batch_to_orbital_matrix_data(batch, prediction=prediction, z_table=z_table, symmetric_matrix=symmetric_matrix):
-        matrix = matrix.to_sparse_orbital_matrix(z_table, matrix_cls, symmetric_matrix, add_atomic_contribution)
+        matrix = matrix.to_sparse_orbital_matrix()
         yield matrix

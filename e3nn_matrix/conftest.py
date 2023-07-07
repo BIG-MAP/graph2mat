@@ -5,9 +5,10 @@ from numpy.random import RandomState
 import numpy as np
 
 from e3nn_matrix.data.sparse import csr_to_block_dict
+from e3nn_matrix.data.processing import MatrixDataProcessor
 from e3nn_matrix.data.configuration import OrbitalConfiguration
-from e3nn_matrix.torch.data import OrbitalMatrixData
-from e3nn_matrix.data.periodic_table import AtomicTableWithEdges
+from e3nn_matrix.torch.data import BasisMatrixTorchData
+from e3nn_matrix.data.table import AtomicTableWithEdges
 
 @pytest.fixture(scope="session", params=[True, False])
 def periodic(request):
@@ -58,6 +59,15 @@ def density_z_table(density_matrix):
     return AtomicTableWithEdges(density_matrix.atoms)
 
 @pytest.fixture(scope="session")
+def density_data_processor(density_z_table):
+    return MatrixDataProcessor(
+        basis_table=density_z_table, 
+        sub_point_matrix=False,
+        symmetric_matrix=True,
+        out_matrix="density_matrix",
+    )
+
+@pytest.fixture(scope="session")
 def density_config(density_matrix):
     geometry = density_matrix.geometry
 
@@ -66,6 +76,5 @@ def density_config(density_matrix):
     return OrbitalConfiguration.from_geometry(geometry=geometry, matrix=dm_block)
 
 @pytest.fixture(scope="session")
-def density_data(density_config, density_matrix):
-    z_table = AtomicTableWithEdges(density_matrix.atoms.atom)
-    return OrbitalMatrixData.from_config(density_config, z_table=z_table, sub_atomic_matrix=False)
+def density_data(density_config, density_data_processor):
+    return BasisMatrixTorchData.from_config(density_config, data_processor=density_data_processor)
