@@ -83,7 +83,6 @@ class OrbitalMatrixMACE(torch.nn.Module):
             node_feats_irreps=node_feats_irreps_out,
             target_irreps=hidden_irreps,
             correlation=correlation,
-            element_dependent=True,
             num_elements=num_elements,
             use_sc=use_sc_first,
         )
@@ -124,7 +123,6 @@ class OrbitalMatrixMACE(torch.nn.Module):
                 node_feats_irreps=interaction_irreps,
                 target_irreps=hidden_irreps,
                 correlation=correlation,
-                element_dependent=True,
                 num_elements=num_elements,
                 use_sc=True,
             )

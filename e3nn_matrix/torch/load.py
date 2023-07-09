@@ -26,9 +26,9 @@ def sanitize_checkpoint(checkpoint: dict) -> dict:
             sub_ckpt['sub_point_matrix'] = sub_ckpt.pop('sub_atomic_matrix')
 
     if "model_kwargs" in checkpoint:
-        if "atomic_numbers" in checkpoint:
-            checkpoint.pop("atomic_numbers")
-    
+        if "atomic_numbers" in checkpoint['model_kwargs']:
+            checkpoint['model_kwargs'].pop("atomic_numbers")
+
     return checkpoint
 
 def load_from_lit_ckpt(
