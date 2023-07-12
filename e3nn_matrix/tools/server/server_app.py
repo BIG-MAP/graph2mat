@@ -2,6 +2,7 @@
 
 
 from typing import Callable, Dict, Optional, TypedDict, List, Union
+
 from enum import Enum
 import dataclasses
 
@@ -19,8 +20,9 @@ from e3nn_matrix.torch.data import BasisMatrixData, BasisMatrixTorchData
 from e3nn_matrix.torch.load import load_from_lit_ckpt
 
 try:
-    from fastapi import FastAPI, UploadFile, BackgroundTasks, HTTPException
-    from fastapi.responses import FileResponse
+    from fastapi import FastAPI, UploadFile, BackgroundTasks, HTTPException, Request, Form
+    from fastapi.responses import FileResponse, HTMLResponse
+    from fastapi.templating import Jinja2Templates
 except ImportError as e:
 
     class FastAPI:
@@ -45,6 +47,7 @@ class ModelSpecification(TypedDict):
     prediction_function: Callable[[BasisMatrixData], Dict[str, np.ndarray]]
     data_processor: MatrixDataProcessor
     description: str
+    authors: List[str]
     files: Files
     root_dir: Path
 
@@ -72,9 +75,13 @@ def create_server_app(
 
     app = FastAPI(
         title="E3nn_matrix server",
-        description="""API that allows the interaction between the models trained with e3nn_matrix 
-        and the codes that use their predictions.""",
     )
+
+    api = FastAPI(title="E3nn_matrix server API", 
+        description="""API that allows the interaction between the models trained with e3nn_matrix 
+        and the codes that use their predictions.""")
+    
+    app.mount("/api", api)
 
     # Valid model names.
     ModelName = Enum('ModelName', {k: k for k in models}, type=str)
@@ -86,11 +93,11 @@ def create_server_app(
         basis = 'basis'
         structs = 'structs'
 
-    @app.get('/avail_models')
+    @api.get('/avail_models')
     def return_available_models() -> List[str]:
         return list(models.keys())
     
-    @app.get('/models/{model_name}/info')
+    @api.get('/models/{model_name}/info')
     async def model_info(model_name: ModelName):
         """Returns information about a model."""
         model = models[model_name.value]
@@ -101,23 +108,14 @@ def create_server_app(
 
         return info
     
-    @app.get('/models/{model_name}/avail_info')
+    @api.get('/models/{model_name}/avail_info')
     async def model_avail_info(model_name: ModelName) -> List[str]:
         """Returns the list of keys that are available in the model's info."""
         model = models[model_name.value]
 
         return list(model)
     
-    @app.get('/models/{model_name}/files')
-    async def model_files_info(model_name: ModelName, file_name: ModelFile):
-        """Information about the files available for the model."""
-        model = models[model_name.value]
-        
-        return {
-            "available_files": list(model['files'].keys()),
-        }
-    
-    @app.get('/models/{model_name}/files/{file_name}', response_class=FileResponse)
+    @api.get('/models/{model_name}/files/{file_name}', response_class=FileResponse)
     async def model_files(model_name: ModelName, file_name: ModelFile):
         """Download files related to the model"""
         model = models[model_name.value]
@@ -135,7 +133,16 @@ def create_server_app(
 
         return response
     
-    @app.post('/models/{model_name}/predict', response_class=FileResponse)
+    @api.get('/models/{model_name}/files')
+    async def model_files_info(model_name: ModelName):
+        """Information about the files available for the model."""
+        model = models[model_name.value]
+        
+        return {
+            "available_files": list(model['files'].keys()),
+        }
+    
+    @api.post('/models/{model_name}/predict', response_class=FileResponse)
     async def predict(model_name: ModelName, geometry_file: UploadFile, background_tasks: BackgroundTasks):
         """Returns a prediction of the matrix given an uploaded geometry file."""
         # Find out which parser should we use given the file name.
@@ -176,7 +183,7 @@ def create_server_app(
         return FileResponse(file_path, media_type="application/octet-stream", filename=file_path.name)
     
     if local:
-        @app.get('/models/{model_name}/local_write_predict')
+        @api.get('/models/{model_name}/local_write_predict')
         async def local_write_predict(model_name: ModelName, geometry_path: str, output_path: Optional[str] = None, allow_overwrite: bool = False) -> str: 
             """Given the path to a geometry file, writes the predicted matrix to a file.
 
@@ -230,7 +237,7 @@ def create_server_app(
 
             return str(out_file)
     else:
-        @app.get('/models/{model_name}/local_write_predict')
+        @api.get('/models/{model_name}/local_write_predict')
         async def local_write_predict(model_name: ModelName, geometry_path: str, output_path: Optional[str] = None, allow_overwrite: bool = False) -> str: 
             """Given the path to a geometry file, writes the predicted matrix to a file.
 
@@ -248,7 +255,28 @@ def create_server_app(
                 Absolute path to the file where the matrix was written.
             """
             raise HTTPException(status_code=403, detail="This server does not allow local writes.")
-            
+    
+
+    # From here below, we define the endpoints that handle the frontend. It is a very simple
+    # frontend using Jinja2 templates.
+    templates = Jinja2Templates(directory=Path(__file__).parent / "frontend" / "templates")
+
+    @app.get("/form/{model_name}", response_class=HTMLResponse)
+    async def get(request: Request, model_name: ModelName):
+        return templates.TemplateResponse("model_form.html", {
+            "request": request, 
+            "selected_model": model_name.value,
+            "model_name": model_name.value, 
+            "model": models[model_name.value],
+            "models": models,
+        })
+    
+    @app.get("/", response_class=HTMLResponse)
+    async def get(request: Request):
+        return templates.TemplateResponse("index.html", {
+            "request": request, "models": models,
+        })
+    
     return app
 
 def create_server_app_from_filesystem(

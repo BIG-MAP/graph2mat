@@ -54,10 +54,12 @@ class ServerClient:
             self.host = parsed_url.hostname
             self.port = parsed_url.port
             self.root_url = url
+
+        self.api_url = f"{self.root_url}/api"
     
     def avail_models(self) -> List[str]:
         """Returns the models that are available in the server."""
-        response = requests.get(f"{self.root_url}/avail_models")
+        response = requests.get(f"{self.api_url}/avail_models")
         response.raise_for_status()
         return response.json()
     
@@ -117,7 +119,7 @@ class ServerClient:
         if local:
             # We ask the server to read and write to its local filesystem.
             response = requests.get(
-                f"{self.root_url}/models/{model}/local_write_predict", 
+                f"{self.api_url}/models/{model}/local_write_predict", 
                 params={"geometry_path": str(geometry_path), "output_path": str(output_path)}
             )
 
@@ -127,7 +129,7 @@ class ServerClient:
             # We will also receive a file from the server (binary content).
             files = {'geometry_file': open(geometry_path,'rb')}
 
-            response = requests.post(f"{self.root_url}/models/{model}/predict", files=files)
+            response = requests.post(f"{self.api_url}/models/{model}/predict", files=files)
 
             response.raise_for_status()
             
