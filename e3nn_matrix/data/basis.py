@@ -56,6 +56,9 @@ class PointBasis:
     
     def __eq__(self, other) -> bool:
         return str(self.irreps) == str(other.irreps)
+    
+    def __str__(self):
+        return f"Type: {self.type}. Irreps: {self.irreps}. MaxR: {self.maxR():.3f}."
 
     @property
     def basis_size(self) -> int:

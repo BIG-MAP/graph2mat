@@ -92,6 +92,11 @@ class BasisTableWithEdges:
         self.edge_block_shape = self.basis_size[point_types_combinations]
         self.edge_block_size = self.edge_block_shape.prod(axis=0)
 
+    def __str__(self):
+        return "\n".join([
+        f"\t- {point_basis}" for point_basis in self.basis
+        ])
+
     def __len__(self):
         return len(self.basis)
     

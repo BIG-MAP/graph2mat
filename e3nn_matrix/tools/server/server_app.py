@@ -23,6 +23,7 @@ try:
     from fastapi import FastAPI, UploadFile, BackgroundTasks, HTTPException, Request, Form
     from fastapi.responses import FileResponse, HTMLResponse
     from fastapi.templating import Jinja2Templates
+    from fastapi.staticfiles import StaticFiles
 except ImportError as e:
 
     class FastAPI:
@@ -276,6 +277,9 @@ def create_server_app(
         return templates.TemplateResponse("index.html", {
             "request": request, "models": models,
         })
+    
+    static = StaticFiles(directory=Path(__file__).parent / "frontend" / "static")
+    app.mount("/static", static,  name="static")
     
     return app
 
