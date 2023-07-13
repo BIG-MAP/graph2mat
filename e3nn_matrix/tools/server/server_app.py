@@ -12,6 +12,7 @@ from io import StringIO
 
 import sisl
 import numpy as np
+import pandas as pd
 
 import torch
 
@@ -51,6 +52,7 @@ class ModelSpecification(TypedDict):
     authors: List[str]
     files: Files
     root_dir: Path
+    test_metrics_summary: str
 
 def create_server_app(
     models: Dict[str, ModelSpecification],
@@ -87,9 +89,35 @@ def create_server_app(
     # Valid model names.
     ModelName = Enum('ModelName', {k: k for k in models}, type=str)
 
+    for model in models.values():
+        if "test_metrics_summary" in model:
+            continue
+
+        model['test_metrics_summary'] = ""
+
+        test_metrics_file = model['files'].get("test_metrics_summary")
+        if test_metrics_file is None:
+            continue
+
+        test_metrics_file = Path(test_metrics_file)
+        if test_metrics_file.suffix != ".csv":
+            continue
+
+        if not test_metrics_file.is_absolute():
+            test_metrics_file = Path(model['root_dir']) / test_metrics_file
+
+        if test_metrics_file.exists():
+            try:
+                metrics = pd.read_csv(test_metrics_file, index_col=0)
+            except:
+                continue
+
+            model['test_metrics_summary'] = metrics.to_html()
+
     class ModelFile(str, Enum):
         """Valid model files."""
         ckpt = 'ckpt'
+        test_metrics_summary = 'test_metrics_summary'
         sample_metrics = 'sample_metrics'
         basis = 'basis'
         structs = 'structs'

@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <link type="text/css" href="/static/styles/scrollbar.css" rel="stylesheet">
+  <link type="text/css" href="/static/styles/styles.css" rel="stylesheet">
   <script src="https://cdn.tailwindcss.com"></script>
   <script src="/static/javascript/form.js"></script>
 </head>
@@ -54,6 +54,12 @@
                                 <li>{{ point_basis }}</li>
                             {% endfor %}
                         </ul>
+                    </dd>
+                </div>
+                <div class="px-4 py-6 sm:grid sm:grid-cols-3 sm:gap-4 sm:px-0">
+                    <dt class="text-sm font-medium leading-6 text-gray-900">Test metrics summary</dt>
+                    <dd class="mt-1 text-sm leading-6 text-gray-700 sm:col-span-2 sm:mt-0">
+                        {{ model.test_metrics_summary | safe }}
                     </dd>
                 </div>
                 <div class="px-4 py-6 sm:grid sm:grid-cols-3 sm:gap-4 sm:px-0">

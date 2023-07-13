@@ -19,3 +19,21 @@ overflow-y-auto class. Get those cases and customize the scrollbar.*/
 .overflow-y-auto::-webkit-scrollbar-thumb { 
     background:#ccc;
 }
+
+/* Styling for the metrics table */
+
+th {
+    border: 1px solid #ccc;
+    padding: 5px;
+    text-align: center;
+    vertical-align: middle;
+    border-right: 1px solid #ccc;
+}
+
+td {
+    border: 1px solid #ccc;
+    padding: 5px;
+    text-align: center;
+    vertical-align: middle;
+    border-right: 1px solid #ccc;
+}
