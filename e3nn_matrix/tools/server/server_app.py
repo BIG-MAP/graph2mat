@@ -22,7 +22,7 @@ from e3nn_matrix.torch.load import load_from_lit_ckpt
 
 try:
     from fastapi import FastAPI, UploadFile, BackgroundTasks, HTTPException, Request, Form
-    from fastapi.responses import FileResponse, HTMLResponse
+    from fastapi.responses import FileResponse, HTMLResponse, RedirectResponse
     from fastapi.templating import Jinja2Templates
     from fastapi.staticfiles import StaticFiles
 except ImportError as e:
@@ -121,6 +121,35 @@ def create_server_app(
         sample_metrics = 'sample_metrics'
         basis = 'basis'
         structs = 'structs'
+
+    class ModelAction(str, Enum):
+        predict = 'predict'
+        test = 'test'
+
+    actions = {
+        ModelAction.predict: {
+            "name": ModelAction.predict.value,
+            "short_help": "When predicting, you send a structure and you receive the matrix that the model predicts.",
+        },
+        ModelAction.test: {
+            "name": ModelAction.test.value,
+            "short_help": "When testing, you send both a structure and the expected output, and you get metrics on how well the model performs.",
+        },
+    }
+
+    class Tab(str, Enum):
+        """Valid tabs in the frontend."""
+        models = 'models'
+        about = 'about'
+
+    tabs = {
+        Tab.models: {
+            "name": Tab.models.value,
+        },
+        Tab.about: {
+            "name": Tab.about.value,
+        },
+    }
 
     @api.get('/avail_models')
     def return_available_models() -> List[str]:
@@ -286,25 +315,96 @@ def create_server_app(
             raise HTTPException(status_code=403, detail="This server does not allow local writes.")
     
 
+    @api.post('/models/{model_name}/test')
+    async def test(model_name: ModelName, geometry_file: UploadFile, output_matrix_file: UploadFile, background_tasks: BackgroundTasks):
+        """Tests how good a prediction is given an uploaded geometry file and an uploaded matrix file."""
+
+        # Get model.
+        model = models[model_name.value]
+
+        # Find out which parser should we use given the file name.
+        cls = sisl.get_sile_class(geometry_file.filename)
+
+        # Parse the contents of the file into text, and wrap it in a StringIO object.
+        with geometry_file.file as f:
+            content = StringIO(f.read().decode("utf-8"))
+        
+        # Make sisl read the geometry from the StringIO object.
+        with cls(content) as sile:
+            geometry = sile.read_geometry()
+
+        geometry = model['data_processor'].add_basis_to_geometry(geometry)
+
+        # Parse the contents of the matrix file.
+        provided_matrix_file = tempfile.NamedTemporaryFile(suffix=output_matrix_file.filename, delete=False)
+        with output_matrix_file.file as f:
+            with open(provided_matrix_file.name, "wb") as f2:
+                f2.write(f.read())
+
+        matrix_parser = sisl.get_sile_class(output_matrix_file.filename)
+        matrix_sile = matrix_parser(provided_matrix_file.name)
+        
+        # Find out which type of matrix should we read and read it.
+        read_method = f"read_{model['data_processor'].out_matrix}"
+        target_matrix = getattr(matrix_sile, read_method)(geometry=geometry)
+
+        with torch.no_grad():
+            # USE THE MODEL
+            # First, we need to process the input data, to get inputs as the model expects.
+            input_data = BasisMatrixTorchData.new(target_matrix, data_processor=model['data_processor'], labels=True)
+
+            # Then, we run the model.
+            out = model['prediction_function'](input_data)
+
+            # And finally, we convert the output to a matrix.
+            metrics = model['data_processor'].compute_metrics(out, input_data, config_resolved=False)
+
+        return metrics
+    
     # From here below, we define the endpoints that handle the frontend. It is a very simple
     # frontend using Jinja2 templates.
     templates = Jinja2Templates(directory=Path(__file__).parent / "frontend" / "templates")
 
-    @app.get("/form/{model_name}", response_class=HTMLResponse)
-    async def get(request: Request, model_name: ModelName):
-        return templates.TemplateResponse("model_form.html", {
+    @app.get("/models/{model_name}/{model_action}", response_class=HTMLResponse)
+    async def get(request: Request, model_action: ModelAction, model_name: ModelName):
+        return templates.TemplateResponse(f"{model_action.value}_page.html", {
             "request": request, 
             "selected_model": model_name.value,
             "model_name": model_name.value, 
             "model": models[model_name.value],
             "models": models,
+            "model_action": actions[model_action],
+            "actions": actions,
+            "tabs": tabs,
+            "selected_tab": tabs[Tab.models],
+        })
+    
+    @app.get("/models/{model_name}", response_class=HTMLResponse)
+    async def get(request: Request, model_name: ModelName):
+        return RedirectResponse(f"/models/{model_name.value}/{ModelAction.predict.value}")
+    
+    @app.get("/models", response_class=HTMLResponse)
+    async def get(request: Request):
+        return templates.TemplateResponse("index.html", {
+            "request": request, 
+            "models": models,
+            "model_action": actions[ModelAction.predict],
+            "actions": actions,
+            "tabs": tabs,
+            "selected_tab": tabs[Tab.models],
+        })
+    
+    @app.get("/about", response_class=HTMLResponse)
+    async def get(request: Request):
+        return templates.TemplateResponse("about.html", {
+            "request": request,
+            "tabs": tabs,
+            "selected_tab": tabs[Tab.about],
         })
     
     @app.get("/", response_class=HTMLResponse)
     async def get(request: Request):
-        return templates.TemplateResponse("index.html", {
-            "request": request, "models": models,
-        })
+        return RedirectResponse(f"/models")
     
     static = StaticFiles(directory=Path(__file__).parent / "frontend" / "static")
     app.mount("/static", static,  name="static")

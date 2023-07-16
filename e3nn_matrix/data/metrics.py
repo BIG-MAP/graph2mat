@@ -55,10 +55,10 @@ class OrbitalMatrixMetric:
             
             if "symmetric_matrix" not in kwargs:
                 raise ValueError("symmetric_matrix is required to compute metrics individually for each configuration.")
-            if "z_table" not in kwargs:
-                raise ValueError("z_table is required to compute metrics individually for each configuration.")
+            if "basis_table" not in kwargs:
+                raise ValueError("basis_table is required to compute metrics individually for each configuration.")
             
-            iterator_kwargs = {"symmetric_matrix": kwargs["symmetric_matrix"], "z_table": kwargs["z_table"]}
+            iterator_kwargs = {"symmetric_matrix": kwargs["symmetric_matrix"], "basis_table": kwargs["basis_table"]}
         
             target_iterator = batch_to_orbital_matrix_data(batch, **iterator_kwargs)
             pred_iterator = batch_to_orbital_matrix_data(
@@ -71,9 +71,9 @@ class OrbitalMatrixMetric:
             
             for i, (pred, target) in enumerate(zip(pred_iterator, target_iterator)):
 
-                kwargs["nodes_pred"] = pred.atom_labels
+                kwargs["nodes_pred"] = pred.point_labels
                 kwargs["edges_pred"] = pred.edge_labels
-                kwargs["nodes_ref"] = target.atom_labels
+                kwargs["nodes_ref"] = target.point_labels
                 kwargs["edges_ref"] = target.edge_labels
 
                 kwargs["batch"] = target
@@ -106,12 +106,12 @@ class OrbitalMatrixMetric:
 def block_type_mse(nodes_pred, nodes_ref, edges_pred, edges_ref, log_verbose=False, **kwargs) -> Tuple[float, Dict[str, float]]:
     node_error, edge_error = get_predictions_error(nodes_pred, nodes_ref, edges_pred, edges_ref)
 
-    node_loss = node_error.pow(2).mean()
-    edge_loss = edge_error.pow(2).mean()
+    node_loss = (node_error ** 2).mean()
+    edge_loss = (edge_error ** 2).mean()
 
     stats = {
-        "node_rmse": node_loss.sqrt(),
-        "edge_rmse": edge_loss.sqrt(),
+        "node_rmse": (node_loss ** 1/2),
+        "edge_rmse": (edge_loss ** 1/2),
     }
 
     if log_verbose:
@@ -133,8 +133,8 @@ def block_type_mse(nodes_pred, nodes_ref, edges_pred, edges_ref, log_verbose=Fal
 def elementwise_mse(nodes_pred, nodes_ref, edges_pred, edges_ref, log_verbose=False, **kwargs) -> Tuple[float, Dict[str, float]]:
     node_error, edge_error = get_predictions_error(nodes_pred, nodes_ref, edges_pred, edges_ref)
 
-    node_loss = node_error.pow(2).mean()
-    edge_loss = edge_error.pow(2).mean()
+    node_loss = (node_error ** 2).mean()
+    edge_loss = (edge_error ** 2).mean()
 
     n_node_els = node_error.shape[0]
     n_edge_els = edge_error.shape[0]
@@ -142,8 +142,8 @@ def elementwise_mse(nodes_pred, nodes_ref, edges_pred, edges_ref, log_verbose=Fa
     loss = (n_node_els * node_loss + edge_loss * n_edge_els) / (n_node_els + n_edge_els)
 
     stats = {
-        "node_rmse": node_loss.sqrt(),
-        "edge_rmse": edge_loss.sqrt()
+        "node_rmse": (node_loss ** 1/2),
+        "edge_rmse": (edge_loss ** 1/2)
     }
 
     if log_verbose:
@@ -165,12 +165,12 @@ def elementwise_mse(nodes_pred, nodes_ref, edges_pred, edges_ref, log_verbose=Fa
 def node_mse(nodes_pred, nodes_ref, edges_pred, edges_ref, log_verbose=False, **kwargs) -> Tuple[float, Dict[str, float]]:
     node_error, edge_error = get_predictions_error(nodes_pred, nodes_ref, edges_pred, edges_ref)
 
-    node_loss = node_error.pow(2).mean()
-    edge_loss = edge_error.pow(2).mean()
+    node_loss = (node_error ** 2).mean()
+    edge_loss = (edge_error ** 2).mean()
 
     stats = {
-        "node_rmse": node_loss.sqrt(),
-        "edge_rmse": edge_loss.sqrt()
+        "node_rmse": (node_loss ** 1/2),
+        "edge_rmse": (edge_loss ** 1/2)
     }
 
     if log_verbose:
@@ -192,12 +192,12 @@ def node_mse(nodes_pred, nodes_ref, edges_pred, edges_ref, log_verbose=False, **
 def edge_mse(nodes_pred, nodes_ref, edges_pred, edges_ref, log_verbose=False, **kwargs) -> Tuple[float, Dict[str, float]]:
     node_error, edge_error = get_predictions_error(nodes_pred, nodes_ref, edges_pred, edges_ref)
 
-    node_loss = node_error.pow(2).mean()
-    edge_loss = edge_error.pow(2).mean()
+    node_loss = (node_error ** 2).mean()
+    edge_loss = (edge_error ** 2).mean()
 
     stats = {
-        "node_rmse": node_loss.sqrt(),
-        "edge_rmse": edge_loss.sqrt()
+        "node_rmse": (node_loss ** 1/2),
+        "edge_rmse": (edge_loss ** 1/2)
     }
 
     if log_verbose:
@@ -222,20 +222,20 @@ def block_type_mse_threshold(nodes_pred, nodes_ref, edges_pred, edges_ref, thres
     n_node_els = node_error.shape[0]
     n_edge_els = edge_error.shape[0]
 
-    abs_node_error = node_error.abs()
-    abs_edge_error = edge_error.abs()
+    abs_node_error = abs(node_error)
+    abs_edge_error = abs(edge_error)
 
     node_error_above_thresh = node_error[abs_node_error > threshold]
     edge_error_above_thresh = edge_error[abs_edge_error > threshold]
 
     # We do the sum instead of the mean here so that we reward putting
     # elements below the threshold
-    node_loss = node_error_above_thresh.pow(2).sum()
-    edge_loss = edge_error_above_thresh.pow(2).sum()
+    node_loss = (node_error_above_thresh ** 2).sum()
+    edge_loss = (edge_error_above_thresh ** 2).sum()
 
     stats = {
-        "node_rmse": node_error.pow(2).mean().sqrt(),
-        "edge_rmse": edge_error.pow(2).mean().sqrt(),
+        "node_rmse": (node_error ** 2).mean() ** 1/2,
+        "edge_rmse": (edge_error ** 2).mean() ** 1/2,
         "node_above_threshold_frac": node_error_above_thresh.shape[0] / n_node_els,
         "edge_above_threshold_frac": edge_error_above_thresh.shape[0] / n_edge_els,
         "node_above_threshold_mean": abs_node_error[abs_node_error > threshold].mean(),
@@ -276,15 +276,15 @@ def block_type_mse_sigmoid_thresh(nodes_pred, nodes_ref, edges_pred, edges_ref,
 
     # We do the sum instead of the mean here so that we reward putting
     # elements below the threshold
-    node_loss = node_error_thresholded.pow(2).sum()
-    edge_loss = edge_error_thresholded.pow(2).sum()
+    node_loss = (node_error_thresholded ** 2).sum()
+    edge_loss = (edge_error_thresholded ** 2).sum()
 
     abs_node_error_above_thresh = abs_node_error[abs_node_error > threshold]
     abs_edge_error_above_thresh = abs_edge_error[abs_edge_error > threshold]
 
     stats = {
-        "node_rmse": node_error.pow(2).mean().sqrt(),
-        "edge_rmse": edge_error.pow(2).mean().sqrt(),
+        "node_rmse": (node_error ** 2).mean() ** 1/2,
+        "edge_rmse": (edge_error ** 2).mean() ** 1/2,
         "node_above_threshold_frac": abs_node_error_above_thresh.shape[0] / n_node_els,
         "edge_above_threshold_frac": abs_edge_error_above_thresh.shape[0] / n_edge_els,
         "node_above_threshold_mean": abs_node_error_above_thresh.mean(),
@@ -305,28 +305,28 @@ def block_type_mse_sigmoid_thresh(nodes_pred, nodes_ref, edges_pred, edges_ref,
     return node_loss + edge_loss, stats
 
 @OrbitalMatrixMetric.from_metric_func
-def normalized_density_error(nodes_pred, nodes_ref, edges_pred, edges_ref, batch, z_table, 
+def normalized_density_error(nodes_pred, nodes_ref, edges_pred, edges_ref, batch, basis_table, 
     grid_spacing: float = 0.1, log_verbose=False, **kwargs) -> Tuple[float, Dict[str, float]]:
     """Computes the normalized density error.
     
     This is the error of the density in real space divided by the number of electrons.
     """
     import sisl
-    from e3nn_matrix.torch.data import OrbitalMatrixData
+    from e3nn_matrix.data.processing import BasisMatrixData
     
     # Get the errors in the density matrix. Make sure that NaNs are set to 0, which
     # basically means that they will have no influence on the error.
     errors = get_predictions_error(nodes_pred, nodes_ref, edges_pred, edges_ref, remove_nan=False)
     errors[1][_isnan(errors[1])] = 0
 
-    if isinstance(batch, OrbitalMatrixData):
+    if isinstance(batch, BasisMatrixData):
         # We haven't really received a batch, but just a single structure. 
         # Do as if we received a batch of size 1.
         matrix_error = batch
-        matrix_error.atom_labels = errors[0]
+        matrix_error.point_labels = errors[0]
         matrix_error.edge_labels = errors[1]
         matrix_errors = [
-            matrix_error.to_sparse_orbital_matrix(z_table=z_table, matrix_cls=sisl.DensityMatrix, symmetric_matrix=True)
+            matrix_error.to_sparse_orbital_matrix()
         ]
     else:
         # Create an iterator that returns the error for each structure in the batch
@@ -336,7 +336,7 @@ def normalized_density_error(nodes_pred, nodes_ref, edges_pred, edges_ref, batch
         matrix_errors = batch_to_sparse_orbital(
             batch,
             prediction={"node_labels": errors[0], "edge_labels": errors[1]},
-            z_table=z_table,
+            z_table=basis_table,
             matrix_cls=sisl.DensityMatrix,
             symmetric_matrix=True, 
         )

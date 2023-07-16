@@ -41,4 +41,7 @@ class BasisMatrixTorchData(BasisMatrixData, torch_geometric.data.Data):
             return torch.tensor(array)
     
     def ensure_numpy(self, array: torch.Tensor) -> np.ndarray:
-        return array.numpy(force=True)
+        if isinstance(array, torch.Tensor):
+            return array.numpy(force=True)
+        else:
+            return np.array(array)

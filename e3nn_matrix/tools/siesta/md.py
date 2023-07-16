@@ -9,6 +9,50 @@ import sisl
 import numpy as np
 import pandas as pd
 
+def prepare_gen_dataset(
+    dataset_dir: Union[Path, str] = "MD_dataset",
+    stepdir_prefix: str = "",
+    store_interval: int = 1,
+    files_to_keep: str = "*fdf *TSHS *TSDE *XV",
+    out: Union[Path, str] = "gen_dataset.lua"
+):
+    """Prepares a lua script that, if included in a SIESTA run, generates a dataset.
+
+    The resulting script is meant to be passed to SIESTA using the `Lua.Script` flag.
+
+    Parameters
+    ----------
+    dataset_dir : Union[Path, str], optional
+        Path to the directory where the dataset will be created/stored. Note that this
+        is relative to wherever you run SIESTA, so you might want to use an absolute path.
+    stepdir_prefix : str, optional
+        Prefix to add to the step directories. This is useful if you want to run multiple
+        dataset generating runs and store them in the same directory.
+    store_interval : int, optional
+        Interval between two steps that are stored in the dataset.
+    files_to_keep : str, optional
+        String containing the files that should be kept in the dataset. This is passed
+        directly to the `cp` shell command, so you can, for example, use wildcards.
+    out : Union[Path, str], optional
+        Path where the resulting lua script should be stored.
+    """
+    from jinja2 import Environment, FileSystemLoader
+
+    environment = Environment(loader=FileSystemLoader(Path(__file__).parent / "templates"))
+    template = environment.get_template("gen_dataset.lua")
+
+    # Render the template
+    content = template.render(
+        dataset_dir=str(dataset_dir),
+        stepdir_prefix=stepdir_prefix,
+        store_interval=store_interval,
+        files_to_keep=files_to_keep
+    )
+
+    # Write the generated lua file
+    with open(out, "w") as f:
+        f.write(content)
+
 def md_guess_performance_dataframe(out_file: Union[str, Path]) -> pd.DataFrame:
     """Returns a dataframe describing how close the first SCF step is to the converged properties.
     

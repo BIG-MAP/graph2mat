@@ -1,11 +1,12 @@
 """Implements the Data class to use in pytorch models."""
 from __future__ import annotations
 
-from typing import Optional, Tuple, Union, Dict, Any, Callable
+from typing import Optional, Tuple, Union, Dict, Any, Callable, Sequence, Type
 from functools import cached_property
 from pathlib import Path
 import dataclasses
 from copy import copy
+import warnings
 
 import sisl
 import numpy as np
@@ -68,6 +69,68 @@ class MatrixDataProcessor:
         matrix_data.edge_labels = output['edge_labels']
 
         return matrix_data.to_sparse_orbital_matrix()
+
+    def compute_metrics(self, 
+        output: dict, 
+        input: BasisMatrixData,
+        metrics: Union[Sequence["OrbitalMatrixMetric"], None] = None,
+    ) -> dict:
+        """Computes the metrics for a given output and input.
+
+        Parameters
+        ------------
+        output: dict
+            Output of the model, as it comes out of it.
+        input: BasisMatrixData
+            The input that was passed to the model.
+        metrics: Sequence[OrbitalMatrixMetric], optional
+            Metrics to compute. If None, all known metrics are computed.
+        
+        Returns
+        ---------
+        dict
+            Dictionary where keys are the names of the metrics and values are their values.
+        """
+        from .metrics import OrbitalMatrixMetric
+        
+        if metrics is None:
+            metrics = [metric_cls() for metric_cls in OrbitalMatrixMetric.__subclasses__()]
+
+        input_arrays = input.numpy_arrays()
+
+        metrics_values = [
+            metric(
+                nodes_pred=input.ensure_numpy(output['node_labels']), nodes_ref=input_arrays.point_labels, 
+                edges_pred=input.ensure_numpy(output['edge_labels']), edges_ref=input_arrays.edge_labels, batch=input,
+                basis_table=self.basis_table, config_resolved=False, 
+                symmetric_matrix=self.symmetric_matrix,
+            )[0] for metric in metrics
+        ]
+
+        return {metric.__class__.__name__: float(value) for metric, value in zip(metrics, metrics_values)}
+
+    def add_basis_to_geometry(self, geometry: sisl.Geometry) -> sisl.Geometry:
+        """Returns a copy of the geometry with the basis of this processor added to it.
+
+        It works by replacing an atom with atomic number Z in the geometry with the atom
+        with the same Z in the basis table.
+        """
+
+        new_geometry = geometry.copy()
+
+        for atom in geometry.atoms.atom:
+
+            for basis_atom in self.basis_table.atoms:
+                if basis_atom.Z == atom.Z:
+                    break
+            else:
+                raise ValueError(f"Couldn't find atom {atom} in the basis")
+            
+            with warnings.catch_warnings():
+                warnings.simplefilter("ignore")
+                new_geometry.atoms.replace_atom(atom, basis_atom)
+        
+        return new_geometry
     
     @staticmethod
     def sort_edge_index(

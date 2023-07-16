@@ -90,7 +90,7 @@ class OrbitalConfiguration(BasisConfiguration):
         return cls(point_types=geometry.atoms.Z, basis=geometry.atoms, positions=geometry.xyz, cell=geometry.cell, **kwargs)
     
     @classmethod
-    def from_matrix(cls, matrix: sisl.SparseOrbital, labels: bool = True, **kwargs):
+    def from_matrix(cls, matrix: sisl.SparseOrbital, geometry: Union[sisl.Geometry, None] = None, labels: bool = True, **kwargs):
         """Initializes an OrbitalConfiguration object from a sisl matrix.
 
         Parameters
@@ -98,14 +98,18 @@ class OrbitalConfiguration(BasisConfiguration):
         matrix: sisl.SparseOrbital
             The matrix to associate to the OrbitalConfiguration. This matrix should have an associated
             geometry, which will be used.
+        geometry: sisl.Geometry, optional
+            The geometry to associate to the OrbitalConfiguration. If None, the geometry of the matrix
+            will be used.
         labels: bool
             Whether to process the labels from the matrix. If False, the only thing to read
             will be the atomic structure, which is likely the input of your model.
         **kwargs:
             Additional arguments to be passed to the OrbitalConfiguration constructor.
         """
-        # The matrix will have an associated geometry, so we will use it.
-        geometry = matrix.geometry
+        if geometry is None:
+            # The matrix will have an associated geometry, so we will use it.
+            geometry = matrix.geometry
 
         if labels:
             # Determine the dataclass that should store the matrix and build the block dict

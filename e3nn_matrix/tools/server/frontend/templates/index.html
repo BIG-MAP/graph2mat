@@ -7,13 +7,21 @@
   <script src="https://cdn.tailwindcss.com"></script>
 </head>
 <body>
-    <div class="flex h-screen bg-stone-100">
-        {% include 'navbar.html' %}
-        <div class="flex-1 flex justify-center content-center items-center">
-            <div class="text-3xl">
-                Pick a model on the left to start predicting.
+    <div class="flex flex-col h-screen bg-stone-200 w-screen">
+        {% include 'topbar.html' %}
+        <div class="flex-1 flex">
+            {% block content %}
+            <div class="h-full pl-4 py-4">
+                {% include 'model_picker_sidebar.html' %}
             </div>
+            <div class="flex-1 flex justify-center content-center items-center">
+                <div class="text-3xl">
+                    Pick a model on the left to start using it.
+                </div>
+            </div>
+            {% endblock %}
         </div>
     </div>
+    
 </body>
 </html>
