@@ -110,8 +110,8 @@ def block_type_mse(nodes_pred, nodes_ref, edges_pred, edges_ref, log_verbose=Fal
     edge_loss = (edge_error ** 2).mean()
 
     stats = {
-        "node_rmse": (node_loss ** 1/2),
-        "edge_rmse": (edge_loss ** 1/2),
+        "node_rmse": node_loss ** (1/2),
+        "edge_rmse": edge_loss ** (1/2),
     }
 
     if log_verbose:
@@ -142,8 +142,8 @@ def elementwise_mse(nodes_pred, nodes_ref, edges_pred, edges_ref, log_verbose=Fa
     loss = (n_node_els * node_loss + edge_loss * n_edge_els) / (n_node_els + n_edge_els)
 
     stats = {
-        "node_rmse": (node_loss ** 1/2),
-        "edge_rmse": (edge_loss ** 1/2)
+        "node_rmse": node_loss ** (1/2),
+        "edge_rmse": edge_loss ** (1/2)
     }
 
     if log_verbose:
@@ -169,8 +169,8 @@ def node_mse(nodes_pred, nodes_ref, edges_pred, edges_ref, log_verbose=False, **
     edge_loss = (edge_error ** 2).mean()
 
     stats = {
-        "node_rmse": (node_loss ** 1/2),
-        "edge_rmse": (edge_loss ** 1/2)
+        "node_rmse": node_loss ** (1/2),
+        "edge_rmse": edge_loss ** (1/2)
     }
 
     if log_verbose:
@@ -196,8 +196,8 @@ def edge_mse(nodes_pred, nodes_ref, edges_pred, edges_ref, log_verbose=False, **
     edge_loss = (edge_error ** 2).mean()
 
     stats = {
-        "node_rmse": (node_loss ** 1/2),
-        "edge_rmse": (edge_loss ** 1/2)
+        "node_rmse": node_loss ** (1/2),
+        "edge_rmse": edge_loss ** (1/2)
     }
 
     if log_verbose:
@@ -234,8 +234,8 @@ def block_type_mse_threshold(nodes_pred, nodes_ref, edges_pred, edges_ref, thres
     edge_loss = (edge_error_above_thresh ** 2).sum()
 
     stats = {
-        "node_rmse": (node_error ** 2).mean() ** 1/2,
-        "edge_rmse": (edge_error ** 2).mean() ** 1/2,
+        "node_rmse": (node_error ** 2).mean() ** (1/2),
+        "edge_rmse": (edge_error ** 2).mean() ** (1/2),
         "node_above_threshold_frac": node_error_above_thresh.shape[0] / n_node_els,
         "edge_above_threshold_frac": edge_error_above_thresh.shape[0] / n_edge_els,
         "node_above_threshold_mean": abs_node_error[abs_node_error > threshold].mean(),
@@ -283,8 +283,8 @@ def block_type_mse_sigmoid_thresh(nodes_pred, nodes_ref, edges_pred, edges_ref,
     abs_edge_error_above_thresh = abs_edge_error[abs_edge_error > threshold]
 
     stats = {
-        "node_rmse": (node_error ** 2).mean() ** 1/2,
-        "edge_rmse": (edge_error ** 2).mean() ** 1/2,
+        "node_rmse": (node_error ** 2).mean() ** (1/2),
+        "edge_rmse": (edge_error ** 2).mean() ** (1/2),
         "node_above_threshold_frac": abs_node_error_above_thresh.shape[0] / n_node_els,
         "edge_above_threshold_frac": abs_edge_error_above_thresh.shape[0] / n_edge_els,
         "node_above_threshold_mean": abs_node_error_above_thresh.mean(),
