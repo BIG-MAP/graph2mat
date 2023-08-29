@@ -47,13 +47,25 @@ class MatrixBlock(torch.nn.Module):
 
     def __init__(self,
         i_irreps: o3.Irreps, j_irreps: o3.Irreps, block_symmetry: str,
-        operation: Type[torch.nn.Module], **operation_kwargs
+        operation: Type[torch.nn.Module], 
+        symm_transpose: bool = False,
+        **operation_kwargs
     ):
         super().__init__()
 
         self.setup_reduced_tp(i_irreps=i_irreps, j_irreps=j_irreps, block_symmetry=block_symmetry)
 
-        self.operation = operation(**operation_kwargs, irreps_out=self._irreps_out)
+        # If the operation supports transpose symmetric blocks f(x, y) == f(y, x).T, ask for it.
+        # Otherwise, ask for the normal operation and we might need to symmetrize the block later
+        # if symm_transpose is True.
+        try: 
+            self.operation = operation(symm_transpose=symm_transpose, **operation_kwargs, irreps_out=self._irreps_out)
+
+            self.symm_transpose = False
+        except TypeError:
+            self.operation = operation(**operation_kwargs, irreps_out=self._irreps_out)
+
+            self.symm_transpose = symm_transpose
 
     def setup_reduced_tp(self, i_irreps: o3.Irreps, j_irreps: o3.Irreps, block_symmetry: str):
         # Store the shape of the block.
@@ -73,13 +85,26 @@ class MatrixBlock(torch.nn.Module):
         self.register_buffer("change_of_basis", reduced_tp.change_of_basis)
 
     def forward(self, *args, **kwargs):
-        # Get the irreducible output
-        irreducible_out = self.operation(*args, **kwargs)
 
-        # And convert it to the actual block of the matrix, using the change of basis
-        # matrix stored on initialization.
-        # n = number of nodes, i = dim of irreps, x = rows in block, y = cols in block
-        return torch.einsum("ni,ixy->nxy", irreducible_out, self.change_of_basis)
+        def compute_block(*args, **kwargs):
+            # Get the irreducible output
+            irreducible_out = self.operation(*args, **kwargs)
+
+            # And convert it to the actual block of the matrix, using the change of basis
+            # matrix stored on initialization.
+            # n = number of nodes, i = dim of irreps, x = rows in block, y = cols in block
+            return torch.einsum("ni,ixy->nxy", irreducible_out, self.change_of_basis)
+        
+        if self.symm_transpose == False:
+            return compute_block(*args, **kwargs)
+        else:
+            forward = compute_block(*args, **kwargs)
+
+            back_args = [(arg[1], arg[0]) if isinstance(arg, tuple) and len(arg) == 2 else arg for arg in args]
+            back_kwargs = {key: (value[1], value[0]) if isinstance(value, tuple) and len(value) == 2 else value for key, value in kwargs.items()}
+            backward = compute_block(*back_args, **back_kwargs)
+
+            return (forward + backward.transpose(-1, -2)) / 2
 
 class BasisMatrixReadout(torch.nn.Module):
     """Module responsible for generating an basis-basis matrix from a graph.
@@ -231,6 +256,7 @@ class BasisMatrixReadout(torch.nn.Module):
                         edge_feats_irreps=edge_feats_irreps,
                         edge_messages_irreps=edge_hidden_irreps,
                         node_feats_irreps=node_feats_irreps,
+                        symm_transpose=neigh_type == point_type,
                     )
                 )
 

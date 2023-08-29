@@ -6,6 +6,8 @@ from typing import Tuple
 
 from mace.modules.irreps_tools import tp_out_irreps_with_instructions
 
+from ._symm_product import FullyConnectedSymmTensorProduct
+
 __all__ = [
     "EdgeBlock",
     "SimpleEdgeBlock",
@@ -32,10 +34,14 @@ class EdgeBlock(torch.nn.Module, ABC):
         return edge_feats[0]
 
 class SimpleEdgeBlock(EdgeBlock):
-    def __init__(self, edge_feats_irreps: o3.Irreps, edge_messages_irreps: o3.Irreps, node_feats_irreps: o3.Irreps, irreps_out: o3.Irreps):
+    def __init__(self, edge_feats_irreps: o3.Irreps, edge_messages_irreps: o3.Irreps, node_feats_irreps: o3.Irreps, irreps_out: o3.Irreps, symm_transpose: bool = True):
         super().__init__()
 
-        self.tp = o3.FullyConnectedTensorProduct(edge_messages_irreps, edge_messages_irreps, irreps_out)
+        self.symm_transpose = symm_transpose
+
+        tp_class = FullyConnectedSymmTensorProduct if symm_transpose else o3.FullyConnectedTensorProduct
+
+        self.tp = tp_class(edge_messages_irreps, edge_messages_irreps, irreps_out)
 
     def forward(self, 
         edge_feats: Tuple[torch.Tensor, torch.Tensor],
@@ -46,12 +52,16 @@ class SimpleEdgeBlock(EdgeBlock):
         return self.tp(edge_messages[0], edge_messages[1])
 
 class SimpleEdgeBlockWithNodes(EdgeBlock):
-    def __init__(self, edge_feats_irreps: o3.Irreps, edge_messages_irreps: o3.Irreps, node_feats_irreps: o3.Irreps, irreps_out: o3.Irreps):
+    def __init__(self, edge_feats_irreps: o3.Irreps, edge_messages_irreps: o3.Irreps, node_feats_irreps: o3.Irreps, irreps_out: o3.Irreps, symm_transpose: bool = True):
         super().__init__()
 
-        self.nodes_tp = o3.FullyConnectedTensorProduct(node_feats_irreps, node_feats_irreps, irreps_out)
+        self.symm_transpose = symm_transpose
 
-        self.edges_tp = o3.FullyConnectedTensorProduct(edge_messages_irreps, edge_messages_irreps, irreps_out)
+        tp_class = FullyConnectedSymmTensorProduct if symm_transpose else o3.FullyConnectedTensorProduct
+
+        self.nodes_tp = tp_class(node_feats_irreps, node_feats_irreps, irreps_out)
+
+        self.edges_tp = tp_class(edge_messages_irreps, edge_messages_irreps, irreps_out)
 
     def forward(self, 
         edge_feats: Tuple[torch.Tensor, torch.Tensor],
@@ -92,7 +102,6 @@ class EdgeBlockNodeMix(EdgeBlock):
 
         # The final output is produced by a linear layer
         self.output_linear = o3.Linear(irreps_mid, irreps_out)
-
 
     def forward(self, 
         edge_feats: Tuple[torch.Tensor, torch.Tensor],
