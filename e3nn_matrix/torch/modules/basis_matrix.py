@@ -9,7 +9,7 @@ from typing import Sequence, Type, Union, Tuple
 
 from ...data.basis import PointBasis
 from .node_readouts import NodeBlock, SimpleNodeBlock
-from .edge_readouts import EdgeBlock, SimpleEdgeBlock
+from .edge_readouts import EdgeBlock, SymmTransposeEdgeBlock, SimpleEdgeBlock
 from .messages import EdgeMessageBlock, NodeMessageBlock
 
 
@@ -58,11 +58,13 @@ class MatrixBlock(torch.nn.Module):
         # If the operation supports transpose symmetric blocks f(x, y) == f(y, x).T, ask for it.
         # Otherwise, ask for the normal operation and we might need to symmetrize the block later
         # if symm_transpose is True.
-        try: 
+        # Currently only edge blocks needs to support this, since node blocks already have the
+        # required symmetry.
+        if issubclass(operation, SymmTransposeEdgeBlock):
             self.operation = operation(symm_transpose=symm_transpose, **operation_kwargs, irreps_out=self._irreps_out)
 
             self.symm_transpose = False
-        except TypeError:
+        else:
             self.operation = operation(**operation_kwargs, irreps_out=self._irreps_out)
 
             self.symm_transpose = symm_transpose

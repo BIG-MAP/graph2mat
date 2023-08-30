@@ -33,7 +33,19 @@ class EdgeBlock(torch.nn.Module, ABC):
     ) -> torch.Tensor:
         return edge_feats[0]
 
-class SimpleEdgeBlock(EdgeBlock):
+class SymmTransposeEdgeBlock(EdgeBlock):
+    """Base class for computing edge blocks of a basis-basis matrix.
+    This block supports transpose symmetric blocks, i.e. f(x, y) == f(y, x).T when symm_transpose==True.
+    Parameters
+    -----------
+    edge_feats_irreps: o3.Irreps
+    edge_messages_irreps: o3.Irreps
+    node_feats_irreps: o3.Irreps
+    irreps_out: o3.Irreps
+    symm_transpose: bool = True
+    """
+
+class SimpleEdgeBlock(SymmTransposeEdgeBlock):
     def __init__(self, edge_feats_irreps: o3.Irreps, edge_messages_irreps: o3.Irreps, node_feats_irreps: o3.Irreps, irreps_out: o3.Irreps, symm_transpose: bool = True):
         super().__init__()
 
@@ -51,7 +63,7 @@ class SimpleEdgeBlock(EdgeBlock):
     ) -> torch.Tensor:
         return self.tp(edge_messages[0], edge_messages[1])
 
-class SimpleEdgeBlockWithNodes(EdgeBlock):
+class SimpleEdgeBlockWithNodes(SymmTransposeEdgeBlock):
     def __init__(self, edge_feats_irreps: o3.Irreps, edge_messages_irreps: o3.Irreps, node_feats_irreps: o3.Irreps, irreps_out: o3.Irreps, symm_transpose: bool = True):
         super().__init__()
 
