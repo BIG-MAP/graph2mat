@@ -104,6 +104,7 @@ class EdgeBlockNodeMix(EdgeBlock):
             shared_weights=False,
             internal_weights=False,
         )
+        irreps_mid = irreps_mid.simplify()
 
         edge_tp_input_irreps = edge_feats_irreps*3
         assert edge_tp_input_irreps.lmax == 0
