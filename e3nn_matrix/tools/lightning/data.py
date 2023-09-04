@@ -152,6 +152,7 @@ class MatrixDataModule(pl.LightningDataModule):
             # Else use the json file
             elif split in runs_dict:
                 runs = [Path(root) / p for p in runs_dict[split]]
+                print("Using json file for %s split: %d examples" % (split, len(runs)))
             else:
                 runs = None
 
