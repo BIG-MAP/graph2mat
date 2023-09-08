@@ -32,7 +32,7 @@ class MatrixWriter(BasePredictionWriter):
 
         # Get the atomic table, which will help us constructing the matrices from
         # the batched flat arrays.
-        z_table: AtomicTableWithEdges = trainer.datamodule.z_table
+        basis_table: AtomicTableWithEdges = trainer.datamodule.basis_table
         # Find out whether the model was trained with the imposition that the matrix
         # is symmetric.
         symmetric_matrix = trainer.datamodule.symmetric_matrix
@@ -50,7 +50,7 @@ class MatrixWriter(BasePredictionWriter):
         matrix_iter = batch_to_orbital_matrix_data(
             batch,
             prediction,
-            z_table,
+            basis_table,
             symmetric_matrix,
         )
 
@@ -58,7 +58,7 @@ class MatrixWriter(BasePredictionWriter):
         for matrix_data in matrix_iter:
             # Get the path from which this structure was read.
             path = matrix_data.metadata["path"]
-            sparse_orbital_matrix = matrix_data.to_sparse_orbital_matrix(z_table, matrix_cls, symmetric_matrix, trainer.datamodule.sub_atomic_matrix)
+            sparse_orbital_matrix = matrix_data.to_sparse_orbital_matrix(basis_table, matrix_cls, symmetric_matrix, trainer.datamodule.sub_atomic_matrix)
 
             # And write the matrix to it.
             sparse_orbital_matrix.write(path.parent / self.output_file)
@@ -145,14 +145,14 @@ class SamplewiseMetricsLogger(Callback):
 
     def _on_batch_end(self, split, trainer, pl_module, outputs, batch, batch_idx, dataloader_idx):
         # Get the atomic table, which some metrics might need.
-        z_table: AtomicTableWithEdges = trainer.datamodule.z_table
+        basis_table: AtomicTableWithEdges = trainer.datamodule.basis_table
 
         # Compute all the metrics
         metrics = [
             metric(
-                nodes_pred=outputs['node_labels'], nodes_ref=batch.atom_labels, 
+                nodes_pred=outputs['node_labels'], nodes_ref=batch.point_labels, 
                 edges_pred=outputs['edge_labels'], edges_ref=batch.edge_labels, batch=batch,
-                z_table=z_table, config_resolved=True, 
+                basis_table=basis_table, config_resolved=True, 
                 symmetric_matrix=trainer.datamodule.symmetric_matrix,
             )[0] for metric in self.metrics
         ]
@@ -206,13 +206,13 @@ class PlotMatrixValidationError(Callback):
         self.edge_running_se = None
         self.matrix_count = 0
         self.positions = None
-        self.atom_types = None
+        self.point_types = None
         self.cell = None
 
     def on_validation_batch_end(self, trainer, pl_module, outputs, batch, batch_idx, dataloader_idx):
         # And the atomic table, which will help us constructing the matrices from
         # the batched flat arrays.
-        z_table: AtomicTableWithEdges = trainer.datamodule.z_table
+        basis_table: AtomicTableWithEdges = trainer.datamodule.basis_table
         # Find out whether the model was trained with the imposition that the matrix
         # is symmetric.
         symmetric_matrix = trainer.datamodule.symmetric_matrix
@@ -223,12 +223,12 @@ class PlotMatrixValidationError(Callback):
         np.cumsum(batch.n_edges.numpy(force=True), out=edge_ptr[1:])
 
         # Types for both atoms and edges.
-        atom_types = batch.atom_types.numpy(force=True)
+        point_types = batch.point_types.numpy(force=True)
         edge_types = batch.edge_types.numpy(force=True)
 
         # Get the values for the node blocks and the pointer to the start of each block.
         node_labels = outputs['node_labels'].numpy(force=True)
-        node_labels_ptr = z_table.atom_block_pointer(atom_types)
+        node_labels_ptr = basis_table.atom_block_pointer(point_types)
 
         # Get the values for the edge blocks and the pointer to the start of each block.
         edge_index = batch.edge_index.numpy(force=True)
@@ -238,7 +238,7 @@ class PlotMatrixValidationError(Callback):
             edge_ptr = edge_ptr // 2
 
         edge_labels = outputs['edge_labels'].numpy(force=True)
-        edge_labels_ptr = z_table.edge_block_pointer(edge_types)
+        edge_labels_ptr = basis_table.edge_block_pointer(edge_types)
 
         # Save the relevant information for use when plotting
         # We only save the information for one configuration and assume the
@@ -246,13 +246,13 @@ class PlotMatrixValidationError(Callback):
         self.positions = batch.positions.numpy(force=True)[atom_ptr[0]:atom_ptr[1]]
         self.cell = batch.cell.numpy(force=True)[0:3]
         self.nsc = batch.nsc[0].numpy(force=True)
-        self.atom_types = atom_types[atom_ptr[0]:atom_ptr[1]]
+        self.point_types = point_types[atom_ptr[0]:atom_ptr[1]]
         self.node_labels_ptr = node_labels_ptr[atom_ptr[0]:(atom_ptr[1]+1)]
         self.edge_labels_ptr = edge_labels_ptr[edge_ptr[0]:(edge_ptr[1]+1)]
         self.edge_index = edge_index[:, edge_ptr[0]:edge_ptr[1]]
 
         # Calculate errors on the flat arrays
-        node_error = node_labels - batch['atom_labels'].numpy(force=True)
+        node_error = node_labels - batch['point_labels'].numpy(force=True)
         edge_error = edge_labels - batch['edge_labels'].numpy(force=True)
 
         # Some edge labels are np.nan (which means no entry), manually set the error
@@ -289,18 +289,18 @@ class PlotMatrixValidationError(Callback):
             "dynamical_matrix": sisl.DynamicalMatrix,
         }[trainer.datamodule.out_matrix]
 
-        # The z_table helps us arrange the errors into matrix format
-        z_table: AtomicTableWithEdges = trainer.datamodule.z_table
+        # The basis_table helps us arrange the errors into matrix format
+        basis_table: AtomicTableWithEdges = trainer.datamodule.basis_table
 
         labels = ["MAE", "RMSE"]
         node_errors = [self.node_running_ae, self.node_running_se]
         edge_errors = [self.edge_running_ae, self.edge_running_se]
 
-        assert self.atom_types is not None
+        assert self.point_types is not None
         for i, (label, node_error, edge_error) in enumerate(zip(labels, node_errors, edge_errors)):
             geometry = sisl.Geometry(
                 self.positions,
-                atoms=[z_table.atoms[at_type] for at_type in self.atom_types],
+                atoms=[basis_table.atoms[at_type] for at_type in self.point_types],
                 sc=self.cell)
 
             geometry.set_nsc(self.nsc)

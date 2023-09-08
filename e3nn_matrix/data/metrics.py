@@ -336,7 +336,7 @@ def normalized_density_error(nodes_pred, nodes_ref, edges_pred, edges_ref, batch
         matrix_errors = batch_to_sparse_orbital(
             batch,
             prediction={"node_labels": errors[0], "edge_labels": errors[1]},
-            z_table=basis_table,
+            basis_table=basis_table,
             matrix_cls=sisl.DensityMatrix,
             symmetric_matrix=True, 
         )

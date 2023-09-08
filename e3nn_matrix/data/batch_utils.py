@@ -9,7 +9,7 @@ from .processing import BasisMatrixData
 def batch_to_orbital_matrix_data(
     batch: Any,
     prediction: Optional[Dict]=None,
-    z_table: Optional[AtomicTableWithEdges]=None,
+    basis_table: Optional[AtomicTableWithEdges]=None,
     symmetric_matrix: bool=False,
     ) -> Iterator[BasisMatrixData]:
     """
@@ -19,8 +19,8 @@ def batch_to_orbital_matrix_data(
         batch : Any
         prediction : Optional[Dict]
             If not None, use entries with keys 'node_labels' and 'edge_labels' for the node and edge labels
-        z_table: Optional[AtomicTableWithEdges]
-            If prediction is not None, z_table is required to arrange the prediction labels correctly
+        basis_table: Optional[AtomicTableWithEdges]
+            If prediction is not None, basis_table is required to arrange the prediction labels correctly
         symmetric_matrix: bool
             If predictions is not None, symmetric_matrix is required to arrange the labels correctly
     Yields
@@ -29,25 +29,25 @@ def batch_to_orbital_matrix_data(
     """
 
     if prediction is not None:
-        assert z_table is not None, "z_table is required argument if prediction is given"
+        assert basis_table is not None, "basis_table is required argument if prediction is given"
         # Pointer arrays to understand where the data for each structure starts in the batch. 
         atom_ptr = batch.ptr.numpy(force=True)
         edge_ptr = np.zeros_like(atom_ptr)
         np.cumsum(batch.n_edges.numpy(force=True), out=edge_ptr[1:])
 
         # Types for both atoms and edges.
-        atom_types = batch.atom_types.numpy(force=True)
+        point_types = batch.point_types.numpy(force=True)
         edge_types = batch.edge_types.numpy(force=True)
 
         # Get the values for the node blocks and the pointer to the start of each block.
-        node_labels_ptr = z_table.atom_block_pointer(atom_types)
+        node_labels_ptr = basis_table.atom_block_pointer(point_types)
 
         # Get the values for the edge blocks and the pointer to the start of each block.
         if symmetric_matrix:
             edge_types = edge_types[::2]
             edge_ptr = edge_ptr // 2
 
-        edge_labels_ptr = z_table.edge_block_pointer(edge_types)
+        edge_labels_ptr = basis_table.edge_block_pointer(edge_types)
 
         # Loop through structures in the batch
         for i, (atom_start, edge_start) in enumerate(zip(atom_ptr[:-1], edge_ptr[:-1])):
@@ -62,12 +62,12 @@ def batch_to_orbital_matrix_data(
             new_atom_label = node_labels[node_labels_ptr[atom_start]:node_labels_ptr[atom_end]]
             new_edge_label = edge_labels[edge_labels_ptr[edge_start]:edge_labels_ptr[edge_end]]
 
-            if example.atom_labels is not None:
-                assert len(new_atom_label) == len(example.atom_labels)
+            if example.point_labels is not None:
+                assert len(new_atom_label) == len(example.point_labels)
             if example.edge_labels is not None:
                 assert len(new_edge_label) == len(example.edge_labels)
                 
-            example.atom_labels = new_atom_label
+            example.point_labels = new_atom_label
             example.edge_labels = new_edge_label
             yield example
     else:
@@ -77,7 +77,7 @@ def batch_to_orbital_matrix_data(
 
 def batch_to_sparse_orbital(
     batch: Any,
-    z_table: AtomicTableWithEdges,
+    basis_table: AtomicTableWithEdges,
     matrix_cls: Type[sisl.SparseOrbital],
     prediction: Union[Dict,None]=None,
     symmetric_matrix: bool=False,
@@ -88,7 +88,7 @@ def batch_to_sparse_orbital(
     Parameters
     ----------
         batch : Any
-        z_table : AtomicTableWithEdges
+        basis_table : AtomicTableWithEdges
         matrix_cls : Type[sisl.SparseOrbital] Class used for the output matrix
         prediction : Union[Dict, None]
             If not None, use entries with keys 'node_labels' and 'edge_labels' for the matrix elements
@@ -101,6 +101,6 @@ def batch_to_sparse_orbital(
         Sparse orbital matrix (of class matrix_cls) for each configuration in batch
     """
 
-    for matrix in batch_to_orbital_matrix_data(batch, prediction=prediction, z_table=z_table, symmetric_matrix=symmetric_matrix):
+    for matrix in batch_to_orbital_matrix_data(batch, prediction=prediction, basis_table=basis_table, symmetric_matrix=symmetric_matrix):
         matrix = matrix.to_sparse_orbital_matrix()
         yield matrix
