@@ -58,7 +58,7 @@ class MatrixWriter(BasePredictionWriter):
         for matrix_data in matrix_iter:
             # Get the path from which this structure was read.
             path = matrix_data.metadata["path"]
-            sparse_orbital_matrix = matrix_data.to_sparse_orbital_matrix(basis_table, matrix_cls, symmetric_matrix, trainer.datamodule.sub_atomic_matrix)
+            sparse_orbital_matrix = matrix_data.to_sparse_orbital_matrix(basis_table, matrix_cls, symmetric_matrix, trainer.datamodule.sub_point_matrix)
 
             # And write the matrix to it.
             sparse_orbital_matrix.write(path.parent / self.output_file)

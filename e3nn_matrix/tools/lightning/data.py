@@ -31,7 +31,7 @@ class MatrixDataModule(pl.LightningDataModule):
         predict_structs: Optional[str] = None,
         runs_json: Optional[str] = None,
         symmetric_matrix: bool = False,
-        sub_atomic_matrix: bool = True,
+        sub_point_matrix: bool = True,
         batch_size: int = 5,
         loader_threads: int=1,
         copy_root_to_tmp: bool=False,
@@ -55,7 +55,7 @@ class MatrixDataModule(pl.LightningDataModule):
                 and the dictionary values are list of paths to the run files relative to `root_dir`
                 The paths will be overwritten by train_runs/val_runs/test_runs/predict_structs if given.
             symmetric_matrix : bool
-            sub_atomic_matrix : bool
+            sub_point_matrix : bool
             batch_size : int
             loader_threads : int
             copy_root_to_tmp: bool
@@ -85,7 +85,7 @@ class MatrixDataModule(pl.LightningDataModule):
         self.runs_json = runs_json
 
         self.predict_runs = predict_structs
-        self.sub_atomic_matrix = sub_atomic_matrix
+        self.sub_point_matrix = sub_point_matrix
 
         self.batch_size = batch_size
         self.copy_root_to_tmp = copy_root_to_tmp
@@ -140,7 +140,7 @@ class MatrixDataModule(pl.LightningDataModule):
             basis_table=self.basis_table,
             out_matrix=self.out_matrix,
             symmetric_matrix=self.symmetric_matrix,
-            sub_point_matrix=self.sub_atomic_matrix,
+            sub_point_matrix=self.sub_point_matrix,
         )
 
         # Set the paths for each split
