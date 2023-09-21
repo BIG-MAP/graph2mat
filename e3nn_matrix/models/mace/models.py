@@ -15,7 +15,8 @@ from mace.modules.utils import get_edge_vectors_and_lengths
 
 from e3nn_matrix.data.basis import PointBasis
 from e3nn_matrix.torch.data import BasisMatrixTorchData
-from e3nn_matrix.torch.modules import BasisMatrixReadout, EdgeBlock, NodeBlock
+from e3nn_matrix.torch.modules import EdgeBlock, NodeBlock
+from e3nn_matrix.torch.modules.mace import MACEBasisMatrixReadout
 
 class OrbitalMatrixMACE(torch.nn.Module):
     def __init__(
@@ -33,7 +34,7 @@ class OrbitalMatrixMACE(torch.nn.Module):
         avg_num_neighbors: float,
         correlation: int,
         unique_basis: Sequence[PointBasis],
-        matrix_readout: Type[BasisMatrixReadout],
+        matrix_readout: Type[MACEBasisMatrixReadout],
         symmetric_matrix: bool,
         node_block_readout: Type[NodeBlock],
         edge_block_readout: Type[EdgeBlock],
@@ -150,7 +151,7 @@ class OrbitalMatrixMACE(torch.nn.Module):
         #data.positions.requires_grad = True
 
         # Embeddings
-        node_feats = self.node_embedding(data.node_attrs)
+        node_feats = self.node_embedding(data['node_attrs'])
         vectors, lengths = get_edge_vectors_and_lengths(
             positions=data.positions, edge_index=data.edge_index, shifts=data.shifts
         )
@@ -172,7 +173,7 @@ class OrbitalMatrixMACE(torch.nn.Module):
         ):
             # Do the message passing.
             node_feats, sc = interaction(
-                node_attrs=data.node_attrs,
+                node_attrs=data['node_attrs'],
                 node_feats=node_feats,
                 edge_attrs=edge_attrs,
                 edge_feats=edge_feats,
@@ -180,7 +181,7 @@ class OrbitalMatrixMACE(torch.nn.Module):
             )
 
             node_feats = product(
-                node_feats=node_feats, sc=sc, node_attrs=data.node_attrs
+                node_feats=node_feats, sc=sc, node_attrs=data['node_attrs']
             )
 
             if readout is None:
@@ -194,7 +195,7 @@ class OrbitalMatrixMACE(torch.nn.Module):
             # to get the total energy. In this case we just need to compare element by element 
             # from predictions to target.
             inter_node_labels, inter_edge_labels = readout(
-                node_feats=node_feats, node_attrs=data.node_attrs, node_types=data.point_types,
+                node_feats=node_feats, node_attrs=data['node_attrs'], node_types=data.point_types,
                 edge_feats=edge_feats, edge_attrs=edge_attrs, edge_types=data.edge_types, 
                 edge_index=data.edge_index, edge_type_nlabels=data.edge_type_nlabels
             )

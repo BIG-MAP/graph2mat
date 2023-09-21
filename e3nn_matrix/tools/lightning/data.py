@@ -11,7 +11,7 @@ import pytorch_lightning as pl
 import numpy as np
 import torch.utils.data
 
-from mace.tools.torch_geometric import DataLoader
+from torch_geometric.loader.dataloader import DataLoader
 
 from e3nn_matrix.data.configuration import PhysicsMatrixType
 from e3nn_matrix.data.table import BasisTableWithEdges, AtomicTableWithEdges

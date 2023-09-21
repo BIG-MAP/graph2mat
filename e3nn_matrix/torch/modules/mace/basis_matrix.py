@@ -12,6 +12,7 @@ from ..basis_matrix import BasisMatrixReadout
 from ..node_readouts import NodeBlock, SimpleNodeBlock
 from ..edge_readouts import EdgeBlock, SimpleEdgeBlock
 from .messages import MACEEdgeMessageBlock, MACENodeMessageBlock
+from .edge_readouts import MACEEdgeBlock
 
 __all__ = [
     "MACEBasisMatrixReadout",
@@ -24,6 +25,9 @@ class MACEBasisMatrixReadout(BasisMatrixReadout):
     It relies on some quantities being precomputed and therefore it is meant 
     to be integrated into MACE models.
     """
+
+    # Whether the edge block is specific to MACE or not.
+    _MACE_edge_operation: bool
 
     def __init__(self,
         node_attrs_irreps: o3.Irreps,
@@ -42,7 +46,7 @@ class MACEBasisMatrixReadout(BasisMatrixReadout):
     ):
         # Node and edge messages will be computed before the readout as a
         # preprocessing step to give more richness to the features.
-        self.node_messages = interaction_cls(
+        node_messages = interaction_cls(
             node_attrs_irreps=node_attrs_irreps,
             node_feats_irreps=node_feats_irreps,
             edge_attrs_irreps=edge_attrs_irreps,
@@ -52,7 +56,7 @@ class MACEBasisMatrixReadout(BasisMatrixReadout):
             avg_num_neighbors=avg_num_neighbors,
         )
 
-        self.edge_messages = edge_msg_cls(
+        edge_messages = edge_msg_cls(
             node_feats_irreps=node_feats_irreps,
             edge_attrs_irreps=edge_attrs_irreps,
             edge_feats_irreps=edge_feats_irreps,
@@ -60,6 +64,22 @@ class MACEBasisMatrixReadout(BasisMatrixReadout):
         )
 
         # Then simply initialize the readout flow.
+
+        # If the edge block is specific to MACE, it will understand MACE specific arguments.
+        # Otherwise just pass the generic irreps_in argument.
+        self._MACE_edge_operation = issubclass(edge_operation, MACEEdgeBlock)
+        if self._MACE_edge_operation:
+            edge_operation_kwargs = {
+                'edge_feats_irreps': edge_feats_irreps,
+                'edge_messages_irreps': edge_hidden_irreps,
+                'node_feats_irreps': node_feats_irreps,
+            }
+        else:
+            edge_operation_kwargs = {
+                'irreps_in': edge_hidden_irreps,
+            }
+
+        
         super().__init__(
             unique_basis=unique_basis,
             node_operation=node_operation,
@@ -67,15 +87,15 @@ class MACEBasisMatrixReadout(BasisMatrixReadout):
                 'irreps_in': node_feats_irreps,
             },
             edge_operation=edge_operation,
-            edge_operation_kwargs={
-                'edge_feats_irreps': edge_feats_irreps,
-                'edge_messages_irreps': edge_hidden_irreps,
-                'node_feats_irreps': node_feats_irreps,
-            },
+            edge_operation_kwargs=edge_operation_kwargs,
             symmetric=symmetric,
             blocks_symmetry=blocks_symmetry,
             self_blocks_symmetry=self_blocks_symmetry,
         )
+
+        # Store the modules
+        self.node_messages = node_messages
+        self.edge_messages = edge_messages
 
     def forward(self, 
         node_feats: torch.Tensor, 
@@ -133,6 +153,19 @@ class MACEBasisMatrixReadout(BasisMatrixReadout):
             edge_index=edge_index,
         )
 
+        if self._MACE_edge_operation:
+            edge_operation_node_kwargs = {'node_feats': node_feats}
+            edge_operation_edge_kwargs = {
+                'edge_feats': edge_feats,
+                'edge_messages': edge_messages,
+                'edge_index': edge_index.transpose(0, 1),
+            }
+        else:
+            edge_operation_node_kwargs = {}
+            edge_operation_edge_kwargs = {
+                'edge_messages': edge_messages,
+            }
+
         return super().forward(
             node_types=node_types,
             edge_index=edge_index,
@@ -143,13 +176,8 @@ class MACEBasisMatrixReadout(BasisMatrixReadout):
                 'node_messages': node_messages,
             },
             node_operation_global_kwargs={},
-            edge_operation_node_kwargs={
-                'node_feats': node_feats,
-            },
-            edge_operation_edge_kwargs={
-                'edge_feats': edge_feats,
-                'edge_messages': edge_messages,
-            },
+            edge_operation_node_kwargs=edge_operation_node_kwargs,
+            edge_operation_edge_kwargs=edge_operation_edge_kwargs,
             edge_operation_global_kwargs={},
         )
 
@@ -181,17 +209,17 @@ class StandaloneMACEBasisMatrixReadout(MACEBasisMatrixReadout):
         node_attrs_irreps = o3.Irreps([(len(unique_basis), (0, 1))])
 
         # Radial function for edges, which will compute edge_feats.
-        self.radial_embedding = RadialEmbeddingBlock(
+        radial_embedding = RadialEmbeddingBlock(
             r_max=r_max,
             num_bessel=num_bessel,
             num_polynomial_cutoff=num_polynomial_cutoff,
         )
-        edge_feats_irreps = o3.Irreps(f"{self.radial_embedding.out_dim}x0e")
+        edge_feats_irreps = o3.Irreps(f"{radial_embedding.out_dim}x0e")
 
         # Spherical harmonics that encode the direction of the edges.
         # This will compute edge_attrs.
         edge_attrs_irreps = o3.Irreps.spherical_harmonics(max_ell)
-        self.spherical_harmonics = o3.SphericalHarmonics(
+        spherical_harmonics = o3.SphericalHarmonics(
             edge_attrs_irreps, normalize=True, normalization="component"
         )
 
@@ -212,6 +240,10 @@ class StandaloneMACEBasisMatrixReadout(MACEBasisMatrixReadout):
             interaction_cls=interaction_cls,
             edge_msg_cls=edge_msg_cls,
         )
+
+        # Store the modules
+        self.radial_embedding = radial_embedding
+        self.spherical_harmonics = spherical_harmonics
 
     def forward(self, 
         node_feats: torch.Tensor, #[n_nodes, node_feats_irreps.dim]

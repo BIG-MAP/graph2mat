@@ -62,7 +62,7 @@ class MatrixBlock(torch.nn.Module):
     def __init__(self,
         i_irreps: o3.Irreps, 
         j_irreps: o3.Irreps, 
-        block_symmetry: str,
+        symmetry: str,
         operation_cls: Type[torch.nn.Module], 
         symm_transpose: bool = False,
         **operation_kwargs
@@ -456,7 +456,7 @@ class BasisMatrixReadout(torch.nn.Module):
             point_type, neigh_type, edge_type = map(int, module_key[1:-1].split(","))
 
             # Get a mask to select the edges that belong to this type.
-            mask = abs(edge_types) == edge_type
+            mask = abs(edge_types) == abs(edge_type)
             if not mask.any():
                 continue
 
@@ -479,7 +479,7 @@ class BasisMatrixReadout(torch.nn.Module):
             # edge. The first item contains the "forward" direction, the second the "reverse" direction.
             filtered_edge_kwargs = {
                 key: (value[i_edges], value[j_edges])
-                for key, value in edge_kwargs.items()
+                for key, value in filtered_edge_kwargs.items()
             }
 
             # For the node arguments we need to filter them and create pairs, such that a tuple

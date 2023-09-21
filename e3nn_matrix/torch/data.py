@@ -7,8 +7,8 @@ import numpy as np
 
 import torch
 
-#from mace.tools import torch_geometric
-from torch_geometric.data import Data
+from torch_geometric.data.data import Data
+
 from ..data.processing import BasisMatrixData
 
 class BasisMatrixTorchData(BasisMatrixData, Data):
