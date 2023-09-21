@@ -9,13 +9,10 @@ __all__ = [
     "NodeBlock",
     "SimpleNodeBlock",
     "SeparateTSQNodeBlock",
-    "SeparateTSQLinearNodeBlock",
-    "NonLinearTSQNodeBlock",
-    "SeparateNonLinearTSQNodeBlock"
 ]
 
 class NodeBlock(torch.nn.Module, ABC):
-    """Base class for computing node blocks of an basis-basis matrix.
+    """Base class for computing node blocks of a basis-basis matrix.
     
     Parameters
     -----------
@@ -23,62 +20,91 @@ class NodeBlock(torch.nn.Module, ABC):
     irreps_out: o3.Irreps
     """
     @abstractmethod
-    def forward(self, 
-        node_feats: torch.Tensor, 
-        node_messages: torch.Tensor,
-    ) -> torch.Tensor:
-        return node_feats
+    def forward(self, **kwargs) -> torch.Tensor:
+        # Return a tensor of shape [n_nodes, irreps_out.dim]
+        ...
 
 class SimpleNodeBlock(NodeBlock):
+    """Sums all node features and then passes them to a tensor square.
+    
+    All node features must have the same irreps.
+    
+    Example
+    -------
+    If we construct a SimpleNodeBlock:
+
+    >>> irreps_in = o3.Irreps("2x0e + 2x1o")
+    >>> irreps_out = o3.Irreps("3x2e")
+    >>> node_block = SimpleNodeBlock(irreps_in, irreps_out)
+
+    and then use it with 2 different nodewise tensors:
+
+    >>> node_feats = torch.randn(10, irreps_in.dim)
+    >>> node_messages = torch.randn(10, irreps_in.dim)
+    >>> node_block(node_feats=node_feats, node_messages=node_messages)
+
+    this is equivalent to:
+
+    >>> tsq = o3.TensorSquare(irreps_in, irreps_out)
+    >>> output = tsq(node_feats + node_messages)
+    """
     def __init__(self, irreps_in: o3.Irreps, irreps_out: o3.Irreps):
         super().__init__()
 
         self.tsq = o3.TensorSquare(irreps_in, irreps_out)
 
-    def forward(self, node_feats: torch.Tensor, node_messages: torch.Tensor) -> torch.Tensor:
-        return self.tsq(node_feats + node_messages)
+    def forward(self, **node_kwargs: torch.Tensor) -> torch.Tensor:
+
+        node_tensors = iter(node_kwargs.values())
+
+        node_feats = next(node_tensors)
+        for other_node_feats in node_tensors:
+            node_feats = node_feats + other_node_feats
+
+        return self.tsq(node_feats)
 
 class SeparateTSQNodeBlock(NodeBlock):
+    """Tensor squares each node features and then sums all outputs.
+    
+    Example
+    -------
+    If we construct a SeparateTSQNodeBlock:
+
+    >>> irreps_in = o3.Irreps("3x0e + 2x1o")
+    >>> irreps_out = o3.Irreps("3x2e")
+    >>> node_block = SeparateTSQNodeBlock(irreps_in, irreps_out)
+
+    and then use it with 2 different nodewise tensors:
+
+    >>> node_feats = torch.randn(10, irreps_in.dim)
+    >>> node_messages = torch.randn(10, irreps_in.dim)
+    >>> output = node_block(node_feats=node_feats, node_messages=node_messages)
+
+    this is equivalent to:
+
+    >>> tsq1 = o3.TensorSquare(irreps_in, irreps_out)
+    >>> tsq2 = o3.TensorSquare(irreps_in, irreps_out)
+    >>> output = tsq1(node_feats) + tsq2(node_messages)
+    """
 
     def __init__(self, irreps_in: o3.Irreps, irreps_out: o3.Irreps):
         super().__init__()
 
-        self.tsq1 = o3.TensorSquare(irreps_in, irreps_out)
-        self.tsq2 = o3.TensorSquare(irreps_in, irreps_out)
+        if isinstance(irreps_in, (o3.Irreps, str)):
+            irreps_in = [irreps_in]
 
-    def forward(self, node_feats: torch.Tensor, node_messages: torch.Tensor) -> torch.Tensor:
-        return self.tsq1(node_feats) + self.tsq2(node_messages)
+        self.tensor_squares = torch.nn.ModuleList([
+            o3.TensorSquare(this_irreps_in, irreps_out)
+            for this_irreps_in in irreps_in
+        ])
 
-class SeparateTSQLinearNodeBlock(NodeBlock):
+    def forward(self, **node_kwargs: torch.Tensor) -> torch.Tensor:
+        assert len(node_kwargs) ==  len(self.tensor_squares), f"Number of input tensors ({len(node_kwargs)}) must match number of tensor square operations ({len(self.tensor_squares)})."
 
-    def __init__(self, irreps_in: o3.Irreps, irreps_out: o3.Irreps):
-        super().__init__()
+        node_tensors = iter(node_kwargs.values())
 
-        self.tsq1 = o3.TensorSquare(irreps_in, irreps_out)
-        self.tsq2 = o3.TensorSquare(irreps_in, irreps_out)
+        node_feats = self.tensor_squares[0](next(node_tensors))
+        for i, other_node_feats in enumerate(node_tensors):
+            node_feats = node_feats + self.tensor_squares[i+1](other_node_feats)
 
-        self.linear = o3.Linear(irreps_out, irreps_out)
-
-    def forward(self, node_feats: torch.Tensor, node_messages: torch.Tensor) -> torch.Tensor:
-        return self.linear(self.tsq1(node_feats) + self.tsq2(node_messages))
-
-class NonLinearTSQNodeBlock(NodeBlock):
-
-    def __init__(self, irreps_in: o3.Irreps, irreps_out: o3.Irreps):
-        super().__init__()
-
-        self.tsq = NonLinearTSQ(irreps_in, irreps_out)
-
-    def forward(self, node_feats: torch.Tensor, node_messages: torch.Tensor) -> torch.Tensor:
-        return self.tsq(node_feats + node_messages)
-
-class SeparateNonLinearTSQNodeBlock(NodeBlock):
-
-    def __init__(self, irreps_in: o3.Irreps, irreps_out: o3.Irreps):
-        super().__init__()
-
-        self.tsq1 = NonLinearTSQ(irreps_in, irreps_out)
-        self.tsq2 = NonLinearTSQ(irreps_in, irreps_out)
-
-    def forward(self, node_feats: torch.Tensor, node_messages: torch.Tensor) -> torch.Tensor:
-        return self.tsq1(node_feats) + self.tsq2(node_messages)
+        return node_feats

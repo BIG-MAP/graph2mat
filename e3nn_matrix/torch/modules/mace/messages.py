@@ -5,7 +5,12 @@ from typing import Union, Tuple
 from mace.modules.irreps_tools import tp_out_irreps_with_instructions
 from mace.tools.scatter import scatter_sum
 
-class EdgeMessageBlock(torch.nn.Module):
+__all__ = [
+    "MACEEdgeMessageBlock",
+    "MACENodeMessageBlock",
+]
+
+class MACEEdgeMessageBlock(torch.nn.Module):
     """This is basically the RealAgnosticResidualInteractionBlock, but only up to the part
     where it computes the partial mji messages."""
 
@@ -69,7 +74,7 @@ class EdgeMessageBlock(torch.nn.Module):
 
         return self.linear(mji)
 
-class NodeMessageBlock(torch.nn.Module):
+class MACENodeMessageBlock(torch.nn.Module):
     """Basically MACE's RealAgnosticResidualInteractionBlock, without reshapes."""
 
     def __init__(

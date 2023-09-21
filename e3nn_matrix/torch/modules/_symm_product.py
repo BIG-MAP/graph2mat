@@ -3,7 +3,11 @@ import torch
 from e3nn import o3
 
 class FullyConnectedSymmTensorProduct(torch.nn.Module):
-    """Fully connected tensor product with symmetric weights"""
+    """Fully connected tensor product with symmetric weights.
+    
+    This fully connected tensor product satisfies tp(x, y) == tp(y, x).T ,
+    which the normal FullyConnectedTensorProduct doesn't.
+    """
 
     def __init__(self, *args, **kwargs):
         super().__init__()
@@ -16,6 +20,9 @@ class FullyConnectedSymmTensorProduct(torch.nn.Module):
         for ins in self.tp.instructions:
             weight = torch.nn.parameter.Parameter(torch.rand(*ins.path_shape))
             self._tp_weights.append(weight)
+
+    def __repr__(self):
+        return f"{self.__class__.__name__}({self.tp})"
 
     def forward(self, x, y):
         full_weights = []
