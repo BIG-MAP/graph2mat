@@ -38,11 +38,6 @@ jobs:
           touch build/html/.nojekyll
           cd ..
           
-      - name: Build docs
-        uses: actions/jekyll-build-pages@v1
-        with:
-          source: ./
-          destination: ./_site
       - name: Upload artifact
         uses: actions/upload-pages-artifact@v2
         with:
