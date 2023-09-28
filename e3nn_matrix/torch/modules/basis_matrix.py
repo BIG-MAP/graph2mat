@@ -7,7 +7,7 @@ from typing import Sequence, Type, Union, Tuple, List, Dict
 
 from ...data.basis import PointBasis
 from .node_readouts import NodeBlock, SimpleNodeBlock
-from .edge_readouts import EdgeBlock, SymmTransposeEdgeBlock, SimpleEdgeBlock
+from .edge_readouts import EdgeBlock, SimpleEdgeBlock
 
 
 class MatrixBlock(torch.nn.Module):
@@ -55,7 +55,6 @@ class MatrixBlock(torch.nn.Module):
     block_size: int
 
     symm_transpose: bool
-    post_transpose: bool
 
     _irreps_out: o3.Irreps
 
@@ -72,19 +71,7 @@ class MatrixBlock(torch.nn.Module):
         self.setup_reduced_tp(i_irreps=i_irreps, j_irreps=j_irreps, symmetry=symmetry)
         self.symm_transpose = symm_transpose
 
-        # If the operation supports transpose symmetric blocks f(x, y) == f(y, x).T, ask for it.
-        # Otherwise, ask for the normal operation and we might need to symmetrize the block later
-        # if symm_transpose is True.
-        # Currently only edge blocks needs to support this, since node blocks already have the
-        # required symmetry.
-        if issubclass(operation_cls, SymmTransposeEdgeBlock):
-            self.operation = operation_cls(symm_transpose=symm_transpose, **operation_kwargs, irreps_out=self._irreps_out)
-
-            self.post_transpose = False
-        else:
-            self.operation = operation_cls(**operation_kwargs, irreps_out=self._irreps_out)
-
-            self.post_transpose = symm_transpose
+        self.operation = operation_cls(**operation_kwargs, irreps_out=self._irreps_out)
 
     def setup_reduced_tp(self, i_irreps: o3.Irreps, j_irreps: o3.Irreps, symmetry: str):
         # Store the shape of the block.
@@ -114,7 +101,7 @@ class MatrixBlock(torch.nn.Module):
             # n = number of nodes, i = dim of irreps, x = rows in block, y = cols in block
             return torch.einsum("ni,ixy->nxy", irreducible_out, self.change_of_basis)
         
-        if self.post_transpose == False:
+        if self.symm_transpose == False:
             return compute_block(*args, **kwargs)
         else:
             forward = compute_block(*args, **kwargs)

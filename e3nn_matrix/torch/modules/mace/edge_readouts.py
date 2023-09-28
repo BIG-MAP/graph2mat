@@ -5,8 +5,7 @@ from typing import Tuple
 
 from mace.modules.irreps_tools import tp_out_irreps_with_instructions
 
-from ..edge_readouts import EdgeBlock, SymmTransposeEdgeBlock
-from .._symm_product import FullyConnectedSymmTensorProduct
+from ..edge_readouts import EdgeBlock
 
 __all__ = [
     "MACEEdgeBlock",
@@ -27,15 +26,11 @@ class MACEEdgeBlock(EdgeBlock):
     # ) -> torch.Tensor:
     #     ...
 
-class SimpleMACEEdgeBlock(MACEEdgeBlock, SymmTransposeEdgeBlock):
-    def __init__(self, edge_feats_irreps: o3.Irreps, edge_messages_irreps: o3.Irreps, node_feats_irreps: o3.Irreps, irreps_out: o3.Irreps, symm_transpose: bool = True):
+class SimpleMACEEdgeBlock(MACEEdgeBlock):
+    def __init__(self, edge_feats_irreps: o3.Irreps, edge_messages_irreps: o3.Irreps, node_feats_irreps: o3.Irreps, irreps_out: o3.Irreps):
         super().__init__()
 
-        self.symm_transpose = symm_transpose
-
-        tp_class = FullyConnectedSymmTensorProduct if symm_transpose else o3.FullyConnectedTensorProduct
-
-        self.tp = tp_class(edge_messages_irreps, edge_messages_irreps, irreps_out)
+        self.tp = o3.FullyConnectedTensorProduct(edge_messages_irreps, edge_messages_irreps, irreps_out)
 
     def forward(self, 
         edge_feats: Tuple[torch.Tensor, torch.Tensor],

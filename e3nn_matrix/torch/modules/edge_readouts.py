@@ -4,10 +4,6 @@ from e3nn import o3, nn
 import torch
 from typing import Tuple
 
-#from mace.modules.irreps_tools import tp_out_irreps_with_instructions
-
-from ._symm_product import FullyConnectedSymmTensorProduct
-
 __all__ = [
     "EdgeBlock",
     "SimpleEdgeBlock",
@@ -30,32 +26,16 @@ class EdgeBlock(torch.nn.Module, ABC):
     ) -> torch.Tensor:
         return edge_feats[0]
 
-class SymmTransposeEdgeBlock(EdgeBlock):
-    """Base class for computing edge blocks of a basis-basis matrix.
-    This block supports transpose symmetric blocks, i.e. f(x, y) == f(y, x).T when symm_transpose==True.
-    Parameters
-    -----------
-    edge_feats_irreps: o3.Irreps
-    edge_messages_irreps: o3.Irreps
-    node_feats_irreps: o3.Irreps
-    irreps_out: o3.Irreps
-    symm_transpose: bool = True
-    """
+class SimpleEdgeBlock(EdgeBlock):
 
-class SimpleEdgeBlock(SymmTransposeEdgeBlock):
-
-    def __init__(self, irreps_in: o3.Irreps, irreps_out: o3.Irreps, symm_transpose: bool = True):
+    def __init__(self, irreps_in: o3.Irreps, irreps_out: o3.Irreps):
         super().__init__()
-
-        self.symm_transpose = symm_transpose
-
-        tp_class = FullyConnectedSymmTensorProduct if symm_transpose else o3.FullyConnectedTensorProduct
 
         if isinstance(irreps_in, (o3.Irreps, str)):
             irreps_in = [irreps_in]
 
         self.tensor_products = torch.nn.ModuleList([
-            tp_class(this_irreps_in, this_irreps_in, irreps_out)
+            o3.FullyConnectedTensorProduct(this_irreps_in, this_irreps_in, irreps_out)
             for this_irreps_in in irreps_in
         ])
 
