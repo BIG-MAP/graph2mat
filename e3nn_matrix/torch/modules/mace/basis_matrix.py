@@ -84,7 +84,7 @@ class MACEBasisMatrixReadout(BasisMatrixReadout):
             unique_basis=unique_basis,
             node_operation=node_operation,
             node_operation_kwargs={
-                'irreps_in': node_feats_irreps,
+                'irreps_in': [node_feats_irreps, node_feats_irreps],
             },
             edge_operation=edge_operation,
             edge_operation_kwargs=edge_operation_kwargs,

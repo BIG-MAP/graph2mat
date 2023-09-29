@@ -76,7 +76,8 @@ class MACEEdgeBlockNodeMix(MACEEdgeBlock):
     def forward(self, 
         edge_feats: Tuple[torch.Tensor, torch.Tensor],
         edge_messages: Tuple[torch.Tensor, torch.Tensor],
-        node_feats: Tuple[torch.Tensor, torch.Tensor]
+        node_feats: Tuple[torch.Tensor, torch.Tensor],
+        edge_index: Tuple[torch.Tensor, torch.Tensor],
     ) -> torch.Tensor:
         # Convert nodes to scalar features
         scalar_node_feats_sender = self.nodes_linear(node_feats[0])
