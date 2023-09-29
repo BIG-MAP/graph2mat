@@ -51,6 +51,10 @@ class SimpleNodeBlock(NodeBlock):
     def __init__(self, irreps_in: o3.Irreps, irreps_out: o3.Irreps):
         super().__init__()
 
+        if isinstance(irreps_in, (list, tuple)):
+            assert all(irreps == irreps_in[0] for irreps in irreps_in), "All input irreps must be the same."
+            irreps_in = irreps_in[0]
+
         self.tsq = o3.TensorSquare(irreps_in, irreps_out)
 
     def forward(self, **node_kwargs: torch.Tensor) -> torch.Tensor:
