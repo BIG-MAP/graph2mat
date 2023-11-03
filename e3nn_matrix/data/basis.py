@@ -1,4 +1,5 @@
 from typing import Union, Literal, Optional, Tuple
+from numbers import Number
 
 import dataclasses
 
@@ -43,7 +44,7 @@ class PointBasis:
     radial_funcs: Optional[list] = None # Not in use for now.
 
     def __post_init__(self):
-        assert isinstance(self.R, float) or (isinstance(self.R, np.ndarray) and len(self.R) == len(self))
+        assert isinstance(self.R, Number) or (isinstance(self.R, np.ndarray) and len(self.R) == len(self))
 
         if self.radial_funcs is not None:
             assert len(self.radial_funcs) == len(self.irreps)
@@ -80,6 +81,21 @@ class PointBasis:
             irreps=get_atom_irreps(atom),
             R=atom.R,
         )
+    
+    def to_sisl_atom(self, Z: int = 1) -> "sisl.Atom":
+        import sisl
+
+        orbitals = []
+
+        for x in self.irreps:
+            l = x.ir.l
+            n_shells = x.mul
+            for izeta in range(n_shells):
+                for m in range(-l, l + 1):
+                    orb = sisl.AtomicOrbital(n=3, l=l, m=m, zeta=izeta)
+                    orbitals.append(orb)
+
+        return sisl.Atom(Z=Z, orbitals=orbitals)
 
 class SystemBasis:
     pass

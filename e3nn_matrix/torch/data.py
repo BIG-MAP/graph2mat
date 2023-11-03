@@ -7,10 +7,11 @@ import numpy as np
 
 import torch
 
-from mace.tools import torch_geometric
+from torch_geometric.data.data import Data
+
 from ..data.processing import BasisMatrixData
 
-class BasisMatrixTorchData(BasisMatrixData, torch_geometric.data.Data):
+class BasisMatrixTorchData(BasisMatrixData, Data):
     num_nodes: torch.Tensor
     edge_index: torch.Tensor
     neigh_isc: torch.Tensor
@@ -30,8 +31,8 @@ class BasisMatrixTorchData(BasisMatrixData, torch_geometric.data.Data):
     metadata: Dict[str, Any]
 
     def __init__(self, *args, **kwargs):
-        BasisMatrixData.__init__(self, *args, **kwargs)
-        torch_geometric.data.Data.__init__(self, **self._data)
+        data = BasisMatrixData._sanitize_data(self, **kwargs)
+        Data.__init__(self, **data)
 
     def process_input_array(self, key: str, array: np.ndarray) -> Any:
 

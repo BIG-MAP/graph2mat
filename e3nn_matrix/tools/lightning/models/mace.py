@@ -2,12 +2,13 @@ from typing import Type, Union
 
 from e3nn import o3
 import torch
-import sisl
 
 #from context import mace
 from e3nn_matrix.data.metrics import OrbitalMatrixMetric, block_type_mse
 from e3nn_matrix.data.table import BasisTableWithEdges
-from e3nn_matrix.torch.modules import BasisMatrixReadout, NodeBlock, EdgeBlock, SimpleNodeBlock, SimpleEdgeBlock
+from e3nn_matrix.torch.modules import NodeBlock, EdgeBlock, SimpleNodeBlock, SimpleEdgeBlock
+from e3nn_matrix.torch.modules.mace import MACEBasisMatrixReadout
+
 
 from e3nn_matrix.models.mace import OrbitalMatrixMACE
 
@@ -37,7 +38,7 @@ class LitOrbitalMatrixMACE(LitBasisMatrixModel):
         #atomic_numbers: List[int],
         correlation: int=1,
         #unique_atoms: Sequence[sisl.Atom],
-        matrix_readout: Type[BasisMatrixReadout] = BasisMatrixReadout,
+        matrix_readout: Type[MACEBasisMatrixReadout] = MACEBasisMatrixReadout,
         symmetric_matrix: bool = False,
         node_block_readout: Type[NodeBlock] = SimpleNodeBlock,
         edge_block_readout: Type[EdgeBlock] = SimpleEdgeBlock,

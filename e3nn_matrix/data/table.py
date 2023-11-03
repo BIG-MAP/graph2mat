@@ -92,6 +92,21 @@ class BasisTableWithEdges:
         self.edge_block_shape = self.basis_size[point_types_combinations]
         self.edge_block_size = self.edge_block_shape.prod(axis=0)
 
+    def __repr__(self):
+        return f"{self.__class__.__name__}({self.basis_convention}, basis={self.basis})"
+    
+    def _repr_html_(self):
+
+        table = "<table><tbody>"
+        table += f"<tr><th>Index</th><th>Type</th><th>Irreps</th><th>Max R</th></tr>"
+
+        for i, point_basis in enumerate(self.basis):
+            table += f"<tr><td>{i}</td><td>{point_basis.type}</td><td>{point_basis.irreps}</td><td>{point_basis.maxR()}</td></tr>"
+
+        table += "</tbody></table>"
+
+        return table
+    
     def __str__(self):
         return "\n".join([
         f"\t- {point_basis}" for point_basis in self.basis
@@ -158,6 +173,12 @@ class BasisTableWithEdges:
         pointers = np.zeros(len(edge_types) + 1, dtype=np.int32)
         np.cumsum(self.edge_block_size[edge_types], out=pointers[1:])
         return pointers
+    
+    def get_sisl_atoms(self) -> List[sisl.Atom]:
+        if hasattr(self, "atoms"):
+            return self.atoms
+        else:
+            return [point.to_sisl_atom() for point in self.basis]
 
 class AtomicTableWithEdges(BasisTableWithEdges):
 

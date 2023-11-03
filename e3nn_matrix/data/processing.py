@@ -15,7 +15,7 @@ import torch
 
 from .neighborhood import get_neighborhood
 from .configuration import BasisConfiguration, OrbitalConfiguration, PhysicsMatrixType
-from .sparse import nodes_and_edges_to_sparse_orbital
+from .sparse import nodes_and_edges_to_sparse_orbital, nodes_and_edges_to_csr
 from .table import BasisTableWithEdges
 
 @dataclasses.dataclass(frozen=True)
@@ -62,13 +62,16 @@ class MatrixDataProcessor:
         else:
             return {}
     
-    def output_to_matrix(self, output: dict, input: BasisMatrixData):
+    def output_to_matrix(self, output: dict, input: BasisMatrixData, threshold: float = 1e-8):
         
         matrix_data = copy(input)
         matrix_data.point_labels = output['node_labels']
         matrix_data.edge_labels = output['edge_labels']
 
-        return matrix_data.to_sparse_orbital_matrix()
+        if self.matrix_cls is None:
+            return matrix_data.to_csr(threshold=threshold)
+        else:
+            return matrix_data.to_sparse_orbital_matrix(threshold=threshold)
 
     def compute_metrics(self, 
         output: dict, 
@@ -386,7 +389,61 @@ class MatrixDataProcessor:
 
         return np.eye(num_classes)[point_types]
     
-    def labels_to_sparse_orbital(self, data: dict[str, np.ndarray], coords_cartesian: bool = False) -> sisl.SparseOrbital:
+    def labels_to_csr(self, data: dict[str, np.ndarray], coords_cartesian: bool = False, threshold: float = 1e-8):
+        # Get all the arrays that we need.
+        node_labels = data["point_labels"]
+        edge_labels = data["edge_labels"]
+
+        point_types = data["point_types"]
+        edge_types = data["edge_types"]
+
+        edge_index = data["edge_index"]
+        neigh_isc = data["neigh_isc"]
+
+        positions = data["positions"]
+
+        if not coords_cartesian:
+            # Positions need to be converted to cartesian coordinates
+            positions = self.basis_to_cartesian(positions)
+
+        nsc = data["nsc"].squeeze()
+
+        # Get the values for the node blocks and the pointer to the start of each block.
+        node_labels_ptr = self.basis_table.point_block_pointer(point_types)
+
+        # Add back atomic contributions to the node blocks in case they were removed
+        if self.sub_point_matrix:
+            assert self.basis_table.point_matrix is not None, "Point matrices"
+            node_labels = node_labels + np.concatenate([self.basis_table.point_matrix[atom_type].ravel() for atom_type in point_types])
+
+        # Get the values for the edge blocks and the pointer to the start of each block.
+        if self.symmetric_matrix:
+            edge_index = edge_index[:, ::2]
+            edge_types = edge_types[::2]
+            neigh_isc = neigh_isc[::2]
+
+        edge_labels_ptr = self.basis_table.edge_block_pointer(edge_types)
+
+        n_orbitals = [point.irreps.dim for point in self.basis_table.basis]
+        orbitals = [n_orbitals[at_type] for at_type in point_types]
+
+        nsc = data["nsc"].squeeze()
+
+        # Construct the matrix.
+        matrix = nodes_and_edges_to_csr(
+            node_vals=node_labels, node_ptr=node_labels_ptr,
+            edge_vals=edge_labels, edge_index=edge_index,
+            edge_neigh_isc=neigh_isc,
+            edge_ptr=edge_labels_ptr,
+            n_supercells=np.prod(nsc),
+            orbitals=orbitals, 
+            symmetrize_edges=self.symmetric_matrix,
+            threshold=threshold
+        )
+
+        return matrix
+    
+    def labels_to_sparse_orbital(self, data: dict[str, np.ndarray], coords_cartesian: bool = False, threshold: float = 1e-8) -> sisl.SparseOrbital:
         # Get all the arrays that we need.
         node_labels = data["point_labels"]
         edge_labels = data["edge_labels"]
@@ -423,9 +480,11 @@ class MatrixDataProcessor:
 
         edge_labels_ptr = self.basis_table.edge_block_pointer(edge_types)
 
+        unique_atoms = self.basis_table.get_sisl_atoms()
+        
         geometry = sisl.Geometry(
             positions,
-            atoms=[self.basis_table.atoms[at_type] for at_type in point_types],
+            atoms=[unique_atoms[at_type] for at_type in point_types],
             sc=cell,
         )
         geometry.set_nsc(nsc)
@@ -436,7 +495,8 @@ class MatrixDataProcessor:
             edge_vals=edge_labels, edge_index=edge_index,
             edge_neigh_isc=neigh_isc,
             edge_ptr=edge_labels_ptr,
-            geometry=geometry, sp_class=self.matrix_cls, symmetrize_edges=self.symmetric_matrix
+            geometry=geometry, sp_class=self.matrix_cls, symmetrize_edges=self.symmetric_matrix,
+            threshold=threshold
         )
 
         return matrix
@@ -447,13 +507,13 @@ class NumpyArraysProvider:
         self.data = data
 
     def __getitem__(self, key) -> np.ndarray:
-        return self.data.ensure_numpy(self.data._data[key])
+        return self.data.ensure_numpy(self.data[key])
     
     def __getattr__(self, key) -> np.ndarray:
-        return self.data.ensure_numpy(self.data._data[key])
+        return self.data.ensure_numpy(self.data[key])
     
     def __dir__(self):
-        return dir(self.data._data)
+        return dir(self.data)
 
 class BasisMatrixData:
     num_nodes: np.ndarray
@@ -492,6 +552,32 @@ class BasisMatrixData:
         data_processor: MatrixDataProcessor=None,
         metadata: Optional[Dict[str, Any]]=None
     ):
+        
+        self._data = self._sanitize_data(
+            edge_index=edge_index, neigh_isc=neigh_isc, node_attrs=node_attrs, positions=positions, shifts=shifts,
+            cell=cell, nsc=nsc, point_labels=point_labels, edge_labels=edge_labels, point_types=point_types,
+            edge_types=edge_types, edge_type_nlabels=edge_type_nlabels, data_processor=data_processor, metadata=metadata
+        )
+
+        for k in self._data:
+            setattr(self, k, self._data[k])
+
+    def _sanitize_data(self,
+        edge_index: Optional[np.ndarray]=None, # [2, n_edges]
+        neigh_isc: Optional[np.ndarray]=None, # [n_edges,]
+        node_attrs: Optional[np.ndarray]=None, # [n_nodes, n_node_feats]
+        positions: Optional[np.ndarray]=None,  # [n_nodes, 3]
+        shifts: Optional[np.ndarray]=None,  # [n_edges, 3],
+        cell: Optional[np.ndarray]=None,  # [3,3]
+        nsc: Optional[np.ndarray]=None,
+        point_labels: Optional[np.ndarray]=None, # [total_point_elements]
+        edge_labels: Optional[np.ndarray]=None, # [total_edge_elements]
+        point_types: Optional[np.ndarray]=None, # [n_nodes]
+        edge_types: Optional[np.ndarray]=None, # [n_edges]
+        edge_type_nlabels: Optional[np.ndarray]=None, # [n_edge_types]
+        data_processor: MatrixDataProcessor=None,
+        metadata: Optional[Dict[str, Any]]=None
+    ) -> Dict[str, Any]:
         # Check shapes
         num_nodes = node_attrs.shape[0] if node_attrs is not None else None
 
@@ -537,16 +623,8 @@ class BasisMatrixData:
         for k in ['positions', 'shifts', 'cell']:
             if data[k] is not None:
                 data[k] = data_processor.cartesian_to_basis(data[k], process_cob_array=self.process_input_array)
-
-        self._data = data
-        for k in data:
-            setattr(self, k, data[k])
-
-    def __setattr__(self, key: str, value):
-        if key != "_data" and key in getattr(self, "_data", ()):
-            self._data[key] = value
-
-        object.__setattr__(self, key, value)
+        
+        return data
         
     @classmethod
     def new(cls, 
@@ -592,7 +670,7 @@ class BasisMatrixData:
 
         # Then build the supercell that encompasses all of those atoms, so that we can get the
         # array that converts from sc shifts (3D) to a single supercell index. This is isc_off.
-        supercell = sisl.SuperCell(config.cell, nsc=nsc)
+        supercell = sisl.Lattice(config.cell, nsc=nsc)
 
         # Get the edge types
         edge_types = data_processor.basis_table.point_type_to_edge_type(indices[edge_index])
@@ -642,12 +720,21 @@ class BasisMatrixData:
     def numpy_arrays(self) -> NumpyArraysProvider:
         """Returns object that provides data as numpy arrays."""
         return NumpyArraysProvider(self)
+    
+    def to_csr(self, threshold: float = 1e-8) -> sisl.SparseOrbital:
+        # Get the metadata to process things
+        data_processor = self.metadata["data_processor"]
 
-    def to_sparse_orbital_matrix(self) -> sisl.SparseOrbital:
+        # Make sure we are dealing with numpy arrays
+        arrays = self.numpy_arrays()
+        
+        return data_processor.labels_to_csr(arrays, threshold=threshold)
+
+    def to_sparse_orbital_matrix(self, threshold: float = 1e-8) -> sisl.SparseOrbital:
         # Get the metadata to process things
         data_processor = self.metadata["data_processor"]
 
         # Make sure we are dealing with numpy arrays
         arrays = self.numpy_arrays()
 
-        return data_processor.labels_to_sparse_orbital(arrays)
+        return data_processor.labels_to_sparse_orbital(arrays, threshold=threshold)

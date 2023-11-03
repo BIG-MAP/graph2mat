@@ -1,4 +1,0 @@
-from .basis_matrix import BasisMatrixReadout
-
-OrbitalMatrixReadout = BasisMatrixReadout
-DensityMatrixReadout = BasisMatrixReadout
