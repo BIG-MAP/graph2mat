@@ -20,3 +20,7 @@ build/
 # Cython files
 *.so
 *.c
+
+# Docs
+docs/build
+docs/api/generated
