@@ -18,6 +18,7 @@ from e3nn_matrix.torch.data import BasisMatrixTorchData
 from e3nn_matrix.torch.modules import EdgeBlock, NodeBlock
 from e3nn_matrix.torch.modules.mace import MACEBasisMatrixReadout
 
+
 class OrbitalMatrixMACE(torch.nn.Module):
     def __init__(
         self,
@@ -93,7 +94,6 @@ class OrbitalMatrixMACE(torch.nn.Module):
         self.readouts = torch.nn.ModuleList()
 
         if not self.only_last_readout:
-            
             self.readouts.append(
                 matrix_readout(
                     node_attrs_irreps=node_attr_irreps,
@@ -104,12 +104,12 @@ class OrbitalMatrixMACE(torch.nn.Module):
                     avg_num_neighbors=avg_num_neighbors,
                     unique_basis=unique_basis,
                     symmetric=symmetric_matrix,
-                    node_operation=node_block_readout, edge_operation=edge_block_readout
+                    node_operation=node_block_readout,
+                    edge_operation=edge_block_readout,
                 )
             )
 
         for i in range(num_interactions - 1):
-
             inter = interaction_cls(
                 node_attrs_irreps=node_attr_irreps,
                 node_feats_irreps=hidden_irreps,
@@ -130,7 +130,6 @@ class OrbitalMatrixMACE(torch.nn.Module):
             self.products.append(prod)
 
             if i == num_interactions - 2 or not self.only_last_readout:
-
                 readout = matrix_readout(
                     node_attrs_irreps=node_attr_irreps,
                     node_feats_irreps=hidden_irreps,
@@ -140,7 +139,8 @@ class OrbitalMatrixMACE(torch.nn.Module):
                     avg_num_neighbors=avg_num_neighbors,
                     unique_basis=unique_basis,
                     symmetric=symmetric_matrix,
-                    node_operation=node_block_readout, edge_operation=edge_block_readout
+                    node_operation=node_block_readout,
+                    edge_operation=edge_block_readout,
                 )
 
                 self.readouts.append(readout)
@@ -148,10 +148,10 @@ class OrbitalMatrixMACE(torch.nn.Module):
     def forward(self, data: BasisMatrixTorchData, training=False) -> Dict[str, Any]:
         # Setup
         # This is only if we want to compute matrix gradients. For now, we don't.
-        #data.positions.requires_grad = True
+        # data.positions.requires_grad = True
 
         # Embeddings
-        node_feats = self.node_embedding(data['node_attrs'])
+        node_feats = self.node_embedding(data["node_attrs"])
         vectors, lengths = get_edge_vectors_and_lengths(
             positions=data.positions, edge_index=data.edge_index, shifts=data.shifts
         )
@@ -173,7 +173,7 @@ class OrbitalMatrixMACE(torch.nn.Module):
         ):
             # Do the message passing.
             node_feats, sc = interaction(
-                node_attrs=data['node_attrs'],
+                node_attrs=data["node_attrs"],
                 node_feats=node_feats,
                 edge_attrs=edge_attrs,
                 edge_feats=edge_feats,
@@ -181,7 +181,7 @@ class OrbitalMatrixMACE(torch.nn.Module):
             )
 
             node_feats = product(
-                node_feats=node_feats, sc=sc, node_attrs=data['node_attrs']
+                node_feats=node_feats, sc=sc, node_attrs=data["node_attrs"]
             )
 
             if readout is None:
@@ -189,15 +189,20 @@ class OrbitalMatrixMACE(torch.nn.Module):
 
             # Compute matrices. The matrix for each graph in the batch has potentially a
             # different size. Therefore, the return from readout will just be a
-            # flat (1D) tensor. This means that we lose the edge/node dimension. This is not 
-            # a big problem though since we don't actually need to reduce all nodes/edges to compute a 
-            # graph property. I.e. in "normal" MACE we need to sum over the nodes of a graph 
-            # to get the total energy. In this case we just need to compare element by element 
+            # flat (1D) tensor. This means that we lose the edge/node dimension. This is not
+            # a big problem though since we don't actually need to reduce all nodes/edges to compute a
+            # graph property. I.e. in "normal" MACE we need to sum over the nodes of a graph
+            # to get the total energy. In this case we just need to compare element by element
             # from predictions to target.
             inter_node_labels, inter_edge_labels = readout(
-                node_feats=node_feats, node_attrs=data['node_attrs'], node_types=data.point_types,
-                edge_feats=edge_feats, edge_attrs=edge_attrs, edge_types=data.edge_types, 
-                edge_index=data.edge_index, edge_type_nlabels=data.edge_type_nlabels
+                node_feats=node_feats,
+                node_attrs=data["node_attrs"],
+                node_types=data.point_types,
+                edge_feats=edge_feats,
+                edge_attrs=edge_attrs,
+                edge_types=data.edge_types,
+                edge_index=data.edge_index,
+                edge_type_nlabels=data.edge_type_nlabels,
             )
 
             node_labels_contributions.append(inter_node_labels)
@@ -216,4 +221,3 @@ class OrbitalMatrixMACE(torch.nn.Module):
             "edge_labels": edge_labels,
             "edge_labels_contributions": edge_labels_contributions,
         }
-

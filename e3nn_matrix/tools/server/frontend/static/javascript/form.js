@@ -8,7 +8,7 @@ updateFileNames = function(input, output, remove) {
     } else {
         output.textContent= "Uploaded file: " + input.files.item(0).name;
     }
-    
+
 }
 
 fileInputChange = function(event) {

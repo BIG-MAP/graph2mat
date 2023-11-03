@@ -6,17 +6,17 @@ overflow-y-auto class. Get those cases and customize the scrollbar.*/
     scrollbar-width: thin;
     scrollbar-color: #000 #ccc;
 }
-  
+
 /* For Chrome, EDGE, Opera, Others */
 .overflow-y-auto::-webkit-scrollbar {
     width: 5px;
 }
 
-.overflow-y-auto::-webkit-scrollbar-track { 
+.overflow-y-auto::-webkit-scrollbar-track {
     background: #fff;
 }
 
-.overflow-y-auto::-webkit-scrollbar-thumb { 
+.overflow-y-auto::-webkit-scrollbar-thumb {
     background:#ccc;
 }
 

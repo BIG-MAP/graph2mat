@@ -7,11 +7,12 @@ import numpy as np
 
 from ..table import BasisTableWithEdges
 
-BasisCount = np.ndarray # [num_points]
+BasisCount = np.ndarray  # [num_points]
+
 
 @dataclass
 class BasisMatrix:
-    block_dict: Dict[Tuple[int,int,int], np.ndarray]
+    block_dict: Dict[Tuple[int, int, int], np.ndarray]
     # Size of the auxiliary supercell. This is the number of cells required
     # in each direction to account for all the interactions of the points in
     # the unit cell. If the point distribution is not periodic, this will
@@ -20,16 +21,17 @@ class BasisMatrix:
     # Array containing the number of basis functions for each point
     basis_count: BasisCount
 
-    def to_flat_nodes_and_edges(self, 
-        edge_index: np.ndarray, 
+    def to_flat_nodes_and_edges(
+        self,
+        edge_index: np.ndarray,
         edge_sc_shifts: np.ndarray,
         points_order: Union[np.ndarray, None] = None,
-        basis_table: Union[BasisTableWithEdges, None] = None, 
-        point_types: Union[np.ndarray, None] = None, 
-        sub_point_matrix: bool = False
+        basis_table: Union[BasisTableWithEdges, None] = None,
+        point_types: Union[np.ndarray, None] = None,
+        sub_point_matrix: bool = False,
     ) -> Tuple[np.ndarray, np.ndarray]:
         """Converts the matrix to a flat representation of the nodes and edges values.
-        
+
         This representation might be useful for training a neural network, where you will
         want to compare the output array to the target array. If you have flat arrays instead
         of block dicts you can easily compare the whole matrix at once.
@@ -60,27 +62,35 @@ class BasisMatrix:
             assert basis_table is not None and point_types is not None
             point_matrices = self.get_point_matrices(basis_table)
             blocks = [
-                (self.block_dict[i,i,0] - point_matrices[point_types[i]]).flatten() for i in order
+                (self.block_dict[i, i, 0] - point_matrices[point_types[i]]).flatten()
+                for i in order
             ]
         else:
-            blocks = [self.block_dict[i,i,0].flatten() for i in order]
+            blocks = [self.block_dict[i, i, 0].flatten() for i in order]
 
         node_values = np.concatenate(blocks)
-        
+
         assert edge_index.shape[0] == 2, "edge_index is assumed to be [2, n_edges]"
-        blocks = [self.block_dict[edge[0],edge[1], sc_shift].flatten() for edge, sc_shift in zip(edge_index.transpose(), edge_sc_shifts)]
+        blocks = [
+            self.block_dict[edge[0], edge[1], sc_shift].flatten()
+            for edge, sc_shift in zip(edge_index.transpose(), edge_sc_shifts)
+        ]
 
         edge_values = np.concatenate(blocks)
 
         return node_values, edge_values
 
-    def get_point_matrices(self, basis_table: BasisTableWithEdges) -> Dict[int, np.ndarray]:
+    def get_point_matrices(
+        self, basis_table: BasisTableWithEdges
+    ) -> Dict[int, np.ndarray]:
         """This method should implement a way of retreiving the sub-matrices of each individual point.
-        
+
         This is, the matrix that the point would have if it was the only point in the system. This matrix
         will depend on the type of the point, so the basis_table needs to be provided.
 
         The user might choose to subtract this matrix from the block_dict matrix during training, so that
         the model only learns the interactions between points.
         """
-        raise NotImplementedError(f"{self.__class__.__name__} does not implement a way of retreiving point matrices.")
+        raise NotImplementedError(
+            f"{self.__class__.__name__} does not implement a way of retreiving point matrices."
+        )

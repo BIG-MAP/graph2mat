@@ -97,27 +97,27 @@ can be used in `pytorch` models.
 The anatomy of an equivariant matrix.
 -------
 ## Orbital-orbital matrix
-    
+
 We refer to orbital-orbital matrix in general to any matrix whose rows are basis orbitals
 and columns are basis orbitals as well.
 Some examples of this in Density Functional Theory (DFT) can be the Hamiltonian (H), the overlap
-matrix (S) or the density matrix (DM). 
+matrix (S) or the density matrix (DM).
 
 There can be other matrices in DFT or any other method that processes atoms with basis orbitals
 that also follows this structure. This module is meant to be general enough to be applied out
 of the box to any such matrix.
-## Building it block by block 
+## Building it block by block
 The module builds the matrix block by block. We define a block as a region of the matrix
 where the rows are all the orbitals of a given atom, and all the columns are the orbitals of another
 given atom. This division is nice because then we can still keep atoms as the nodes of our graphs,
 as usual. There are then two clearly different types of blocks by their origin, which might also
 obey different symmetries:
     -  Self interaction blocks: These are blocks that encode the interactions between orbitals of the
-    same atom. These blocks are always square matrices. They are located at the diagonal of the matrix. 
+    same atom. These blocks are always square matrices. They are located at the diagonal of the matrix.
     If the matrix is symmetric, these blocks must also be symmetric.
     -  Interaction blocks: All the rest of blocks, that contain interactions between orbitals from different
-    orbitals. Even if the matrix is symmetric, these blocks do not need to be symmetric. For each pair of atoms `ij`, 
-    there are two blocks: `ij` and `ji` However, if the matrix is symmetric, one block is the transpose of the other. 
+    orbitals. Even if the matrix is symmetric, these blocks do not need to be symmetric. For each pair of atoms `ij`,
+    there are two blocks: `ij` and `ji` However, if the matrix is symmetric, one block is the transpose of the other.
     Therefore, we only need to compute/predict one of them.
 ## How it is implemented.
 The row and column size of each block are defined by the basis size (number of orbitals) of each atom.
@@ -126,12 +126,12 @@ Therefore, this module needs to create multiple functions.
     - For interaction blocks: One function per combination of atom types is required.
 
 ## The density matrix
-    
+
 The density matrix encodes the electronic density in terms of basis orbitals.
 Rows represent basis orbitals in the unit cell and columns represent basis orbitals
 in the supercell. The supercell is as big as needed to account for all orbital overlaps
 that happen inside the unit cell. If the system is not periodic or orbitals from different
-cells do not overlap, the supercell is exactly the unit cell. Only in that case, the 
+cells do not overlap, the supercell is exactly the unit cell. Only in that case, the
 density matrix is square.
 The electronic density at some point in space is reproduced from the density matrix by a
 sum of the product of all pairs of orbitals that overlap at that point. Each `ij` element

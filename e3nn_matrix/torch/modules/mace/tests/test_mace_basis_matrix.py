@@ -14,11 +14,14 @@ from e3nn_matrix.torch.data import BasisMatrixTorchData
 
 from e3nn_matrix.torch.modules.mace import StandaloneMACEBasisMatrixReadout
 
-def test_standalone_mace_readout(ABA_basis_configuration: BasisConfiguration, long_A_basis: bool):
+
+def test_standalone_mace_readout(
+    ABA_basis_configuration: BasisConfiguration, long_A_basis: bool
+):
     config = ABA_basis_configuration
     basis = ABA_basis_configuration.basis
 
-    input_irreps = o3.Irreps('0e + 1o')
+    input_irreps = o3.Irreps("0e + 1o")
 
     readout = StandaloneMACEBasisMatrixReadout(
         node_feats_irreps=input_irreps,
@@ -26,10 +29,10 @@ def test_standalone_mace_readout(ABA_basis_configuration: BasisConfiguration, lo
         num_bessel=10,
         num_polynomial_cutoff=2,
         max_ell=2,
-        edge_hidden_irreps=o3.Irreps('0e + 1o'),
+        edge_hidden_irreps=o3.Irreps("0e + 1o"),
         avg_num_neighbors=1.0,
         unique_basis=basis,
-        symmetric=True
+        symmetric=True,
     )
 
     # Create the basis table.
@@ -37,9 +40,7 @@ def test_standalone_mace_readout(ABA_basis_configuration: BasisConfiguration, lo
 
     # Initialize the processor.
     processor = MatrixDataProcessor(
-        basis_table=table, 
-        symmetric_matrix=True,
-        sub_point_matrix=False
+        basis_table=table, symmetric_matrix=True, sub_point_matrix=False
     )
 
     data = BasisMatrixTorchData.from_config(config, processor)
@@ -54,21 +55,20 @@ def test_standalone_mace_readout(ABA_basis_configuration: BasisConfiguration, lo
 
     node_labels, edge_labels = readout.forward(
         node_feats=node_state,
-        node_attrs=data['node_attrs'],
-        node_types=data['point_types'],
-        edge_index=data['edge_index'],
-        edge_types=data['edge_types'],
+        node_attrs=data["node_attrs"],
+        node_types=data["point_types"],
+        edge_index=data["edge_index"],
+        edge_types=data["edge_types"],
         edge_vectors=vectors,
         edge_lengths=lengths,
-        edge_type_nlabels=data['edge_type_nlabels'],
+        edge_type_nlabels=data["edge_type_nlabels"],
     )
 
-    matrix = processor.output_to_matrix({'node_labels': node_labels , 'edge_labels': edge_labels}, data)
+    matrix = processor.output_to_matrix(
+        {"node_labels": node_labels, "edge_labels": edge_labels}, data
+    )
 
     assert isinstance(matrix, csr_matrix)
     assert matrix.shape == (5, 5)
     print(matrix.nnz, long_A_basis)
     assert matrix.nnz == 25 if long_A_basis else 23
-
-
-

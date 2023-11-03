@@ -12,6 +12,7 @@ import torch.utils.data
 from ..data.processing import MatrixDataProcessor
 from .data import BasisMatrixTorchData
 
+
 class OrbitalMatrixDataset(torch.utils.data.Dataset):
     def __init__(
         self,
@@ -30,7 +31,10 @@ class OrbitalMatrixDataset(torch.utils.data.Dataset):
 
     def __getitem__(self, index: int):
         item = self.input_data[index]
-        return self.data_cls.new(item, data_processor=self.data_processor, labels=self.load_labels)
+        return self.data_cls.new(
+            item, data_processor=self.data_processor, labels=self.load_labels
+        )
+
 
 class InMemoryData(torch.utils.data.Dataset):
     """
@@ -48,15 +52,20 @@ class InMemoryData(torch.utils.data.Dataset):
     def __getitem__(self, index):
         return self.data_objects[index]
 
-class SimpleCounter():
+
+class SimpleCounter:
     def __init__(self):
         self.reset()
+
     def inc(self):
         self.count += 1
+
     def reset(self):
         self.count = 0
+
     def get_count(self):
         return self.count
+
 
 def _rotating_pool_worker(dataset, rng, queue):
     while True:
@@ -64,11 +73,14 @@ def _rotating_pool_worker(dataset, rng, queue):
             queue.put(dataset[index])
 
 
-def _transfer_thread(queue: multiprocessing.Queue, datalist: list, counter: SimpleCounter):
+def _transfer_thread(
+    queue: multiprocessing.Queue, datalist: list, counter: SimpleCounter
+):
     while True:
         for index in range(len(datalist)):
             datalist[index] = queue.get()
             counter.inc()
+
 
 class RotatingPoolData(torch.utils.data.Dataset):
     """

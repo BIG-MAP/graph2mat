@@ -3,16 +3,20 @@ import numpy as np
 
 from .batch_utils import batch_to_orbital_matrix_data, batch_to_sparse_orbital
 
+
 def _isnan(values):
     """NaN checking compatible with both torch and numpy"""
     return values != values
 
-def get_predictions_error(nodes_pred, nodes_ref, edges_pred, edges_ref, remove_nan=True):
+
+def get_predictions_error(
+    nodes_pred, nodes_ref, edges_pred, edges_ref, remove_nan=True
+):
     """Returns errors for both nodes and edges, removing NaN values."""
     node_error = nodes_pred - nodes_ref
 
     if remove_nan:
-        notnan = ~ _isnan(edges_ref)
+        notnan = ~_isnan(edges_ref)
 
         edge_error = edges_ref[notnan] - edges_pred[notnan]
     else:
@@ -20,12 +24,14 @@ def get_predictions_error(nodes_pred, nodes_ref, edges_pred, edges_ref, remove_n
 
     return node_error, edge_error
 
-class OrbitalMatrixMetric:
 
+class OrbitalMatrixMetric:
     def __call__(self, *args, **kwargs):
         return self.get_metric(*args, **kwargs)
 
-    def get_metric(self, config_resolved=False, **kwargs) -> Union[Tuple[float, Dict[str, float]], np.ndarray]:
+    def get_metric(
+        self, config_resolved=False, **kwargs
+    ) -> Union[Tuple[float, Dict[str, float]], np.ndarray]:
         """Get the value for the metric.
 
         Parameters
@@ -35,7 +41,7 @@ class OrbitalMatrixMetric:
 
             If False, a single float is returned, which is the metric for the whole batch.
             If True, a numpy array is returned, which contains the metric for each configuration in the batch.
-        
+
         Returns
         -------
         Union[Tuple[float, Dict[str, float]], np.ndarray]
@@ -49,28 +55,39 @@ class OrbitalMatrixMetric:
         else:
             # We need to loop through the batch
             if "batch" not in kwargs:
-                raise ValueError("A batch is required to compute metrics individually for each configuration.")
-            
+                raise ValueError(
+                    "A batch is required to compute metrics individually for each configuration."
+                )
+
             batch = kwargs["batch"]
-            
+
             if "symmetric_matrix" not in kwargs:
-                raise ValueError("symmetric_matrix is required to compute metrics individually for each configuration.")
+                raise ValueError(
+                    "symmetric_matrix is required to compute metrics individually for each configuration."
+                )
             if "basis_table" not in kwargs:
-                raise ValueError("basis_table is required to compute metrics individually for each configuration.")
-            
-            iterator_kwargs = {"symmetric_matrix": kwargs["symmetric_matrix"], "basis_table": kwargs["basis_table"]}
-        
+                raise ValueError(
+                    "basis_table is required to compute metrics individually for each configuration."
+                )
+
+            iterator_kwargs = {
+                "symmetric_matrix": kwargs["symmetric_matrix"],
+                "basis_table": kwargs["basis_table"],
+            }
+
             target_iterator = batch_to_orbital_matrix_data(batch, **iterator_kwargs)
             pred_iterator = batch_to_orbital_matrix_data(
-                batch, 
-                prediction={"node_labels": kwargs["nodes_pred"], "edge_labels": kwargs["edges_pred"]}, 
-                **iterator_kwargs
+                batch,
+                prediction={
+                    "node_labels": kwargs["nodes_pred"],
+                    "edge_labels": kwargs["edges_pred"],
+                },
+                **iterator_kwargs,
             )
 
             metrics_array = None
-            
-            for i, (pred, target) in enumerate(zip(pred_iterator, target_iterator)):
 
+            for i, (pred, target) in enumerate(zip(pred_iterator, target_iterator)):
                 kwargs["nodes_pred"] = pred.point_labels
                 kwargs["edges_pred"] = pred.edge_labels
                 kwargs["nodes_ref"] = target.point_labels
@@ -82,13 +99,15 @@ class OrbitalMatrixMetric:
 
                 if metrics_array is None:
                     metrics_array = np.zeros(batch.num_graphs, dtype=np.float64)
-                
+
                 metrics_array[i] = config_metric
-            
+
             return metrics_array, {}
-    
+
     @staticmethod
-    def compute_metric(nodes_pred, nodes_ref, edges_pred, edges_ref, **kwargs) -> Tuple[float, Dict[str, float]]:
+    def compute_metric(
+        nodes_pred, nodes_ref, edges_pred, edges_ref, **kwargs
+    ) -> Tuple[float, Dict[str, float]]:
         """Function that actually computes the metric.
         This function should return the metric and a dictionary of other intermediate metrics that have
         been computed as intermediate steps (or are easy to compute from intermediate steps), if applicable.
@@ -99,125 +118,154 @@ class OrbitalMatrixMetric:
     @classmethod
     def from_metric_func(cls, fn: Callable) -> Type["OrbitalMatrixMetric"]:
         """Creates an OrbitalMatrixMetric class from a function that computes the loss."""
-        return type(fn.__name__, (cls, ), {"compute_metric": staticmethod(fn)})
+        return type(fn.__name__, (cls,), {"compute_metric": staticmethod(fn)})
 
 
 @OrbitalMatrixMetric.from_metric_func
-def block_type_mse(nodes_pred, nodes_ref, edges_pred, edges_ref, log_verbose=False, **kwargs) -> Tuple[float, Dict[str, float]]:
-    node_error, edge_error = get_predictions_error(nodes_pred, nodes_ref, edges_pred, edges_ref)
+def block_type_mse(
+    nodes_pred, nodes_ref, edges_pred, edges_ref, log_verbose=False, **kwargs
+) -> Tuple[float, Dict[str, float]]:
+    node_error, edge_error = get_predictions_error(
+        nodes_pred, nodes_ref, edges_pred, edges_ref
+    )
 
-    node_loss = (node_error ** 2).mean()
-    edge_loss = (edge_error ** 2).mean()
+    node_loss = (node_error**2).mean()
+    edge_loss = (edge_error**2).mean()
 
     stats = {
-        "node_rmse": node_loss ** (1/2),
-        "edge_rmse": edge_loss ** (1/2),
+        "node_rmse": node_loss ** (1 / 2),
+        "edge_rmse": edge_loss ** (1 / 2),
     }
 
     if log_verbose:
         abs_node_error = abs(node_error)
         abs_edge_error = abs(edge_error)
-        
-        stats.update({
-            "node_mean": abs_node_error.mean(),
-            "edge_mean": abs_edge_error.mean(),
-            "node_std": abs_node_error.std(),
-            "edge_std": abs_edge_error.std(),
-            "node_max": abs_node_error.max(),
-            "edge_max": abs_edge_error.max(),
-        })
+
+        stats.update(
+            {
+                "node_mean": abs_node_error.mean(),
+                "edge_mean": abs_edge_error.mean(),
+                "node_std": abs_node_error.std(),
+                "edge_std": abs_edge_error.std(),
+                "node_max": abs_node_error.max(),
+                "edge_max": abs_edge_error.max(),
+            }
+        )
 
     return node_loss + edge_loss, stats
 
-@OrbitalMatrixMetric.from_metric_func
-def elementwise_mse(nodes_pred, nodes_ref, edges_pred, edges_ref, log_verbose=False, **kwargs) -> Tuple[float, Dict[str, float]]:
-    node_error, edge_error = get_predictions_error(nodes_pred, nodes_ref, edges_pred, edges_ref)
 
-    node_loss = (node_error ** 2).mean()
-    edge_loss = (edge_error ** 2).mean()
+@OrbitalMatrixMetric.from_metric_func
+def elementwise_mse(
+    nodes_pred, nodes_ref, edges_pred, edges_ref, log_verbose=False, **kwargs
+) -> Tuple[float, Dict[str, float]]:
+    node_error, edge_error = get_predictions_error(
+        nodes_pred, nodes_ref, edges_pred, edges_ref
+    )
+
+    node_loss = (node_error**2).mean()
+    edge_loss = (edge_error**2).mean()
 
     n_node_els = node_error.shape[0]
     n_edge_els = edge_error.shape[0]
 
     loss = (n_node_els * node_loss + edge_loss * n_edge_els) / (n_node_els + n_edge_els)
 
-    stats = {
-        "node_rmse": node_loss ** (1/2),
-        "edge_rmse": edge_loss ** (1/2)
-    }
+    stats = {"node_rmse": node_loss ** (1 / 2), "edge_rmse": edge_loss ** (1 / 2)}
 
     if log_verbose:
         abs_node_error = abs(node_error)
         abs_edge_error = abs(edge_error)
-        
-        stats.update({
-            "node_mean": abs_node_error.mean(),
-            "edge_mean": abs_edge_error.mean(),
-            "node_std": abs_node_error.std(),
-            "edge_std": abs_edge_error.std(),
-            "node_max": abs_node_error.max(),
-            "edge_max": abs_edge_error.max(),
-        })
+
+        stats.update(
+            {
+                "node_mean": abs_node_error.mean(),
+                "edge_mean": abs_edge_error.mean(),
+                "node_std": abs_node_error.std(),
+                "edge_std": abs_edge_error.std(),
+                "node_max": abs_node_error.max(),
+                "edge_max": abs_edge_error.max(),
+            }
+        )
 
     return loss, stats
 
+
 @OrbitalMatrixMetric.from_metric_func
-def node_mse(nodes_pred, nodes_ref, edges_pred, edges_ref, log_verbose=False, **kwargs) -> Tuple[float, Dict[str, float]]:
-    node_error, edge_error = get_predictions_error(nodes_pred, nodes_ref, edges_pred, edges_ref)
+def node_mse(
+    nodes_pred, nodes_ref, edges_pred, edges_ref, log_verbose=False, **kwargs
+) -> Tuple[float, Dict[str, float]]:
+    node_error, edge_error = get_predictions_error(
+        nodes_pred, nodes_ref, edges_pred, edges_ref
+    )
 
-    node_loss = (node_error ** 2).mean()
-    edge_loss = (edge_error ** 2).mean()
+    node_loss = (node_error**2).mean()
+    edge_loss = (edge_error**2).mean()
 
-    stats = {
-        "node_rmse": node_loss ** (1/2),
-        "edge_rmse": edge_loss ** (1/2)
-    }
+    stats = {"node_rmse": node_loss ** (1 / 2), "edge_rmse": edge_loss ** (1 / 2)}
 
     if log_verbose:
         abs_node_error = abs(node_error)
         abs_edge_error = abs(edge_error)
-        
-        stats.update({
-            "node_mean": abs_node_error.mean(),
-            "edge_mean": abs_edge_error.mean(),
-            "node_std": abs_node_error.std(),
-            "edge_std": abs_edge_error.std(),
-            "node_max": abs_node_error.max(),
-            "edge_max": abs_edge_error.max(),
-        })
+
+        stats.update(
+            {
+                "node_mean": abs_node_error.mean(),
+                "edge_mean": abs_edge_error.mean(),
+                "node_std": abs_node_error.std(),
+                "edge_std": abs_edge_error.std(),
+                "node_max": abs_node_error.max(),
+                "edge_max": abs_edge_error.max(),
+            }
+        )
 
     return node_loss, stats
 
+
 @OrbitalMatrixMetric.from_metric_func
-def edge_mse(nodes_pred, nodes_ref, edges_pred, edges_ref, log_verbose=False, **kwargs) -> Tuple[float, Dict[str, float]]:
-    node_error, edge_error = get_predictions_error(nodes_pred, nodes_ref, edges_pred, edges_ref)
+def edge_mse(
+    nodes_pred, nodes_ref, edges_pred, edges_ref, log_verbose=False, **kwargs
+) -> Tuple[float, Dict[str, float]]:
+    node_error, edge_error = get_predictions_error(
+        nodes_pred, nodes_ref, edges_pred, edges_ref
+    )
 
-    node_loss = (node_error ** 2).mean()
-    edge_loss = (edge_error ** 2).mean()
+    node_loss = (node_error**2).mean()
+    edge_loss = (edge_error**2).mean()
 
-    stats = {
-        "node_rmse": node_loss ** (1/2),
-        "edge_rmse": edge_loss ** (1/2)
-    }
+    stats = {"node_rmse": node_loss ** (1 / 2), "edge_rmse": edge_loss ** (1 / 2)}
 
     if log_verbose:
         abs_node_error = abs(node_error)
         abs_edge_error = abs(edge_error)
-        
-        stats.update({
-            "node_mean": abs_node_error.mean(),
-            "edge_mean": abs_edge_error.mean(),
-            "node_std": abs_node_error.std(),
-            "edge_std": abs_edge_error.std(),
-            "node_max": abs_node_error.max(),
-            "edge_max": abs_edge_error.max(),
-        })
+
+        stats.update(
+            {
+                "node_mean": abs_node_error.mean(),
+                "edge_mean": abs_edge_error.mean(),
+                "node_std": abs_node_error.std(),
+                "edge_std": abs_edge_error.std(),
+                "node_max": abs_node_error.max(),
+                "edge_max": abs_edge_error.max(),
+            }
+        )
 
     return edge_loss, stats
 
+
 @OrbitalMatrixMetric.from_metric_func
-def block_type_mse_threshold(nodes_pred, nodes_ref, edges_pred, edges_ref, threshold=1e-4, log_verbose=False, **kwargs) -> Tuple[float, Dict[str, float]]:
-    node_error, edge_error = get_predictions_error(nodes_pred, nodes_ref, edges_pred, edges_ref)
+def block_type_mse_threshold(
+    nodes_pred,
+    nodes_ref,
+    edges_pred,
+    edges_ref,
+    threshold=1e-4,
+    log_verbose=False,
+    **kwargs,
+) -> Tuple[float, Dict[str, float]]:
+    node_error, edge_error = get_predictions_error(
+        nodes_pred, nodes_ref, edges_pred, edges_ref
+    )
 
     n_node_els = node_error.shape[0]
     n_edge_els = edge_error.shape[0]
@@ -230,12 +278,12 @@ def block_type_mse_threshold(nodes_pred, nodes_ref, edges_pred, edges_ref, thres
 
     # We do the sum instead of the mean here so that we reward putting
     # elements below the threshold
-    node_loss = (node_error_above_thresh ** 2).sum()
-    edge_loss = (edge_error_above_thresh ** 2).sum()
+    node_loss = (node_error_above_thresh**2).sum()
+    edge_loss = (edge_error_above_thresh**2).sum()
 
     stats = {
-        "node_rmse": (node_error ** 2).mean() ** (1/2),
-        "edge_rmse": (edge_error ** 2).mean() ** (1/2),
+        "node_rmse": (node_error**2).mean() ** (1 / 2),
+        "edge_rmse": (edge_error**2).mean() ** (1 / 2),
         "node_above_threshold_frac": node_error_above_thresh.shape[0] / n_node_els,
         "edge_above_threshold_frac": edge_error_above_thresh.shape[0] / n_edge_els,
         "node_above_threshold_mean": abs_node_error[abs_node_error > threshold].mean(),
@@ -243,22 +291,34 @@ def block_type_mse_threshold(nodes_pred, nodes_ref, edges_pred, edges_ref, thres
     }
 
     if log_verbose:
-        
-        stats.update({
-            "node_mean": abs_node_error.mean(),
-            "edge_mean": abs_edge_error.mean(),
-            "node_std": abs_node_error.std(),
-            "edge_std": abs_edge_error.std(),
-            "node_max": abs_node_error.max(),
-            "edge_max": abs_edge_error.max(),
-        })
+        stats.update(
+            {
+                "node_mean": abs_node_error.mean(),
+                "edge_mean": abs_edge_error.mean(),
+                "node_std": abs_node_error.std(),
+                "edge_std": abs_edge_error.std(),
+                "node_max": abs_node_error.max(),
+                "edge_max": abs_edge_error.max(),
+            }
+        )
 
     return node_loss + edge_loss, stats
 
+
 @OrbitalMatrixMetric.from_metric_func
-def block_type_mse_sigmoid_thresh(nodes_pred, nodes_ref, edges_pred, edges_ref, 
-    threshold=1e-4, sigmoid_factor=1e-5, log_verbose=False, **kwargs) -> Tuple[float, Dict[str, float]]:
-    node_error, edge_error = get_predictions_error(nodes_pred, nodes_ref, edges_pred, edges_ref)
+def block_type_mse_sigmoid_thresh(
+    nodes_pred,
+    nodes_ref,
+    edges_pred,
+    edges_ref,
+    threshold=1e-4,
+    sigmoid_factor=1e-5,
+    log_verbose=False,
+    **kwargs,
+) -> Tuple[float, Dict[str, float]]:
+    node_error, edge_error = get_predictions_error(
+        nodes_pred, nodes_ref, edges_pred, edges_ref
+    )
 
     n_node_els = node_error.shape[0]
     n_edge_els = edge_error.shape[0]
@@ -276,15 +336,15 @@ def block_type_mse_sigmoid_thresh(nodes_pred, nodes_ref, edges_pred, edges_ref,
 
     # We do the sum instead of the mean here so that we reward putting
     # elements below the threshold
-    node_loss = (node_error_thresholded ** 2).sum()
-    edge_loss = (edge_error_thresholded ** 2).sum()
+    node_loss = (node_error_thresholded**2).sum()
+    edge_loss = (edge_error_thresholded**2).sum()
 
     abs_node_error_above_thresh = abs_node_error[abs_node_error > threshold]
     abs_edge_error_above_thresh = abs_edge_error[abs_edge_error > threshold]
 
     stats = {
-        "node_rmse": (node_error ** 2).mean() ** (1/2),
-        "edge_rmse": (edge_error ** 2).mean() ** (1/2),
+        "node_rmse": (node_error**2).mean() ** (1 / 2),
+        "edge_rmse": (edge_error**2).mean() ** (1 / 2),
         "node_above_threshold_frac": abs_node_error_above_thresh.shape[0] / n_node_els,
         "edge_above_threshold_frac": abs_edge_error_above_thresh.shape[0] / n_edge_els,
         "node_above_threshold_mean": abs_node_error_above_thresh.mean(),
@@ -292,42 +352,53 @@ def block_type_mse_sigmoid_thresh(nodes_pred, nodes_ref, edges_pred, edges_ref,
     }
 
     if log_verbose:
-        
-        stats.update({
-            "node_mean": abs_node_error.mean(),
-            "edge_mean": abs_edge_error.mean(),
-            "node_std": abs_node_error.std(),
-            "edge_std": abs_edge_error.std(),
-            "node_max": abs_node_error.max(),
-            "edge_max": abs_edge_error.max(),
-        })
+        stats.update(
+            {
+                "node_mean": abs_node_error.mean(),
+                "edge_mean": abs_edge_error.mean(),
+                "node_std": abs_node_error.std(),
+                "edge_std": abs_edge_error.std(),
+                "node_max": abs_node_error.max(),
+                "edge_max": abs_edge_error.max(),
+            }
+        )
 
     return node_loss + edge_loss, stats
 
+
 @OrbitalMatrixMetric.from_metric_func
-def normalized_density_error(nodes_pred, nodes_ref, edges_pred, edges_ref, batch, basis_table, 
-    grid_spacing: float = 0.1, log_verbose=False, **kwargs) -> Tuple[float, Dict[str, float]]:
+def normalized_density_error(
+    nodes_pred,
+    nodes_ref,
+    edges_pred,
+    edges_ref,
+    batch,
+    basis_table,
+    grid_spacing: float = 0.1,
+    log_verbose=False,
+    **kwargs,
+) -> Tuple[float, Dict[str, float]]:
     """Computes the normalized density error.
-    
+
     This is the error of the density in real space divided by the number of electrons.
     """
     import sisl
     from e3nn_matrix.data.processing import BasisMatrixData
-    
+
     # Get the errors in the density matrix. Make sure that NaNs are set to 0, which
     # basically means that they will have no influence on the error.
-    errors = get_predictions_error(nodes_pred, nodes_ref, edges_pred, edges_ref, remove_nan=False)
+    errors = get_predictions_error(
+        nodes_pred, nodes_ref, edges_pred, edges_ref, remove_nan=False
+    )
     errors[1][_isnan(errors[1])] = 0
 
     if isinstance(batch, BasisMatrixData):
-        # We haven't really received a batch, but just a single structure. 
+        # We haven't really received a batch, but just a single structure.
         # Do as if we received a batch of size 1.
         matrix_error = batch
         matrix_error.point_labels = errors[0]
         matrix_error.edge_labels = errors[1]
-        matrix_errors = [
-            matrix_error.to_sparse_orbital_matrix()
-        ]
+        matrix_errors = [matrix_error.to_sparse_orbital_matrix()]
     else:
         # Create an iterator that returns the error for each structure in the batch
         # as a sisl DensityMatrix.
@@ -338,7 +409,7 @@ def normalized_density_error(nodes_pred, nodes_ref, edges_pred, edges_ref, batch
             prediction={"node_labels": errors[0], "edge_labels": errors[1]},
             basis_table=basis_table,
             matrix_cls=sisl.DensityMatrix,
-            symmetric_matrix=True, 
+            symmetric_matrix=True,
         )
 
     # Initialize counters
@@ -349,7 +420,6 @@ def normalized_density_error(nodes_pred, nodes_ref, edges_pred, edges_ref, batch
 
     # Loop through structures in the batch
     for matrix_error in matrix_errors:
-
         # Initialize a grid to project the error
         error_grid = sisl.Grid(grid_spacing, geometry=matrix_error.geometry)
 
@@ -369,24 +439,26 @@ def normalized_density_error(nodes_pred, nodes_ref, edges_pred, edges_ref, batch
         total_error += this_config_error
         total_electrons += this_config_electrons
         num_configs += 1
-    
+
     # Compute average errors
     avg_per_config_error = per_config_total_error / num_configs
     avg_error = total_error / total_electrons
 
     stats = {
-        "avg_per_config_error_percent": avg_per_config_error*100,
-        "avg_error_percent": avg_error*100,
+        "avg_per_config_error_percent": avg_per_config_error * 100,
+        "avg_error_percent": avg_error * 100,
     }
 
     # If the verbose stats are requested, we return also the counters.
     # This might be useful e.g. if we want to calculate the error over
     # epochs.
     if log_verbose:
-        stats.update({
-            "per_config_total_error": per_config_total_error,
-            "total_error": total_error,
-            "total_electrons": total_electrons,
-        })
+        stats.update(
+            {
+                "per_config_total_error": per_config_total_error,
+                "total_error": total_error,
+                "total_electrons": total_electrons,
+            }
+        )
 
     return avg_per_config_error, stats

@@ -10,6 +10,7 @@ __all__ = [
     "MACENodeMessageBlock",
 ]
 
+
 class MACEEdgeMessageBlock(torch.nn.Module):
     """This is basically the RealAgnosticResidualInteractionBlock, but only up to the part
     where it computes the partial mji messages."""
@@ -31,7 +32,9 @@ class MACEEdgeMessageBlock(torch.nn.Module):
 
         # TensorProduct
         irreps_mid, instructions = tp_out_irreps_with_instructions(
-            node_feats_irreps, edge_attrs_irreps, target_irreps,
+            node_feats_irreps,
+            edge_attrs_irreps,
+            target_irreps,
         )
         self.conv_tp = o3.TensorProduct(
             node_feats_irreps,
@@ -43,10 +46,13 @@ class MACEEdgeMessageBlock(torch.nn.Module):
         )
 
         # Convolution weights
-        assert edge_feats_irreps.lmax == 0, "Edge features must be a scalar array to preserve equivariance"
+        assert (
+            edge_feats_irreps.lmax == 0
+        ), "Edge features must be a scalar array to preserve equivariance"
         input_dim = edge_feats_irreps.num_irreps
         self.conv_tp_weights = nn.FullyConnectedNet(
-            [input_dim] + 3 * [64] + [self.conv_tp.weight_numel], torch.nn.SiLU(),
+            [input_dim] + 3 * [64] + [self.conv_tp.weight_numel],
+            torch.nn.SiLU(),
         )
 
         irreps_mid = irreps_mid.simplify()
@@ -61,7 +67,10 @@ class MACEEdgeMessageBlock(torch.nn.Module):
         edge_attrs: torch.Tensor,
         edge_feats: torch.Tensor,
         edge_index: torch.Tensor,
-    ) -> Union[Tuple[torch.Tensor, torch.Tensor], Tuple[torch.Tensor, torch.Tensor, torch.Tensor]]:
+    ) -> Union[
+        Tuple[torch.Tensor, torch.Tensor],
+        Tuple[torch.Tensor, torch.Tensor, torch.Tensor],
+    ]:
         sender, receiver = edge_index
 
         node_feats = self.linear_up(node_feats)
@@ -73,6 +82,7 @@ class MACEEdgeMessageBlock(torch.nn.Module):
         del tp_weights
 
         return self.linear(mji)
+
 
 class MACENodeMessageBlock(torch.nn.Module):
     """Basically MACE's RealAgnosticResidualInteractionBlock, without reshapes."""
@@ -96,7 +106,9 @@ class MACENodeMessageBlock(torch.nn.Module):
         )
         # TensorProduct
         irreps_mid, instructions = tp_out_irreps_with_instructions(
-            node_feats_irreps, edge_attrs_irreps, target_irreps,
+            node_feats_irreps,
+            edge_attrs_irreps,
+            target_irreps,
         )
         self.conv_tp = o3.TensorProduct(
             node_feats_irreps,
@@ -110,7 +122,8 @@ class MACENodeMessageBlock(torch.nn.Module):
         # Convolution weights
         input_dim = edge_feats_irreps.num_irreps
         self.conv_tp_weights = nn.FullyConnectedNet(
-            [input_dim] + 3 * [64] + [self.conv_tp.weight_numel], torch.nn.SiLU(),
+            [input_dim] + 3 * [64] + [self.conv_tp.weight_numel],
+            torch.nn.SiLU(),
         )
 
         # Linear
@@ -127,11 +140,11 @@ class MACENodeMessageBlock(torch.nn.Module):
         """We do a little hack here because previously there was a skip_tp module
         that did nothing. So if the training was done with previous versions of
         the code, the state dict will have a skip_tp key with a state.
-        
+
         This function might be removed in the future when all models have been
         trained with the new code.
         """
-        
+
         avoid_prefix = prefix + "skip_tp"
         for k in list(local_state_dict):
             if k.startswith(avoid_prefix):
@@ -146,7 +159,10 @@ class MACENodeMessageBlock(torch.nn.Module):
         edge_attrs: torch.Tensor,
         edge_feats: torch.Tensor,
         edge_index: torch.Tensor,
-    ) -> Union[Tuple[torch.Tensor, torch.Tensor], Tuple[torch.Tensor, torch.Tensor, torch.Tensor]]:
+    ) -> Union[
+        Tuple[torch.Tensor, torch.Tensor],
+        Tuple[torch.Tensor, torch.Tensor, torch.Tensor],
+    ]:
         sender, receiver = edge_index
         num_nodes = node_feats.shape[0]
 

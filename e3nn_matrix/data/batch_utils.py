@@ -6,12 +6,13 @@ import sisl
 from .table import AtomicTableWithEdges
 from .processing import BasisMatrixData
 
+
 def batch_to_orbital_matrix_data(
     batch: Any,
-    prediction: Optional[Dict]=None,
-    basis_table: Optional[AtomicTableWithEdges]=None,
-    symmetric_matrix: bool=False,
-    ) -> Iterator[BasisMatrixData]:
+    prediction: Optional[Dict] = None,
+    basis_table: Optional[AtomicTableWithEdges] = None,
+    symmetric_matrix: bool = False,
+) -> Iterator[BasisMatrixData]:
     """
     Convert a batch of data points to a sparse matrix representation for each configuration
     Parameters
@@ -29,8 +30,10 @@ def batch_to_orbital_matrix_data(
     """
 
     if prediction is not None:
-        assert basis_table is not None, "basis_table is required argument if prediction is given"
-        # Pointer arrays to understand where the data for each structure starts in the batch. 
+        assert (
+            basis_table is not None
+        ), "basis_table is required argument if prediction is given"
+        # Pointer arrays to understand where the data for each structure starts in the batch.
         atom_ptr = batch.ptr.numpy(force=True)
         edge_ptr = np.zeros_like(atom_ptr)
         np.cumsum(batch.n_edges.numpy(force=True), out=edge_ptr[1:])
@@ -57,16 +60,20 @@ def batch_to_orbital_matrix_data(
             # Get one example from batch
             example = batch.get_example(i)
             # Override node and edge labels if predictions are given
-            node_labels = prediction['node_labels']
-            edge_labels = prediction['edge_labels']
-            new_atom_label = node_labels[node_labels_ptr[atom_start]:node_labels_ptr[atom_end]]
-            new_edge_label = edge_labels[edge_labels_ptr[edge_start]:edge_labels_ptr[edge_end]]
+            node_labels = prediction["node_labels"]
+            edge_labels = prediction["edge_labels"]
+            new_atom_label = node_labels[
+                node_labels_ptr[atom_start] : node_labels_ptr[atom_end]
+            ]
+            new_edge_label = edge_labels[
+                edge_labels_ptr[edge_start] : edge_labels_ptr[edge_end]
+            ]
 
             if example.point_labels is not None:
                 assert len(new_atom_label) == len(example.point_labels)
             if example.edge_labels is not None:
                 assert len(new_edge_label) == len(example.edge_labels)
-                
+
             example.point_labels = new_atom_label
             example.edge_labels = new_edge_label
             yield example
@@ -75,14 +82,15 @@ def batch_to_orbital_matrix_data(
             example = batch.get_example(i)
             yield example
 
+
 def batch_to_sparse_orbital(
     batch: Any,
     basis_table: AtomicTableWithEdges,
     matrix_cls: Type[sisl.SparseOrbital],
-    prediction: Union[Dict,None]=None,
-    symmetric_matrix: bool=False,
-    add_atomic_contribution: bool=False,
-    ) -> Iterator[sisl.SparseOrbital]:
+    prediction: Union[Dict, None] = None,
+    symmetric_matrix: bool = False,
+    add_atomic_contribution: bool = False,
+) -> Iterator[sisl.SparseOrbital]:
     """
     Convert a batch of data points to a sparse matrix representation for each configuration
     Parameters
@@ -101,6 +109,11 @@ def batch_to_sparse_orbital(
         Sparse orbital matrix (of class matrix_cls) for each configuration in batch
     """
 
-    for matrix in batch_to_orbital_matrix_data(batch, prediction=prediction, basis_table=basis_table, symmetric_matrix=symmetric_matrix):
+    for matrix in batch_to_orbital_matrix_data(
+        batch,
+        prediction=prediction,
+        basis_table=basis_table,
+        symmetric_matrix=symmetric_matrix,
+    ):
         matrix = matrix.to_sparse_orbital_matrix()
         yield matrix

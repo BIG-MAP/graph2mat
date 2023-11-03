@@ -8,15 +8,13 @@ from .basis_matrix import BasisMatrix
 from .physics.orbital_matrix import OrbitalMatrix
 from .physics.density_matrix import DensityMatrix
 
-__all__ = [
-    "BasisMatrix", "OrbitalMatrix", "DensityMatrix",
-    "get_matrix_cls"
-]
+__all__ = ["BasisMatrix", "OrbitalMatrix", "DensityMatrix", "get_matrix_cls"]
 
 _KEY_TO_MATRIX_CLS = {
     "density_matrix": DensityMatrix,
-    sisl.DensityMatrix: DensityMatrix
+    sisl.DensityMatrix: DensityMatrix,
 }
+
 
 def get_matrix_cls(key: Union[str, sisl.SparseOrbital, None]) -> Type[OrbitalMatrix]:
     if key is None:
@@ -27,5 +25,7 @@ def get_matrix_cls(key: Union[str, sisl.SparseOrbital, None]) -> Type[OrbitalMat
         try:
             return _KEY_TO_MATRIX_CLS[key]
         except KeyError:
-            warn(f"{key} is not a known matrix type key, falling back to generic OrbitalMatrix class.")
+            warn(
+                f"{key} is not a known matrix type key, falling back to generic OrbitalMatrix class."
+            )
             return OrbitalMatrix

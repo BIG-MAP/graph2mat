@@ -21,7 +21,14 @@ from e3nn_matrix.torch.data import BasisMatrixData, BasisMatrixTorchData
 from e3nn_matrix.torch.load import load_from_lit_ckpt
 
 try:
-    from fastapi import FastAPI, UploadFile, BackgroundTasks, HTTPException, Request, Form
+    from fastapi import (
+        FastAPI,
+        UploadFile,
+        BackgroundTasks,
+        HTTPException,
+        Request,
+        Form,
+    )
     from fastapi.responses import FileResponse, HTMLResponse, RedirectResponse
     from fastapi.templating import Jinja2Templates
     from fastapi.staticfiles import StaticFiles
@@ -29,13 +36,16 @@ except ImportError as e:
 
     class FastAPI:
         def __init__(self, *args, **kwargs):
-            raise ImportError("You need to install fastapi to initialize a server.") from e
-    
+            raise ImportError(
+                "You need to install fastapi to initialize a server."
+            ) from e
+
         def get(self, *args, **kwargs):
             def decorator(func):
                 return func
+
             return decorator
-        
+
         post = get
 
 
@@ -45,6 +55,7 @@ class Files(TypedDict):
     basis: Union[Path, str]
     structs: Union[Path, str]
 
+
 class ModelSpecification(TypedDict):
     prediction_function: Callable[[BasisMatrixData], Dict[str, np.ndarray]]
     data_processor: MatrixDataProcessor
@@ -53,6 +64,7 @@ class ModelSpecification(TypedDict):
     files: Files
     root_dir: Path
     test_metrics_summary: str
+
 
 def create_server_app(
     models: Dict[str, ModelSpecification],
@@ -80,22 +92,24 @@ def create_server_app(
         title="E3nn_matrix server",
     )
 
-    api = FastAPI(title="E3nn_matrix server API", 
-        description="""API that allows the interaction between the models trained with e3nn_matrix 
-        and the codes that use their predictions.""")
-    
+    api = FastAPI(
+        title="E3nn_matrix server API",
+        description="""API that allows the interaction between the models trained with e3nn_matrix
+        and the codes that use their predictions.""",
+    )
+
     app.mount("/api", api)
 
     # Valid model names.
-    ModelName = Enum('ModelName', {k: k for k in models}, type=str)
+    ModelName = Enum("ModelName", {k: k for k in models}, type=str)
 
     for model in models.values():
         if "test_metrics_summary" in model:
             continue
 
-        model['test_metrics_summary'] = ""
+        model["test_metrics_summary"] = ""
 
-        test_metrics_file = model['files'].get("test_metrics_summary")
+        test_metrics_file = model["files"].get("test_metrics_summary")
         if test_metrics_file is None:
             continue
 
@@ -104,7 +118,7 @@ def create_server_app(
             continue
 
         if not test_metrics_file.is_absolute():
-            test_metrics_file = Path(model['root_dir']) / test_metrics_file
+            test_metrics_file = Path(model["root_dir"]) / test_metrics_file
 
         if test_metrics_file.exists():
             try:
@@ -112,19 +126,20 @@ def create_server_app(
             except:
                 continue
 
-            model['test_metrics_summary'] = metrics.to_html()
+            model["test_metrics_summary"] = metrics.to_html()
 
     class ModelFile(str, Enum):
         """Valid model files."""
-        ckpt = 'ckpt'
-        test_metrics_summary = 'test_metrics_summary'
-        sample_metrics = 'sample_metrics'
-        basis = 'basis'
-        structs = 'structs'
+
+        ckpt = "ckpt"
+        test_metrics_summary = "test_metrics_summary"
+        sample_metrics = "sample_metrics"
+        basis = "basis"
+        structs = "structs"
 
     class ModelAction(str, Enum):
-        predict = 'predict'
-        test = 'test'
+        predict = "predict"
+        test = "test"
 
     actions = {
         ModelAction.predict: {
@@ -139,8 +154,9 @@ def create_server_app(
 
     class Tab(str, Enum):
         """Valid tabs in the frontend."""
-        models = 'models'
-        about = 'about'
+
+        models = "models"
+        about = "about"
 
     tabs = {
         Tab.models: {
@@ -151,57 +167,69 @@ def create_server_app(
         },
     }
 
-    @api.get('/avail_models')
+    @api.get("/avail_models")
     def return_available_models() -> List[str]:
         return list(models.keys())
-    
-    @api.get('/models/{model_name}/info')
+
+    @api.get("/models/{model_name}/info")
     async def model_info(model_name: ModelName):
         """Returns information about a model."""
         model = models[model_name.value]
 
-        info = {k: v for k, v in dataclasses.asdict(model['data_processor']).items() if k not in ['z_table']}
+        info = {
+            k: v
+            for k, v in dataclasses.asdict(model["data_processor"]).items()
+            if k not in ["z_table"]
+        }
 
-        info['description'] = model['description']
+        info["description"] = model["description"]
 
         return info
-    
-    @api.get('/models/{model_name}/avail_info')
+
+    @api.get("/models/{model_name}/avail_info")
     async def model_avail_info(model_name: ModelName) -> List[str]:
         """Returns the list of keys that are available in the model's info."""
         model = models[model_name.value]
 
         return list(model)
-    
-    @api.get('/models/{model_name}/files/{file_name}', response_class=FileResponse)
+
+    @api.get("/models/{model_name}/files/{file_name}", response_class=FileResponse)
     async def model_files(model_name: ModelName, file_name: ModelFile):
         """Download files related to the model"""
         model = models[model_name.value]
         filename = file_name.value
 
-        file_path = Path(model['files'][filename])
+        file_path = Path(model["files"][filename])
 
         if not file_path.is_absolute():
-            file_path = Path(model.get('root_dir', ".")) / file_path
+            file_path = Path(model.get("root_dir", ".")) / file_path
 
-        if filename in ['ckpt']:
-            response = FileResponse(file_path, media_type="application/octet-stream", filename=file_path.name)
+        if filename in ["ckpt"]:
+            response = FileResponse(
+                file_path,
+                media_type="application/octet-stream",
+                filename=file_path.name,
+            )
         else:
             response = str(file_path)
 
         return response
-    
-    @api.get('/models/{model_name}/files')
+
+    @api.get("/models/{model_name}/files")
     async def model_files_info(model_name: ModelName):
         """Information about the files available for the model."""
         model = models[model_name.value]
-        
+
         return {
-            "available_files": list(model['files'].keys()),
+            "available_files": list(model["files"].keys()),
         }
-    
-    @api.post('/models/{model_name}/predict', response_class=FileResponse)
-    async def predict(model_name: ModelName, geometry_file: UploadFile, background_tasks: BackgroundTasks):
+
+    @api.post("/models/{model_name}/predict", response_class=FileResponse)
+    async def predict(
+        model_name: ModelName,
+        geometry_file: UploadFile,
+        background_tasks: BackgroundTasks,
+    ):
         """Returns a prediction of the matrix given an uploaded geometry file."""
         # Find out which parser should we use given the file name.
         cls = sisl.get_sile_class(geometry_file.filename)
@@ -209,7 +237,7 @@ def create_server_app(
         # Parse the contents of the file into text, and wrap it in a StringIO object.
         with geometry_file.file as f:
             content = StringIO(f.read().decode("utf-8"))
-        
+
         # Make sisl read the geometry from the StringIO object.
         with cls(content) as sile:
             geometry = sile.read_geometry()
@@ -220,29 +248,39 @@ def create_server_app(
         with torch.no_grad():
             # USE THE MODEL
             # First, we need to process the input data, to get inputs as the model expects.
-            input_data = BasisMatrixTorchData.new(geometry, data_processor=model['data_processor'], labels=False)
+            input_data = BasisMatrixTorchData.new(
+                geometry, data_processor=model["data_processor"], labels=False
+            )
 
             # Then, we run the model.
-            out = model['prediction_function'](input_data)
+            out = model["prediction_function"](input_data)
 
             # And finally, we convert the output to a matrix.
-            matrix = model['data_processor'].output_to_matrix(out, input_data)
-        
+            matrix = model["data_processor"].output_to_matrix(out, input_data)
+
         # WRITE THE MATRIX TO A TEMPORARY FILE
         tmp_file = tempfile.NamedTemporaryFile(suffix=".DM", delete=False)
         file_path = Path(tmp_file.name)
         matrix.write(file_path)
 
-        # We need to delete the file after the response is sent, so we add the deletion 
+        # We need to delete the file after the response is sent, so we add the deletion
         # to the background tasks, which run after sending the response.
         background_tasks.add_task(file_path.unlink, missing_ok=True)
 
         # Return the file.
-        return FileResponse(file_path, media_type="application/octet-stream", filename=file_path.name)
-    
+        return FileResponse(
+            file_path, media_type="application/octet-stream", filename=file_path.name
+        )
+
     if local:
-        @api.get('/models/{model_name}/local_write_predict')
-        async def local_write_predict(model_name: ModelName, geometry_path: str, output_path: Optional[str] = None, allow_overwrite: bool = False) -> str: 
+
+        @api.get("/models/{model_name}/local_write_predict")
+        async def local_write_predict(
+            model_name: ModelName,
+            geometry_path: str,
+            output_path: Optional[str] = None,
+            allow_overwrite: bool = False,
+        ) -> str:
             """Given the path to a geometry file, writes the predicted matrix to a file.
 
             This is the same as predict, but considering that the server can interact directly
@@ -250,7 +288,7 @@ def create_server_app(
             passed as a path to a file, and the output is also a path to a file.
 
             NOTE: If the output is not an absolute path, it will be interpreted as
-            relative to the directory of the input file. If not specified, the 
+            relative to the directory of the input file. If not specified, the
             default name for the app will be used.
 
             Returns
@@ -266,7 +304,7 @@ def create_server_app(
 
             # Then the output path where we should write the matrix.
             if output_path is None:
-                output_path = model.get('output_file_name')
+                output_path = model.get("output_file_name")
 
             out_file = Path(output_path).resolve()
             if not out_file.is_absolute():
@@ -279,24 +317,35 @@ def create_server_app(
             with torch.no_grad():
                 # USE THE MODEL
                 # First, we need to process the input data, to get inputs as the model expects.
-                input_data = BasisMatrixData.new(geometry, data_processor=model['data_processor'], labels=False)
+                input_data = BasisMatrixData.new(
+                    geometry, data_processor=model["data_processor"], labels=False
+                )
 
                 # Then, we run the model.
-                out = model['prediction_function'](input_data)
+                out = model["prediction_function"](input_data)
 
                 # And finally, we convert the output to a matrix.
-                matrix = model['data_processor'].output_to_matrix(out, input_data)
+                matrix = model["data_processor"].output_to_matrix(out, input_data)
 
             if allow_overwrite and out_file.exists():
-                raise ValueError(f"Output file {out_file} already exists and overwrite is not allowed.")
-            
+                raise ValueError(
+                    f"Output file {out_file} already exists and overwrite is not allowed."
+                )
+
             # And write the matrix to it.
             matrix.write(out_file)
 
             return str(out_file)
+
     else:
-        @api.get('/models/{model_name}/local_write_predict')
-        async def local_write_predict(model_name: ModelName, geometry_path: str, output_path: Optional[str] = None, allow_overwrite: bool = False) -> str: 
+
+        @api.get("/models/{model_name}/local_write_predict")
+        async def local_write_predict(
+            model_name: ModelName,
+            geometry_path: str,
+            output_path: Optional[str] = None,
+            allow_overwrite: bool = False,
+        ) -> str:
             """Given the path to a geometry file, writes the predicted matrix to a file.
 
             This is the same as predict, but considering that the server can interact directly
@@ -304,7 +353,7 @@ def create_server_app(
             passed as a path to a file, and the output is also a path to a file.
 
             NOTE: If the output is not an absolute path, it will be interpreted as
-            relative to the directory of the input file. If not specified, the 
+            relative to the directory of the input file. If not specified, the
             default name for the app will be used.
 
             Returns
@@ -312,11 +361,17 @@ def create_server_app(
             str
                 Absolute path to the file where the matrix was written.
             """
-            raise HTTPException(status_code=403, detail="This server does not allow local writes.")
-    
+            raise HTTPException(
+                status_code=403, detail="This server does not allow local writes."
+            )
 
-    @api.post('/models/{model_name}/test')
-    async def test(model_name: ModelName, geometry_file: UploadFile, output_matrix_file: UploadFile, background_tasks: BackgroundTasks):
+    @api.post("/models/{model_name}/test")
+    async def test(
+        model_name: ModelName,
+        geometry_file: UploadFile,
+        output_matrix_file: UploadFile,
+        background_tasks: BackgroundTasks,
+    ):
         """Tests how good a prediction is given an uploaded geometry file and an uploaded matrix file."""
 
         # Get model.
@@ -328,22 +383,24 @@ def create_server_app(
         # Parse the contents of the file into text, and wrap it in a StringIO object.
         with geometry_file.file as f:
             content = StringIO(f.read().decode("utf-8"))
-        
+
         # Make sisl read the geometry from the StringIO object.
         with cls(content) as sile:
             geometry = sile.read_geometry()
 
-        geometry = model['data_processor'].add_basis_to_geometry(geometry)
+        geometry = model["data_processor"].add_basis_to_geometry(geometry)
 
         # Parse the contents of the matrix file.
-        provided_matrix_file = tempfile.NamedTemporaryFile(suffix=output_matrix_file.filename, delete=False)
+        provided_matrix_file = tempfile.NamedTemporaryFile(
+            suffix=output_matrix_file.filename, delete=False
+        )
         with output_matrix_file.file as f:
             with open(provided_matrix_file.name, "wb") as f2:
                 f2.write(f.read())
 
         matrix_parser = sisl.get_sile_class(output_matrix_file.filename)
         matrix_sile = matrix_parser(provided_matrix_file.name)
-        
+
         # Find out which type of matrix should we read and read it.
         read_method = f"read_{model['data_processor'].out_matrix}"
         target_matrix = getattr(matrix_sile, read_method)(geometry=geometry)
@@ -351,65 +408,83 @@ def create_server_app(
         with torch.no_grad():
             # USE THE MODEL
             # First, we need to process the input data, to get inputs as the model expects.
-            input_data = BasisMatrixTorchData.new(target_matrix, data_processor=model['data_processor'], labels=True)
+            input_data = BasisMatrixTorchData.new(
+                target_matrix, data_processor=model["data_processor"], labels=True
+            )
 
             # Then, we run the model.
-            out = model['prediction_function'](input_data)
+            out = model["prediction_function"](input_data)
 
             # And finally, we convert the output to a matrix.
-            metrics = model['data_processor'].compute_metrics(out, input_data, config_resolved=False)
+            metrics = model["data_processor"].compute_metrics(
+                out, input_data, config_resolved=False
+            )
 
         return metrics
-    
+
     # From here below, we define the endpoints that handle the frontend. It is a very simple
     # frontend using Jinja2 templates.
-    templates = Jinja2Templates(directory=Path(__file__).parent / "frontend" / "templates")
+    templates = Jinja2Templates(
+        directory=Path(__file__).parent / "frontend" / "templates"
+    )
 
     @app.get("/models/{model_name}/{model_action}", response_class=HTMLResponse)
     async def get(request: Request, model_action: ModelAction, model_name: ModelName):
-        return templates.TemplateResponse(f"{model_action.value}_page.html", {
-            "request": request, 
-            "selected_model": model_name.value,
-            "model_name": model_name.value, 
-            "model": models[model_name.value],
-            "models": models,
-            "model_action": actions[model_action],
-            "actions": actions,
-            "tabs": tabs,
-            "selected_tab": tabs[Tab.models],
-        })
-    
+        return templates.TemplateResponse(
+            f"{model_action.value}_page.html",
+            {
+                "request": request,
+                "selected_model": model_name.value,
+                "model_name": model_name.value,
+                "model": models[model_name.value],
+                "models": models,
+                "model_action": actions[model_action],
+                "actions": actions,
+                "tabs": tabs,
+                "selected_tab": tabs[Tab.models],
+            },
+        )
+
     @app.get("/models/{model_name}", response_class=HTMLResponse)
     async def get(request: Request, model_name: ModelName):
-        return RedirectResponse(f"/models/{model_name.value}/{ModelAction.predict.value}")
-    
+        return RedirectResponse(
+            f"/models/{model_name.value}/{ModelAction.predict.value}"
+        )
+
     @app.get("/models", response_class=HTMLResponse)
     async def get(request: Request):
-        return templates.TemplateResponse("index.html", {
-            "request": request, 
-            "models": models,
-            "model_action": actions[ModelAction.predict],
-            "actions": actions,
-            "tabs": tabs,
-            "selected_tab": tabs[Tab.models],
-        })
-    
+        return templates.TemplateResponse(
+            "index.html",
+            {
+                "request": request,
+                "models": models,
+                "model_action": actions[ModelAction.predict],
+                "actions": actions,
+                "tabs": tabs,
+                "selected_tab": tabs[Tab.models],
+            },
+        )
+
     @app.get("/about", response_class=HTMLResponse)
     async def get(request: Request):
-        return templates.TemplateResponse("about.html", {
-            "request": request,
-            "tabs": tabs,
-            "selected_tab": tabs[Tab.about],
-        })
-    
+        return templates.TemplateResponse(
+            "about.html",
+            {
+                "request": request,
+                "tabs": tabs,
+                "selected_tab": tabs[Tab.about],
+            },
+        )
+
     @app.get("/", response_class=HTMLResponse)
     async def get(request: Request):
         return RedirectResponse(f"/models")
-    
+
     static = StaticFiles(directory=Path(__file__).parent / "frontend" / "static")
-    app.mount("/static", static,  name="static")
-    
+    app.mount("/static", static, name="static")
+
     return app
+
 
 def create_server_app_from_filesystem(
     model_files: Dict[str, str] = {},
@@ -420,11 +495,11 @@ def create_server_app_from_filesystem(
 
     This function just builds the dictionary of models from the ckpt files and then calls
     ``server_app``.
-    
+
     Parameters
     ----------
     ckpt_files : Sequence[str]
-        List of checkpoint files to load. 
+        List of checkpoint files to load.
     local : bool, optional
         If True, the server allows the user to ask for changes in the local file system.
     cpu : bool, optional
@@ -435,7 +510,6 @@ def create_server_app_from_filesystem(
 
     # Loop over the ckpt files and load the models.
     for model_name, ckpt_file in model_files.items():
-
         ckpt_file = Path(ckpt_file).resolve()
 
         if ckpt_file.is_dir():
@@ -449,25 +523,25 @@ def create_server_app_from_filesystem(
             with open(ckpt_file, "r") as f:
                 spec = yaml.safe_load(f)
 
-            spec['root_dir'] = ckpt_file.parent
-            
+            spec["root_dir"] = ckpt_file.parent
+
         else:
             spec = {"files": {"ckpt": ckpt_file}}
 
-        spec['root_dir'] = Path(spec.get("root_dir", "."))
+        spec["root_dir"] = Path(spec.get("root_dir", "."))
 
-        if Path(spec['files']['ckpt']).is_absolute():
-            model_ckpt = spec['files']['ckpt']
+        if Path(spec["files"]["ckpt"]).is_absolute():
+            model_ckpt = spec["files"]["ckpt"]
         else:
-            model_ckpt = spec['root_dir'] / spec['files']['ckpt']
-        
+            model_ckpt = spec["root_dir"] / spec["files"]["ckpt"]
+
         model, data_processor = load_from_lit_ckpt(model_ckpt, cpu=cpu)
         model.eval()
 
         models[model_name] = {
             **spec,
-            "prediction_function": model, 
-            "data_processor": data_processor
+            "prediction_function": model,
+            "data_processor": data_processor,
         }
 
     return create_server_app(models, local=local)

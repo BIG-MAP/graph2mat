@@ -11,16 +11,16 @@ from e3nn_matrix.data.irreps_tools import get_atom_irreps
 
 
 def plot_orbital_matrix(
-    matrix: Union[np.ndarray, sisl.SparseCSR, spmatrix], 
-    geometry: Union[sisl.Geometry, None] = None, 
-    atom_lines: Union[bool, Dict] = False, 
+    matrix: Union[np.ndarray, sisl.SparseCSR, spmatrix],
+    geometry: Union[sisl.Geometry, None] = None,
+    atom_lines: Union[bool, Dict] = False,
     basis_lines: Union[bool, Dict] = False,
     sc_lines: Union[bool, Dict] = False,
-    colorscale: str = "RdBu", 
-    text: Union[bool, str] = False
+    colorscale: str = "RdBu",
+    text: Union[bool, str] = False,
 ) -> go.Figure:
     """Plots a matrix where rows and columns are orbitals.
-    
+
     Parameters
     -----------
     matrix:
@@ -58,58 +58,59 @@ def plot_orbital_matrix(
         matrix = matrix._csr
         mode = "atoms"
 
-    
     if isinstance(matrix, sisl.SparseCSR):
         matrix = matrix.tocsr()
-        
+
     if issparse(matrix):
         matrix = matrix.toarray()
         matrix[matrix == 0] = np.nan
-        
+
     matrix = np.array(matrix)
 
     color_midpoint = None
     if np.sum(matrix < 0) > 0 and np.sum(matrix > 0) > 0:
         color_midpoint = 0
-        
-    fig = px.imshow(matrix, color_continuous_midpoint=color_midpoint, 
-                    color_continuous_scale=colorscale, text_auto=text is True)
-    
-    if atom_lines is not False and mode == "orbitals":
-        
-        if atom_lines is True: atom_lines = {}
-            
-        atom_lines = {"color": "orange", **atom_lines}
-        
-        for atom_last_o in geometry.lasto[:-1]:
 
+    fig = px.imshow(
+        matrix,
+        color_continuous_midpoint=color_midpoint,
+        color_continuous_scale=colorscale,
+        text_auto=text is True,
+    )
+
+    if atom_lines is not False and mode == "orbitals":
+        if atom_lines is True:
+            atom_lines = {}
+
+        atom_lines = {"color": "orange", **atom_lines}
+
+        for atom_last_o in geometry.lasto[:-1]:
             line_pos = atom_last_o + 0.5
             fig.add_hline(
-                y=line_pos, line=atom_lines,
+                y=line_pos,
+                line=atom_lines,
             )
-            
+
             for i_s in range(geometry.n_s):
-                fig.add_vline(
-                    x=line_pos + (i_s * geometry.no), line=atom_lines
-                )
-            
+                fig.add_vline(x=line_pos + (i_s * geometry.no), line=atom_lines)
+
     if basis_lines is not False and mode == "orbitals":
-        
-        if basis_lines is True: basis_lines = {}
-            
+        if basis_lines is True:
+            basis_lines = {}
+
         basis_lines = {"color": "black", "dash": "dot", **basis_lines}
-        
+
         atom_irreps = [get_atom_irreps(atom) for atom in geometry.atoms.atom]
-        
+
         curr_l = 0
         for atom_specie, atom_last_o in zip(geometry.atoms.specie, geometry.lasto):
             irreps = atom_irreps[atom_specie]
-            
+
             for ir in irreps:
                 m = ir[0]
                 l = ir[1].l
                 for _ in range(m):
-                    curr_l += 2*l + 1
+                    curr_l += 2 * l + 1
 
                     if curr_l == atom_last_o + 1:
                         continue
@@ -117,30 +118,28 @@ def plot_orbital_matrix(
                     line_pos = curr_l - 0.5
 
                     fig.add_hline(
-                        y=line_pos, line=basis_lines,
+                        y=line_pos,
+                        line=basis_lines,
                     )
-                    
+
                     for i_s in range(geometry.n_s):
                         fig.add_vline(
                             x=line_pos + (i_s * geometry.no), line=basis_lines
                         )
 
     if sc_lines is not False:
-        
-        if sc_lines is True: sc_lines = {}
-            
+        if sc_lines is True:
+            sc_lines = {}
+
         sc_lines = {"color": "black", **sc_lines}
         sc_len = geometry.no if mode == "orbitals" else geometry.na
-        
+
         for i_s in range(1, geometry.n_s):
-            fig.add_vline(
-                x=(i_s * sc_len) - 0.5, line=sc_lines, name=i_s
-            )
-    
+            fig.add_vline(x=(i_s * sc_len) - 0.5, line=sc_lines, name=i_s)
+
     if isinstance(text, str):
         fig.update_traces(
-            texttemplate="%{z:" + text + "}",
-            selector={"type": "heatmap"}
+            texttemplate="%{z:" + text + "}", selector={"type": "heatmap"}
         )
 
     return fig

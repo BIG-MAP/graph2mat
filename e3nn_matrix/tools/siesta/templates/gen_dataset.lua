@@ -42,5 +42,5 @@ function store_frame(istep)
         os.execute("cp {{ files_to_keep }} {{ dataset_dir }}/{{ stepdir_prefix }}" .. istep)
     end
 
-    
+
 end

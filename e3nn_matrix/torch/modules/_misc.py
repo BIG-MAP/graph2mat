@@ -4,6 +4,7 @@ import torch
 
 from e3nn import o3
 
+
 class PairmixBlock(torch.nn.Module):
     """Pairmix layer"""
 
@@ -11,7 +12,7 @@ class PairmixBlock(torch.nn.Module):
         self,
         node_feats_irreps: o3.Irreps,
         irreps_out: o3.Irreps,
-        edge_feats_irreps: o3.Irreps
+        edge_feats_irreps: o3.Irreps,
     ) -> None:
         super().__init__()
 
@@ -28,7 +29,8 @@ class PairmixBlock(torch.nn.Module):
         # them separately.
         input_dim = edge_feats_irreps.num_irreps
         self.tensor_product_weights = nn.FullyConnectedNet(
-            [input_dim] + 3 * [64] + [self.tensor_product.weight_numel], torch.nn.SiLU(),
+            [input_dim] + 3 * [64] + [self.tensor_product.weight_numel],
+            torch.nn.SiLU(),
         )
 
         self.irreps_out = irreps_out
@@ -36,17 +38,20 @@ class PairmixBlock(torch.nn.Module):
     def forward(
         self,
         node_feats: torch.Tensor,
-        edge_feats: torch.Tensor, # Radial functions
+        edge_feats: torch.Tensor,  # Radial functions
         edge_index: torch.Tensor,
-    ) -> Union[Tuple[torch.Tensor, torch.Tensor], Tuple[torch.Tensor, torch.Tensor, torch.Tensor]]:
+    ) -> Union[
+        Tuple[torch.Tensor, torch.Tensor],
+        Tuple[torch.Tensor, torch.Tensor, torch.Tensor],
+    ]:
         sender, receiver = edge_index
 
         tp_weights = self.tensor_product_weights(edge_feats)
 
         return self.tensor_product(node_feats[receiver], node_feats[sender], tp_weights)
 
-class NonLinearTSQ(torch.nn.Module):
 
+class NonLinearTSQ(torch.nn.Module):
     def __init__(self, irreps_in, irreps_out):
         super().__init__()
 
@@ -58,20 +63,31 @@ class NonLinearTSQ(torch.nn.Module):
         non_scalar_irreps = str(irreps_in[1:])
         n_non_scalars = num_irreps - n_scalars
 
-        self.gate = nn.Gate(scalar_irreps, [torch.tanh], f"{n_non_scalars}x0e", [torch.tanh], non_scalar_irreps)
-        self.gates = torch.nn.Parameter(torch.randn(n_non_scalars, dtype=torch.get_default_dtype()))
+        self.gate = nn.Gate(
+            scalar_irreps,
+            [torch.tanh],
+            f"{n_non_scalars}x0e",
+            [torch.tanh],
+            non_scalar_irreps,
+        )
+        self.gates = torch.nn.Parameter(
+            torch.randn(n_non_scalars, dtype=torch.get_default_dtype())
+        )
 
         self.tsq = o3.TensorSquare(irreps_in, irreps_out)
 
     def forward(self, node_feats):
-
         num_features = node_feats.shape[0]
 
         n_scalars = self.gate.act_scalars.irreps_in.dim
 
         inp = torch.concat(
-            (node_feats[:, :n_scalars], self.gates.tile(num_features).reshape(num_features, -1), node_feats[:, n_scalars:]),
-            dim=-1
+            (
+                node_feats[:, :n_scalars],
+                self.gates.tile(num_features).reshape(num_features, -1),
+                node_feats[:, n_scalars:],
+            ),
+            dim=-1,
         )
 
         return self.tsq(self.gate(inp))

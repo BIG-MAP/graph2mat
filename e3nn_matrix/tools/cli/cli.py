@@ -5,7 +5,10 @@ from .models.cli import app as models_app
 from .serve import app as serve_app
 from .request import app as request_app
 
-app = typer.Typer(help="Command line interface for e3nn_matrix functionality.", pretty_exceptions_show_locals=False)
+app = typer.Typer(
+    help="Command line interface for e3nn_matrix functionality.",
+    pretty_exceptions_show_locals=False,
+)
 
 app.add_typer(models_app, name="models")
 app.add_typer(siesta_app, name="siesta")

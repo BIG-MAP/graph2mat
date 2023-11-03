@@ -6,14 +6,16 @@ from dataclasses import dataclass
 from ...table import AtomicTableWithEdges
 from .orbital_matrix import OrbitalMatrix
 
+
 @dataclass
 class DensityMatrix(OrbitalMatrix):
     def get_atomic_matrices(self, z_table: AtomicTableWithEdges):
         return z_table.atomic_DM
 
+
 def get_atomic_DM(atom: sisl.Atom) -> np.ndarray:
     """Gets the block corresponding to the atomic density matrix.
-    
+
     Parameters
     ----------
     atom: sisl.Atom

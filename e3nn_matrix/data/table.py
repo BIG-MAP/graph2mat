@@ -9,6 +9,7 @@ import sisl
 
 from .basis import PointBasis, BasisConvention, get_change_of_basis
 
+
 class BasisTableWithEdges:
     """Stores the unique types of points in the system, with their basis and the possible edges."""
 
@@ -33,23 +34,30 @@ class BasisTableWithEdges:
     file_names: Optional[List[str]]
     file_contents: Optional[List[str]]
 
-    def __init__(self, basis: Sequence[PointBasis], get_point_matrix: Optional[Callable] = None):
+    def __init__(
+        self, basis: Sequence[PointBasis], get_point_matrix: Optional[Callable] = None
+    ):
         self.basis = list(basis)
 
         self.types = [point_basis.type for point_basis in self.basis]
-        assert len(set(self.types)) == len(self.basis), f"The tag of each basis must be unique. Got {self.types}."
+        assert len(set(self.types)) == len(
+            self.basis
+        ), f"The tag of each basis must be unique. Got {self.types}."
 
         # Define the basis convention and make sure that all the point basis adhere to that convention.
         basis_convention = self.basis[0].basis_convention
 
         all_conventions = [point_basis.basis_convention for point_basis in self.basis]
-        assert len(set(all_conventions)) == 1 and all_conventions[0] == basis_convention, \
-            f"All point basis must have the same convention. Requested convention: {basis_convention}. Basis conventions {all_conventions}."
-        
+        assert (
+            len(set(all_conventions)) == 1 and all_conventions[0] == basis_convention
+        ), f"All point basis must have the same convention. Requested convention: {basis_convention}. Basis conventions {all_conventions}."
+
         self.basis_convention = basis_convention
 
         # For the basis convention, get the matrices to change from cartesian to our convention.
-        self.change_of_basis, self.change_of_basis_inv = get_change_of_basis(self.basis_convention)
+        self.change_of_basis, self.change_of_basis_inv = get_change_of_basis(
+            self.basis_convention
+        )
 
         n_types = len(self.types)
         # Array to get the edge type from atom types.
@@ -64,7 +72,7 @@ class BasisTableWithEdges:
             # to account for the fact that the direction is different.
             for j in range(i + 1, n_types):
                 point_types_to_edge_types[i, j] = edge_type
-                point_types_to_edge_types[j, i] = - edge_type
+                point_types_to_edge_types[j, i] = -edge_type
                 edge_type += 1
 
         self.edge_type = point_types_to_edge_types
@@ -82,21 +90,24 @@ class BasisTableWithEdges:
         self.R = np.array([point_basis.maxR() for point_basis in self.basis])
 
         # Store the sizes of each atom's basis.
-        self.basis_size = np.array([basis.basis_size for basis in self.basis], dtype=np.int32)
+        self.basis_size = np.array(
+            [basis.basis_size for basis in self.basis], dtype=np.int32
+        )
 
         # And also the sizes of the blocks.
         self.point_block_shape = np.array([self.basis_size, self.basis_size])
-        self.point_block_size = self.basis_size ** 2
+        self.point_block_size = self.basis_size**2
 
-        point_types_combinations = np.array(list(itertools.combinations_with_replacement(range(n_types), 2))).T
+        point_types_combinations = np.array(
+            list(itertools.combinations_with_replacement(range(n_types), 2))
+        ).T
         self.edge_block_shape = self.basis_size[point_types_combinations]
         self.edge_block_size = self.edge_block_shape.prod(axis=0)
 
     def __repr__(self):
         return f"{self.__class__.__name__}({self.basis_convention}, basis={self.basis})"
-    
-    def _repr_html_(self):
 
+    def _repr_html_(self):
         table = "<table><tbody>"
         table += f"<tr><th>Index</th><th>Type</th><th>Irreps</th><th>Max R</th></tr>"
 
@@ -106,28 +117,29 @@ class BasisTableWithEdges:
         table += "</tbody></table>"
 
         return table
-    
+
     def __str__(self):
-        return "\n".join([
-        f"\t- {point_basis}" for point_basis in self.basis
-        ])
+        return "\n".join([f"\t- {point_basis}" for point_basis in self.basis])
 
     def __len__(self):
         return len(self.basis)
-    
+
     def __eq__(self, other):
         if not isinstance(other, self.__class__):
             return False
 
-        same = all(x==y for x, y in itertools.zip_longest(self.basis, other.basis))
-        same &= all(x==y for x, y in itertools.zip_longest(self.types, other.types))
+        same = all(x == y for x, y in itertools.zip_longest(self.basis, other.basis))
+        same &= all(x == y for x, y in itertools.zip_longest(self.types, other.types))
 
         if self.point_matrix is None:
             same &= other.point_matrix is None
         else:
             if other.point_matrix is None:
                 return False
-            same &= all(np.allclose(x, y) for x, y in itertools.zip_longest(self.point_matrix, other.point_matrix))
+            same &= all(
+                np.allclose(x, y)
+                for x, y in itertools.zip_longest(self.point_matrix, other.point_matrix)
+            )
 
         same &= np.allclose(self.edge_type, other.edge_type)
         same &= np.allclose(self.R, other.R)
@@ -143,18 +155,20 @@ class BasisTableWithEdges:
 
     def type_to_index(self, point_type: Union[str, int]) -> int:
         return self.types.index(point_type)
-    
+
     def types_to_indices(self, types: Sequence) -> np.ndarray:
         # Get the unique types and the inverse indices to reconstruct the original array
         unique_types, inverse_indices = np.unique(types, return_inverse=True)
 
         # Now convert from types to indices
-        unique_indices = np.array([self.type_to_index(unique_type) for unique_type in unique_types])
+        unique_indices = np.array(
+            [self.type_to_index(unique_type) for unique_type in unique_types]
+        )
 
         # And reconstruct the original array, which is now an array of indices instead of types
         return unique_indices[inverse_indices]
 
-    def point_type_to_edge_type(self, point_type:np.ndarray) -> Union[int, np.ndarray]:
+    def point_type_to_edge_type(self, point_type: np.ndarray) -> Union[int, np.ndarray]:
         """Converts from an array of shape (2, n_edges) containing the pair
         of point types for each edge to an array of shape (n_edges,) containing
         its edge type."""
@@ -173,15 +187,15 @@ class BasisTableWithEdges:
         pointers = np.zeros(len(edge_types) + 1, dtype=np.int32)
         np.cumsum(self.edge_block_size[edge_types], out=pointers[1:])
         return pointers
-    
+
     def get_sisl_atoms(self) -> List[sisl.Atom]:
         if hasattr(self, "atoms"):
             return self.atoms
         else:
             return [point.to_sisl_atom() for point in self.basis]
 
-class AtomicTableWithEdges(BasisTableWithEdges):
 
+class AtomicTableWithEdges(BasisTableWithEdges):
     atoms: List[sisl.Atom]
 
     # These are used for saving the object in a more
@@ -200,94 +214,93 @@ class AtomicTableWithEdges(BasisTableWithEdges):
 
         # Get the point matrix for each type. This is the matrix that a point would
         # have if it was the only one in the system, and it depends only on the type.
-        self.point_matrix = [
-            get_atomic_DM(atom) for atom in self.atoms
-        ]
+        self.point_matrix = [get_atomic_DM(atom) for atom in self.atoms]
 
         self.file_names = None
         self.file_contents = None
-    
+
     @property
     def zs(self):
         return self.types
 
     def atom_type_to_edge_type(self, atom_type: np.ndarray):
         return self.point_type_to_edge_type(atom_type)
-    
+
     def atom_block_pointer(self, atom_types: Sequence[int]):
         return self.point_block_pointer(atom_types)
-    
+
     @property
     def atom_block_shape(self):
         return self.point_block_shape
-    
+
     @property
     def atom_block_size(self):
         return self.point_block_size
-    
+
     @property
     def atomic_DM(self):
         return self.point_matrix
 
     @classmethod
-    def from_basis_dir(cls, basis_dir: str, basis_ext: str = "ion.xml") -> "AtomicTableWithEdges":
+    def from_basis_dir(
+        cls, basis_dir: str, basis_ext: str = "ion.xml"
+    ) -> "AtomicTableWithEdges":
         basis_path = Path(basis_dir)
 
         return cls.from_basis_glob(basis_path.glob(f"*.{basis_ext}"))
 
     @classmethod
-    def from_basis_glob(cls, basis_glob: Union[str, Generator]) -> "AtomicTableWithEdges":
+    def from_basis_glob(
+        cls, basis_glob: Union[str, Generator]
+    ) -> "AtomicTableWithEdges":
         if isinstance(basis_glob, str):
             basis_glob = Path().glob(basis_glob)
 
         basis = []
-        #file_names = []
-        #file_contents = []
+        # file_names = []
+        # file_contents = []
         for basis_file in sorted(basis_glob):
             # TODO: Find out what to do with binary basis files formats
-            #file_names.append(basis_file.name)
-            #with open(basis_file, "r") as f:
+            # file_names.append(basis_file.name)
+            # with open(basis_file, "r") as f:
             #    file_contents.append(f.read())
-            basis.append(
-                sisl.get_sile(basis_file).read_basis()
-            )
+            basis.append(sisl.get_sile(basis_file).read_basis())
 
         obj = cls(basis)
-        #obj.file_names = file_names
-        #obj.file_contents = file_contents
+        # obj.file_names = file_names
+        # obj.file_contents = file_contents
         return obj
 
     def _set_state_by_atoms(self, atoms: Sequence[sisl.Atom]):
         self.__init__(atoms)
 
-    def _set_state_by_filecontents(self, file_names: List[str], file_contents: List[str]):
+    def _set_state_by_filecontents(
+        self, file_names: List[str], file_contents: List[str]
+    ):
         assert len(file_names) == len(file_contents)
         atom_list = []
         for fname, fcontents in zip(file_names, file_contents):
             f = StringIO(fcontents)
             sile_class = sisl.get_sile_class(fname)
             with sile_class(f) as sile:
-                 atom_list.append(sile.read_basis())
+                atom_list.append(sile.read_basis())
         self.__init__(atom_list)
         self.file_names = file_names.copy()
         self.file_contents = file_contents.copy()
 
     # Create pickling routines
     def __getstate__(self):
-        """ Return the state of this object """
+        """Return the state of this object"""
         if self.file_names is not None and self.file_contents is not None:
-            return {"file_names": self.file_names,
-                    "file_contents": self.file_contents}
+            return {"file_names": self.file_names, "file_contents": self.file_contents}
         else:
             return {"atoms": self.atoms}
 
     def __setstate__(self, d):
-        """ Re-create the state of this object """
+        """Re-create the state of this object"""
         file_names = d.get("file_names")
         file_contents = d.get("file_contents")
         if file_names is not None and file_contents is not None:
             self._set_state_by_filecontents(file_names, file_contents)
         else:
             self._set_state_by_atoms(d["atoms"])
-
-

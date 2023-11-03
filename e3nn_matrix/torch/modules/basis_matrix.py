@@ -58,13 +58,14 @@ class MatrixBlock(torch.nn.Module):
 
     _irreps_out: o3.Irreps
 
-    def __init__(self,
-        i_irreps: o3.Irreps, 
-        j_irreps: o3.Irreps, 
+    def __init__(
+        self,
+        i_irreps: o3.Irreps,
+        j_irreps: o3.Irreps,
         symmetry: str,
-        operation_cls: Type[torch.nn.Module], 
+        operation_cls: Type[torch.nn.Module],
         symm_transpose: bool = False,
-        **operation_kwargs
+        **operation_kwargs,
     ):
         super().__init__()
 
@@ -79,9 +80,9 @@ class MatrixBlock(torch.nn.Module):
         # And number of elements in the block.
         self.block_size = i_irreps.dim * j_irreps.dim
 
-        # Understand the irreps out that we need in order to create the block. 
+        # Understand the irreps out that we need in order to create the block.
         # The block is a i_irreps.dim X j_irreps.dim matrix, with possible symmetries that can
-        # reduce the number of degrees of freedom. We indicate this to the ReducedTensorProducts, 
+        # reduce the number of degrees of freedom. We indicate this to the ReducedTensorProducts,
         # which we only use as a helper.
         reduced_tp = o3.ReducedTensorProducts(symmetry, i=i_irreps, j=j_irreps)
         self._irreps_out = reduced_tp.irreps_out
@@ -91,7 +92,6 @@ class MatrixBlock(torch.nn.Module):
         self.register_buffer("change_of_basis", reduced_tp.change_of_basis)
 
     def forward(self, *args, **kwargs):
-
         def compute_block(*args, **kwargs):
             # Get the irreducible output
             irreducible_out = self.operation(*args, **kwargs)
@@ -100,17 +100,26 @@ class MatrixBlock(torch.nn.Module):
             # matrix stored on initialization.
             # n = number of nodes, i = dim of irreps, x = rows in block, y = cols in block
             return torch.einsum("ni,ixy->nxy", irreducible_out, self.change_of_basis)
-        
+
         if self.symm_transpose == False:
             return compute_block(*args, **kwargs)
         else:
             forward = compute_block(*args, **kwargs)
 
-            back_args = [(arg[1], arg[0]) if isinstance(arg, tuple) and len(arg) == 2 else arg for arg in args]
-            back_kwargs = {key: (value[1], value[0]) if isinstance(value, tuple) and len(value) == 2 else value for key, value in kwargs.items()}
+            back_args = [
+                (arg[1], arg[0]) if isinstance(arg, tuple) and len(arg) == 2 else arg
+                for arg in args
+            ]
+            back_kwargs = {
+                key: (value[1], value[0])
+                if isinstance(value, tuple) and len(value) == 2
+                else value
+                for key, value in kwargs.items()
+            }
             backward = compute_block(*back_args, **back_kwargs)
 
             return (forward + backward.transpose(-1, -2)) / 2
+
 
 class BasisMatrixReadout(torch.nn.Module):
     """Computes a variable size sparse matrix coming from the products of spherical harmonics.
@@ -122,11 +131,11 @@ class BasisMatrixReadout(torch.nn.Module):
     given point. There are then two clearly different types of blocks by their origin, which might also
     obey different symmetries:
       -  Self interaction blocks: These are blocks that encode the interactions between basis functions of the
-      same point. These blocks are always square matrices. They are located at the diagonal of the matrix. 
+      same point. These blocks are always square matrices. They are located at the diagonal of the matrix.
       If the matrix is symmetric, these blocks must also be symmetric.
       -  Interaction blocks: All the rest of blocks, that contain interactions between basis functions from different
-      points. Even if the matrix is symmetric, these blocks do not need to be symmetric. For each pair of points `ij`, 
-      there are two blocks: `ij` and `ji` However, if the matrix is symmetric, one block is the transpose of the other. 
+      points. Even if the matrix is symmetric, these blocks do not need to be symmetric. For each pair of points `ij`,
+      there are two blocks: `ij` and `ji` However, if the matrix is symmetric, one block is the transpose of the other.
       Therefore, we only need to compute/predict one of them.
 
     ## How it is implemented.
@@ -150,7 +159,7 @@ class BasisMatrixReadout(torch.nn.Module):
     node_operation: Type[torch.nn.Module]
         The operation used to compute the values for matrix blocks corresponding to
         self interactions (nodes).
-        This is passed directly to the `MatrixBlock` class, see the `operation_cls` 
+        This is passed directly to the `MatrixBlock` class, see the `operation_cls`
         parameter there.
     node_operation_kwargs: dict
         Initialization arguments for the `node_operation` class.
@@ -163,34 +172,35 @@ class BasisMatrixReadout(torch.nn.Module):
         Initialization arguments for the `edge_operation` class.
         Same as `operation_kwargs` argument in `MatrixBlock`.
     node_irreps_in: o3.Irreps
-        The irreps that this module will accept for the node features. The order 
-        of the irreps needs to be at least as high as the maximum order found in 
+        The irreps that this module will accept for the node features. The order
+        of the irreps needs to be at least as high as the maximum order found in
         the basis.
     edge_irreps_in: o3.Irreps
-        The irreps that this module will accept for the edge features. The order 
-        of the irreps needs to be at least as high as the maximum order found in 
+        The irreps that this module will accept for the edge features. The order
+        of the irreps needs to be at least as high as the maximum order found in
         the basis.
     symmetric: bool, optional
-        Whether the matrix is symmetric. If it is, edge blocks for edges connecting 
+        Whether the matrix is symmetric. If it is, edge blocks for edges connecting
         the same two atoms but in opposite directions will be computed only once (the
         block for the opposite direction is the transpose block).
     blocks_symmetry: str, optional
         The symmetry that each point block must obey. By default no symmetries are assumed.
     self_blocks_symmetry: str, optional
         The symmetry that node blocks must obey. If this is `None`:
-          - If `symmetric` is `False`, self_blocks are assumed to have the same symmetry 
+          - If `symmetric` is `False`, self_blocks are assumed to have the same symmetry
             as other blocks, which is specified in the `blocks_symmetry` parameter.
           - If `symmetric` is `True`, self_blocks are assumed to be symmetric.
     """
 
-    def __init__(self,
+    def __init__(
+        self,
         unique_basis: Sequence[PointBasis],
-        node_operation: Type[NodeBlock] = SimpleNodeBlock, 
+        node_operation: Type[NodeBlock] = SimpleNodeBlock,
         node_operation_kwargs: dict = {},
         edge_operation: Type[EdgeBlock] = SimpleEdgeBlock,
         edge_operation_kwargs: dict = {},
         symmetric: bool = False,
-        blocks_symmetry: str = "ij", 
+        blocks_symmetry: str = "ij",
         self_blocks_symmetry: Union[str, None] = None,
     ):
         super().__init__()
@@ -213,7 +223,7 @@ class BasisMatrixReadout(torch.nn.Module):
             basis_irreps=self._basis_irreps,
             symmetry=self_blocks_symmetry,
             operation_cls=node_operation,
-            **node_operation_kwargs
+            **node_operation_kwargs,
         )
         # And store them in a module list
         self.self_interactions = torch.nn.ModuleList(self_interactions)
@@ -223,9 +233,11 @@ class BasisMatrixReadout(torch.nn.Module):
             basis_irreps=self._basis_irreps,
             symmetry=blocks_symmetry,
             operation_cls=edge_operation,
-            **edge_operation_kwargs
+            **edge_operation_kwargs,
         )
-        self.interactions = torch.nn.ModuleDict({str(k): v for k, v in interactions.items()})
+        self.interactions = torch.nn.ModuleDict(
+            {str(k): v for k, v in interactions.items()}
+        )
 
     def _init_self_interactions(self, basis_irreps, **kwargs) -> List[torch.nn.Module]:
         self_interactions = []
@@ -238,19 +250,19 @@ class BasisMatrixReadout(torch.nn.Module):
                     **kwargs,
                 )
             )
-        
+
         return self_interactions
-    
+
     def _init_interactions(
         self, basis_irreps, **kwargs
     ) -> Tuple[Dict[Tuple[int, int], torch.nn.Module]]:
-
-        point_type_combinations = itertools.combinations_with_replacement(range(len(basis_irreps)), 2)
+        point_type_combinations = itertools.combinations_with_replacement(
+            range(len(basis_irreps)), 2
+        )
 
         interactions = {}
 
         for edge_type, (point_type, neigh_type) in enumerate(point_type_combinations):
-
             perms = [(edge_type, point_type, neigh_type)]
 
             # If the matrix is not symmetric, we need to include the opposite interaction
@@ -259,7 +271,6 @@ class BasisMatrixReadout(torch.nn.Module):
                 perms.append((-edge_type, neigh_type, point_type))
 
             for signed_edge_type, point_i, point_j in perms:
-
                 interactions[point_i, point_j, signed_edge_type] = MatrixBlock(
                     i_irreps=basis_irreps[point_i],
                     j_irreps=basis_irreps[point_j],
@@ -282,10 +293,13 @@ class BasisMatrixReadout(torch.nn.Module):
         s += "Node operations:"
         for i, x in enumerate(self.self_interactions):
             point = self._unique_basis[i]
-            s = s + f"\n ({point.type}) {str(x.operation.__class__.__name__)}: ({point.irreps})^2 -> {x._irreps_out}"
+            s = (
+                s
+                + f"\n ({point.type}) {str(x.operation.__class__.__name__)}: ({point.irreps})^2 -> {x._irreps_out}"
+            )
 
             if x.symm_transpose:
-                    s += " [XY = YX.T]"
+                s += " [XY = YX.T]"
 
         s += "\nEdge operations:"
         for k, x in self.interactions.items():
@@ -293,15 +307,19 @@ class BasisMatrixReadout(torch.nn.Module):
 
             point = self._unique_basis[point_type]
             neigh = self._unique_basis[neigh_type]
-            
-            s = s + f"\n ({point.type}, {neigh.type}) {str(x.operation.__class__.__name__)}: ({point.irreps}) x ({neigh.irreps}) -> {x._irreps_out}."
+
+            s = (
+                s
+                + f"\n ({point.type}, {neigh.type}) {str(x.operation.__class__.__name__)}: ({point.irreps}) x ({neigh.irreps}) -> {x._irreps_out}."
+            )
 
             if x.symm_transpose:
                 s += " [XY = YX.T]"
-        
+
         return s
-                
-    def forward(self,
+
+    def forward(
+        self,
         node_types: torch.Tensor,
         edge_index: torch.Tensor,
         edge_types: torch.Tensor,
@@ -321,7 +339,7 @@ class BasisMatrixReadout(torch.nn.Module):
             smallest point type to the biggest point type.
           - Sorted by edge type within the same structure. That is, edges where the same two species interact should
             be grouped within each structure in the batch. These groups should be ordered by edge type.
-        
+
         Parameters
         -----------
         node_types: torch.Tensor
@@ -360,7 +378,7 @@ class BasisMatrixReadout(torch.nn.Module):
         edge_operation_global_kwargs: dict = {},
             Arguments to pass to edge operations that are global. They will be passed
             to each function as provided.
-        
+
         Returns
         -----------
         node_labels:
@@ -388,16 +406,16 @@ class BasisMatrixReadout(torch.nn.Module):
         # Return both the node and edge labels.
         return (node_labels, edge_labels)
 
-    def _forward_self_interactions(self, node_types: torch.Tensor, node_kwargs, global_kwargs) -> torch.Tensor:
-        
+    def _forward_self_interactions(
+        self, node_types: torch.Tensor, node_kwargs, global_kwargs
+    ) -> torch.Tensor:
         # Allocate a list where we will store the outputs of all node blocks.
         n_nodes = len(node_types)
-        node_labels = [None]*n_nodes
+        node_labels = [None] * n_nodes
 
-        # Call each unique self interaction function with only the features 
+        # Call each unique self interaction function with only the features
         # of nodes that correspond to that type.
         for node_type, func in enumerate(self.self_interactions):
-
             # Select the features for nodes of this type
             mask = node_types == node_type
             # Quick exit if there are no features of this type
@@ -415,30 +433,38 @@ class BasisMatrixReadout(torch.nn.Module):
                 node_labels[i] = individual_output
 
         return torch.concatenate(node_labels)
-    
-    def _forward_interactions(self,
+
+    def _forward_interactions(
+        self,
         edge_types: torch.Tensor,
         edge_index: torch.Tensor,
         edge_type_nlabels: torch.Tensor,
         node_kwargs: Dict[str, torch.Tensor] = {},
         edge_kwargs: Dict[str, torch.Tensor] = {},
-        global_kwargs: dict = {},                     
+        global_kwargs: dict = {},
     ):
         # THEN, COMPUTE EDGE BLOCKS
         # Allocate space to store all the edge labels.
-        # Within the same structure, edges are grouped (and sorted) by edge type. The edge_type_nlabels tensor contains, 
-        # for each structure, the number of edges of each type. We can accumulate these values to get a pointer to the 
-        # beginning of each edge type in each structure. 
+        # Within the same structure, edges are grouped (and sorted) by edge type. The edge_type_nlabels tensor contains,
+        # for each structure, the number of edges of each type. We can accumulate these values to get a pointer to the
+        # beginning of each edge type in each structure.
         unique_edge_types = edge_type_nlabels.shape[1]
-        edge_type_ptrs = torch.zeros(edge_type_nlabels.shape[0] * edge_type_nlabels.shape[1] + 1, dtype=torch.int64, device=edge_types.device)
+        edge_type_ptrs = torch.zeros(
+            edge_type_nlabels.shape[0] * edge_type_nlabels.shape[1] + 1,
+            dtype=torch.int64,
+            device=edge_types.device,
+        )
         torch.cumsum(edge_type_nlabels.ravel(), dim=0, out=edge_type_ptrs[1:])
         # Then we can allocate a tensor to store all of them.
-        edge_labels = torch.empty(edge_type_ptrs[-1], dtype=torch.get_default_dtype(), device=edge_types.device)
+        edge_labels = torch.empty(
+            edge_type_ptrs[-1],
+            dtype=torch.get_default_dtype(),
+            device=edge_types.device,
+        )
 
-        # Call each unique interaction function with only the features 
+        # Call each unique interaction function with only the features
         # of edges that correspond to that type.
         for module_key, func in self.interactions.items():
-
             # The key of the module is the a tuple (int, int, int) converted to a string.
             point_type, neigh_type, edge_type = map(int, module_key[1:-1].split(","))
 
@@ -448,7 +474,9 @@ class BasisMatrixReadout(torch.nn.Module):
                 continue
 
             # Then, for all features, select only the edges of this type.
-            filtered_edge_kwargs = {key: value[mask] for key, value in edge_kwargs.items()}
+            filtered_edge_kwargs = {
+                key: value[mask] for key, value in edge_kwargs.items()
+            }
             type_edge_index = edge_index[:, mask]
 
             # Edges between the same points but in different directions are stored consecutively.
@@ -472,14 +500,19 @@ class BasisMatrixReadout(torch.nn.Module):
             # For the node arguments we need to filter them and create pairs, such that a tuple
             # (sender, receiver) is built for each node argument.
             filtered_node_kwargs = {
-                key: (value[type_edge_index[0, i_edges]], value[type_edge_index[1, j_edges]])
+                key: (
+                    value[type_edge_index[0, i_edges]],
+                    value[type_edge_index[1, j_edges]],
+                )
                 for key, value in node_kwargs.items()
             }
 
             # Compute the outputs.
             # The output will be of shape [n_edges, i_basis_size, j_basis_size]. That is, one
             # matrix block per edge, where the shape of the block is determined by the edge type.
-            output = func(**filtered_edge_kwargs, **filtered_node_kwargs, **global_kwargs)
+            output = func(
+                **filtered_edge_kwargs, **filtered_node_kwargs, **global_kwargs
+            )
 
             # Since each edge type has a different block shape, we need to flatten the blocks (and even
             # the n_edges dimension) to put them all in a single array.
@@ -488,7 +521,10 @@ class BasisMatrixReadout(torch.nn.Module):
             # Here, we fill the edge labels array with the output at the appropiate positions (as determined
             # when bulding the pointers before the compute loop).
             els = 0
-            for start, end in zip(edge_type_ptrs[edge_type::unique_edge_types], edge_type_ptrs[edge_type + 1::unique_edge_types]):
+            for start, end in zip(
+                edge_type_ptrs[edge_type::unique_edge_types],
+                edge_type_ptrs[edge_type + 1 :: unique_edge_types],
+            ):
                 next_els = els + end - start
                 edge_labels[start:end] = output[els:next_els]
                 els = next_els

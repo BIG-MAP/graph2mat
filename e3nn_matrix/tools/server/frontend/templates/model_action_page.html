@@ -25,14 +25,14 @@
                     <p class="mt-1 text-sm leading-6 text-gray-600 ">{{ model_action.short_help }}</p>
                     {% block model_action_form %}
                     <form id="form" method="post" action="/api/models/{{model_name}}/predict" enctype="multipart/form-data" onsubmit="formSubmit(event)" onreset="formReset(event)">
-                    
+
                         <div class="mt-6 flex items-center justify-end gap-x-6">
                         <button type="reset" class="text-sm font-semibold leading-6 text-gray-900">Clear</button>
                         <button id="submit_button" type="submit" class="rounded-md bg-teal-600 px-3 py-2 text-sm font-semibold text-white shadow-sm hover:bg-teal-500 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-indigo-600 disabled:opacity-25">Test</button>
                         </div>
                     </form>
                     {% endblock %}
-        
+
                     <div id="loading" class="hidden flex justify-center w-full py-8">
                         <div
                         class=" h-8 w-8 animate-spin rounded-full border-4 border-solid border-current border-r-transparent align-[-0.125em] text-success motion-reduce:animate-[spin_1.5s_linear_infinite]"
@@ -43,7 +43,7 @@
                         >
                         </div>
                     </div>
-        
+
                     <div id="error" class="hidden flex justify-center w-full py-8">
                         <div class="bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded relative" role="alert">
                             <strong class="font-bold">Error:</strong>
@@ -52,7 +52,7 @@
                     </div>
 
                     <div id="output_div"> </div>
-        
+
                 </div>
             </div>
         </div>

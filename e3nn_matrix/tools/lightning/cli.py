@@ -1,10 +1,16 @@
 import copy
 import os
-from pytorch_lightning.cli import LightningCLI, SaveConfigCallback, LightningArgumentParser, ArgsType
+from pytorch_lightning.cli import (
+    LightningCLI,
+    SaveConfigCallback,
+    LightningArgumentParser,
+    ArgsType,
+)
 import torch
 from jsonargparse import Namespace
 
 from e3nn_matrix.torch.load import sanitize_checkpoint
+
 
 class OrbitalMatrixCLI(LightningCLI):
     def add_arguments_to_parser(self, parser: LightningArgumentParser):
@@ -17,45 +23,40 @@ class OrbitalMatrixCLI(LightningCLI):
         # Set logger defaults based on environment variables
         if os.environ.get("PL_LOGGER_DEFAULTS_ENABLE") is not None:
             init_args = {
-                    "save_dir": os.environ.get("PL_LOGGER_SAVE_DIR", "."),
-                    "name": os.environ.get("PL_LOGGER_NAME", "lightning_logs"),
-                    "version": os.environ.get("PL_LOGGER_VERSION"),
+                "save_dir": os.environ.get("PL_LOGGER_SAVE_DIR", "."),
+                "name": os.environ.get("PL_LOGGER_NAME", "lightning_logs"),
+                "version": os.environ.get("PL_LOGGER_VERSION"),
             }
 
-            default_loggers = [{
-                "class_path": "TensorBoardLogger",
-                "init_args": init_args
-                },
-                {
-                "class_path": "CSVLogger",
-                "init_args": init_args
-                },
+            default_loggers = [
+                {"class_path": "TensorBoardLogger", "init_args": init_args},
+                {"class_path": "CSVLogger", "init_args": init_args},
             ]
             defaults["trainer.logger"] = default_loggers
-
 
         # saves last checkpoints based on "step" metric
         # as well as "val_loss" metric
         init_args_last = {
-            "monitor":"step",
-            "mode":"max",
-            "filename":"last-{step:02d}",
+            "monitor": "step",
+            "mode": "max",
+            "filename": "last-{step:02d}",
             "save_last": True,
             "auto_insert_metric_name": False,
         }
         init_args_best = {
-            "monitor":"val_loss",
-            "mode":"min",
-            "filename":"best-{step:02d}",
+            "monitor": "val_loss",
+            "mode": "min",
+            "filename": "best-{step:02d}",
             "auto_insert_metric_name": False,
         }
-        default_callbacks = [{
-            "class_path": "ModelCheckpoint",
-            "init_args": init_args_last,
+        default_callbacks = [
+            {
+                "class_path": "ModelCheckpoint",
+                "init_args": init_args_last,
             },
             {
-            "class_path": "ModelCheckpoint",
-            "init_args": init_args_best,
+                "class_path": "ModelCheckpoint",
+                "init_args": init_args_best,
             },
         ]
         defaults["trainer.callbacks"] = default_callbacks
@@ -83,7 +84,7 @@ class OrbitalMatrixCLI(LightningCLI):
         # Get the path of the checkpoint
         ckpt_path = getattr(config_ns, "ckpt_path", None)
 
-        # If there is a checkpoint path, we need to reparse the arguments, using the 
+        # If there is a checkpoint path, we need to reparse the arguments, using the
         # checkpoint parameters as defaults.
         if ckpt_path is not None:
             defaults = self._config_from_ckpt(ckpt_path)
@@ -98,7 +99,9 @@ class OrbitalMatrixCLI(LightningCLI):
             for k in defaults:
                 for subkey in defaults[k]:
                     try:
-                        subcommand_parser.set_defaults({f"{k}.{subkey}": defaults[k][subkey]})
+                        subcommand_parser.set_defaults(
+                            {f"{k}.{subkey}": defaults[k][subkey]}
+                        )
                     except KeyError:
                         pass
 
@@ -109,38 +112,63 @@ class OrbitalMatrixCLI(LightningCLI):
         # This is executed after config/argparser has been instanced
         # but before data and model has been instantiated.
         import torch.multiprocessing
+
         config_ns = getattr(self.config, self.config.subcommand)
         if config_ns.multiprocessing_sharing_strategy:
-            assert config_ns.multiprocessing_sharing_strategy in torch.multiprocessing.get_all_sharing_strategies()
-            torch.multiprocessing.set_sharing_strategy(config_ns.multiprocessing_sharing_strategy)
+            assert (
+                config_ns.multiprocessing_sharing_strategy
+                in torch.multiprocessing.get_all_sharing_strategies()
+            )
+            torch.multiprocessing.set_sharing_strategy(
+                config_ns.multiprocessing_sharing_strategy
+            )
 
     def _config_from_ckpt(self, ckpt_path: str):
         # Load parameters from the checkpoint file.
         # We only need to load hyperparameters, not weights. Therefore, we don't care whether things were in
-        # the GPU. The torch tensors might be located on GPU (or any other device), which is possibly not 
+        # the GPU. The torch tensors might be located on GPU (or any other device), which is possibly not
         # available when we load the checkpoint. Map those tensors to CPU so that there are no loading errors.
-        checkpoint = torch.load(ckpt_path, map_location=torch.device('cpu'))
+        checkpoint = torch.load(ckpt_path, map_location=torch.device("cpu"))
         checkpoint = sanitize_checkpoint(checkpoint)
 
         config = {}
 
-        if os.environ.get("E3MAT_FROMCKPT_DATAPROC", "").lower() not in ["off", "false", "f", "no", "0"]:
+        if os.environ.get("E3MAT_FROMCKPT_DATAPROC", "").lower() not in [
+            "off",
+            "false",
+            "f",
+            "no",
+            "0",
+        ]:
             # Extract the keys of the data module that control how to process the data.
             # And set them explicitly in the config.
-            config['data'] = checkpoint['datamodule_hyper_parameters']
+            config["data"] = checkpoint["datamodule_hyper_parameters"]
 
-        if os.environ.get("E3MAT_FROMCKPT_MODEL", "").lower() not in ["off", "false", "f", "no", "0"]:
+        if os.environ.get("E3MAT_FROMCKPT_MODEL", "").lower() not in [
+            "off",
+            "false",
+            "f",
+            "no",
+            "0",
+        ]:
             # Extract the parameters that where used to instantiate the model in the first
             # place and set them in the config.
-            config['model'] = checkpoint['hyper_parameters']
+            config["model"] = checkpoint["hyper_parameters"]
 
-        if os.environ.get("E3MAT_FROMCKPT_BASISTABLE", "").lower() not in ["off", "false", "f", "no", "0"]:
+        if os.environ.get("E3MAT_FROMCKPT_BASISTABLE", "").lower() not in [
+            "off",
+            "false",
+            "f",
+            "no",
+            "0",
+        ]:
             basis_table = checkpoint.get("basis_table")
             if basis_table:
-                config['model']['basis_table'] = basis_table
-                config['data']['basis_table'] = basis_table
+                config["model"]["basis_table"] = basis_table
+                config["data"]["basis_table"] = basis_table
 
         return config
+
 
 class SaveConfigSkipBasisTableCallback(SaveConfigCallback):
     def __init__(
@@ -164,4 +192,3 @@ class SaveConfigSkipBasisTableCallback(SaveConfigCallback):
             overwrite=overwrite,
             multifile=multifile,
         )
-

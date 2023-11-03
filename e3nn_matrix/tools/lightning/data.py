@@ -17,10 +17,16 @@ from e3nn_matrix.data.configuration import PhysicsMatrixType
 from e3nn_matrix.data.table import BasisTableWithEdges, AtomicTableWithEdges
 from e3nn_matrix.data.processing import MatrixDataProcessor
 from e3nn_matrix.torch.data import BasisMatrixTorchData
-from e3nn_matrix.torch.dataset import OrbitalMatrixDataset, InMemoryData, RotatingPoolData
+from e3nn_matrix.torch.dataset import (
+    OrbitalMatrixDataset,
+    InMemoryData,
+    RotatingPoolData,
+)
+
 
 class MatrixDataModule(pl.LightningDataModule):
-    def __init__(self,
+    def __init__(
+        self,
         out_matrix: Optional[PhysicsMatrixType] = None,
         basis_files: Optional[str] = None,
         basis_table: Optional[BasisTableWithEdges] = None,
@@ -33,10 +39,10 @@ class MatrixDataModule(pl.LightningDataModule):
         symmetric_matrix: bool = False,
         sub_point_matrix: bool = True,
         batch_size: int = 5,
-        loader_threads: int=1,
-        copy_root_to_tmp: bool=False,
-        store_in_memory: bool=False,
-        rotating_pool_size: Optional[int]=None,
+        loader_threads: int = 1,
+        copy_root_to_tmp: bool = False,
+        store_in_memory: bool = False,
+        rotating_pool_size: Optional[int] = None,
     ):
         """
 
@@ -104,12 +110,12 @@ class MatrixDataModule(pl.LightningDataModule):
             logging.info("copying %s to %s" % (self.root_dir, self.tmp_dir))
             shutil.copytree(self.root_dir, self.tmp_dir, dirs_exist_ok=True)
 
-    def teardown(self, stage:str):
+    def teardown(self, stage: str):
         if self.tmp_dir is not None:
             logging.info("deleting dir %s" % (self.tmp_dir))
             shutil.rmtree(self.tmp_dir, ignore_errors=True)
 
-    def setup(self, stage:str):
+    def setup(self, stage: str):
         if self.copy_root_to_tmp:
             assert self.tmp_dir is not None
             root = self.tmp_dir
@@ -118,7 +124,9 @@ class MatrixDataModule(pl.LightningDataModule):
         if self.basis_table is None:
             # Read the basis from the basis files provided.
             assert self.basis_files is not None
-            self.basis_table = AtomicTableWithEdges.from_basis_glob(Path(root).glob(self.basis_files))
+            self.basis_table = AtomicTableWithEdges.from_basis_glob(
+                Path(root).glob(self.basis_files)
+            )
 
         # Initialize the data.
         self.train_dataset = None
@@ -163,12 +171,14 @@ class MatrixDataModule(pl.LightningDataModule):
                     list(runs),
                     data_processor=self.data_processor,
                     data_cls=BasisMatrixTorchData,
-                    load_labels=split != "predict"
+                    load_labels=split != "predict",
                 )
-                
+
                 if self.store_in_memory:
                     if self.rotating_pool_size and split == "train":
-                        logging.warning("Does not load training data to memory because rotating_pool_size is set")
+                        logging.warning(
+                            "Does not load training data to memory because rotating_pool_size is set"
+                        )
                     else:
                         logging.debug("Loading dataset split=%s into memory" % split)
                         dataset = InMemoryData(dataset)
@@ -182,34 +192,71 @@ class MatrixDataModule(pl.LightningDataModule):
             rng = np.random.RandomState(32)
             # User didn't specify a validation directory, just randomly draw 10 percent from the training.
             perms = rng.permutation(len(self.train_dataset))
-            num_val = int(math.ceil(len(self.train_dataset)/10))
+            num_val = int(math.ceil(len(self.train_dataset) / 10))
             val_indices = np.sort(perms[0:num_val]).tolist()
             train_indices = np.sort(perms[num_val:]).tolist()
 
             self.val_dataset = torch.utils.data.Subset(self.train_dataset, val_indices)
-            self.train_dataset = torch.utils.data.Subset(self.train_dataset, train_indices)
+            self.train_dataset = torch.utils.data.Subset(
+                self.train_dataset, train_indices
+            )
 
         # Wrap training dataset in rotating pool
         if self.rotating_pool_size:
-            self.train_dataset = RotatingPoolData(self.train_dataset, self.rotating_pool_size)
+            self.train_dataset = RotatingPoolData(
+                self.train_dataset, self.rotating_pool_size
+            )
 
     def train_dataloader(self):
-        assert self.train_dataset is not None, "No training data was provided, please set the ``train_runs`` argument."
+        assert (
+            self.train_dataset is not None
+        ), "No training data was provided, please set the ``train_runs`` argument."
         if self.rotating_pool_size:
             assert isinstance(self.train_dataset, RotatingPoolData)
             data_handle = self.train_dataset.get_data_pool()
         else:
             data_handle = self.train_dataset
-        return DataLoader(data_handle, batch_size=self.batch_size, shuffle=True, drop_last=False, num_workers=self.hparams.loader_threads, persistent_workers=bool(self.hparams.loader_threads))
+        return DataLoader(
+            data_handle,
+            batch_size=self.batch_size,
+            shuffle=True,
+            drop_last=False,
+            num_workers=self.hparams.loader_threads,
+            persistent_workers=bool(self.hparams.loader_threads),
+        )
 
     def val_dataloader(self):
-        assert self.val_dataset is not None, "No validation data was provided, please set either the ``train_runs`` or the ``val_runs`` argument."
-        return DataLoader(self.val_dataset, batch_size=self.batch_size, shuffle=False, drop_last=False, num_workers=self.hparams.loader_threads)
+        assert (
+            self.val_dataset is not None
+        ), "No validation data was provided, please set either the ``train_runs`` or the ``val_runs`` argument."
+        return DataLoader(
+            self.val_dataset,
+            batch_size=self.batch_size,
+            shuffle=False,
+            drop_last=False,
+            num_workers=self.hparams.loader_threads,
+        )
 
     def test_dataloader(self):
-        assert self.test_dataset is not None, "No test data was provided, please set the ``test_runs`` argument."
-        return DataLoader(self.test_dataset, batch_size=self.batch_size, shuffle=False, drop_last=False, num_workers=self.hparams.loader_threads)
+        assert (
+            self.test_dataset is not None
+        ), "No test data was provided, please set the ``test_runs`` argument."
+        return DataLoader(
+            self.test_dataset,
+            batch_size=self.batch_size,
+            shuffle=False,
+            drop_last=False,
+            num_workers=self.hparams.loader_threads,
+        )
 
     def predict_dataloader(self):
-        assert self.predict_dataset is not None, "No prediction data was provided, please set the ``predict_structs`` argument."
-        return DataLoader(self.predict_dataset, batch_size=self.batch_size, shuffle=False, drop_last=False, num_workers=self.hparams.loader_threads)
+        assert (
+            self.predict_dataset is not None
+        ), "No prediction data was provided, please set the ``predict_structs`` argument."
+        return DataLoader(
+            self.predict_dataset,
+            batch_size=self.batch_size,
+            shuffle=False,
+            drop_last=False,
+            num_workers=self.hparams.loader_threads,
+        )

@@ -9,21 +9,9 @@ import sisl
 from e3nn import o3
 
 _change_of_basis_conventions = {
-    "cartesian": np.array([
-        [1, 0, 0],
-        [0, 1, 0],
-        [0, 0, 1]
-    ], dtype=float),
-    "spherical": np.array([
-        [0, 1, 0],
-        [0, 0, 1],
-        [1, 0, 0]
-    ], dtype=float),
-    "siesta_spherical": np.array([
-        [0, 1, 0],
-        [0, 0, -1],
-        [1, 0, 0]
-    ], dtype=float),
+    "cartesian": np.array([[1, 0, 0], [0, 1, 0], [0, 0, 1]], dtype=float),
+    "spherical": np.array([[0, 1, 0], [0, 0, 1], [1, 0, 0]], dtype=float),
+    "siesta_spherical": np.array([[0, 1, 0], [0, 0, -1], [1, 0, 0]], dtype=float),
 }
 
 for k, matrix in _change_of_basis_conventions.items():
@@ -31,20 +19,23 @@ for k, matrix in _change_of_basis_conventions.items():
 
 BasisConvention = Literal["cartesian", "spherical", "siesta_spherical"]
 
+
 def get_change_of_basis(convention: BasisConvention) -> Tuple[np.ndarray, np.ndarray]:
     return _change_of_basis_conventions[convention]
 
+
 @dataclasses.dataclass(frozen=True)
 class PointBasis:
-
     type: Union[str, int]
     basis_convention: BasisConvention
     irreps: o3.Irreps
     R: Union[float, np.ndarray]
-    radial_funcs: Optional[list] = None # Not in use for now.
+    radial_funcs: Optional[list] = None  # Not in use for now.
 
     def __post_init__(self):
-        assert isinstance(self.R, Number) or (isinstance(self.R, np.ndarray) and len(self.R) == len(self))
+        assert isinstance(self.R, Number) or (
+            isinstance(self.R, np.ndarray) and len(self.R) == len(self)
+        )
 
         if self.radial_funcs is not None:
             assert len(self.radial_funcs) == len(self.irreps)
@@ -54,10 +45,10 @@ class PointBasis:
 
     def __len__(self) -> int:
         return self.basis_size
-    
+
     def __eq__(self, other) -> bool:
         return str(self.irreps) == str(other.irreps)
-    
+
     def __str__(self):
         return f"Type: {self.type}. Irreps: {self.irreps}. MaxR: {self.maxR():.3f}."
 
@@ -71,7 +62,9 @@ class PointBasis:
         return np.max(self.R)
 
     @classmethod
-    def from_sisl_atom(cls, atom: "sisl.Atom", basis_convention: BasisConvention = "siesta_spherical"):
+    def from_sisl_atom(
+        cls, atom: "sisl.Atom", basis_convention: BasisConvention = "siesta_spherical"
+    ):
         """Creates a point basis from a sisl atom."""
         from .irreps_tools import get_atom_irreps
 
@@ -81,7 +74,7 @@ class PointBasis:
             irreps=get_atom_irreps(atom),
             R=atom.R,
         )
-    
+
     def to_sisl_atom(self, Z: int = 1) -> "sisl.Atom":
         import sisl
 
@@ -96,6 +89,7 @@ class PointBasis:
                     orbitals.append(orb)
 
         return sisl.Atom(Z=Z, orbitals=orbitals)
+
 
 class SystemBasis:
     pass

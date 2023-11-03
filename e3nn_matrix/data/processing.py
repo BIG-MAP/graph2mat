@@ -18,26 +18,28 @@ from .configuration import BasisConfiguration, OrbitalConfiguration, PhysicsMatr
 from .sparse import nodes_and_edges_to_sparse_orbital, nodes_and_edges_to_csr
 from .table import BasisTableWithEdges
 
+
 @dataclasses.dataclass(frozen=True)
 class MatrixDataProcessor:
     """Data structure that contains all the parameters to interface the real world with the ML models.
-    
+
     Contains all the objects and implements all the logic (using these objects but never modifying them)
     to convert:
-      - A "real world" object (a structure, a path to a structure, a path to a run, etc.) into 
+      - A "real world" object (a structure, a path to a structure, a path to a run, etc.) into
         the inputs for the model.
       - The outputs of the model into a "real world" object (a matrix).
 
     Ideally, any processing that requires the attributes of the data processor (basis_table, symmetric_matrix, etc.)
-    should be implemented inside this class so that implementations are not sensitive to small changes 
+    should be implemented inside this class so that implementations are not sensitive to small changes
     like the name of the attributes.
 
     Therefore, every model should have associated a MatrixDataProcessor object to ensure that the
     input is correctly preprocessed and the output is interpreted correctly.
 
     This data processor is agnostic to the framework of the model (e.g. pytorch) and the processing
-    is divided in small functions so that it can be easily reused. 
+    is divided in small functions so that it can be easily reused.
     """
+
     basis_table: BasisTableWithEdges
     symmetric_matrix: bool = False
     sub_point_matrix: bool = True
@@ -55,26 +57,28 @@ class MatrixDataProcessor:
             "hamiltonian": sisl.Hamiltonian,
             None: None,
         }[self.out_matrix]
-    
+
     def get_config_kwargs(self, obj: Any) -> Dict[str, Any]:
         if isinstance(obj, (str, Path)):
             return {"out_matrix": self.out_matrix}
         else:
             return {}
-    
-    def output_to_matrix(self, output: dict, input: BasisMatrixData, threshold: float = 1e-8):
-        
+
+    def output_to_matrix(
+        self, output: dict, input: BasisMatrixData, threshold: float = 1e-8
+    ):
         matrix_data = copy(input)
-        matrix_data.point_labels = output['node_labels']
-        matrix_data.edge_labels = output['edge_labels']
+        matrix_data.point_labels = output["node_labels"]
+        matrix_data.edge_labels = output["edge_labels"]
 
         if self.matrix_cls is None:
             return matrix_data.to_csr(threshold=threshold)
         else:
             return matrix_data.to_sparse_orbital_matrix(threshold=threshold)
 
-    def compute_metrics(self, 
-        output: dict, 
+    def compute_metrics(
+        self,
+        output: dict,
         input: BasisMatrixData,
         metrics: Union[Sequence["OrbitalMatrixMetric"], None] = None,
     ) -> dict:
@@ -88,29 +92,39 @@ class MatrixDataProcessor:
             The input that was passed to the model.
         metrics: Sequence[OrbitalMatrixMetric], optional
             Metrics to compute. If None, all known metrics are computed.
-        
+
         Returns
         ---------
         dict
             Dictionary where keys are the names of the metrics and values are their values.
         """
         from .metrics import OrbitalMatrixMetric
-        
+
         if metrics is None:
-            metrics = [metric_cls() for metric_cls in OrbitalMatrixMetric.__subclasses__()]
+            metrics = [
+                metric_cls() for metric_cls in OrbitalMatrixMetric.__subclasses__()
+            ]
 
         input_arrays = input.numpy_arrays()
 
         metrics_values = [
             metric(
-                nodes_pred=input.ensure_numpy(output['node_labels']), nodes_ref=input_arrays.point_labels, 
-                edges_pred=input.ensure_numpy(output['edge_labels']), edges_ref=input_arrays.edge_labels, batch=input,
-                basis_table=self.basis_table, config_resolved=False, 
+                nodes_pred=input.ensure_numpy(output["node_labels"]),
+                nodes_ref=input_arrays.point_labels,
+                edges_pred=input.ensure_numpy(output["edge_labels"]),
+                edges_ref=input_arrays.edge_labels,
+                batch=input,
+                basis_table=self.basis_table,
+                config_resolved=False,
                 symmetric_matrix=self.symmetric_matrix,
-            )[0] for metric in metrics
+            )[0]
+            for metric in metrics
         ]
 
-        return {metric.__class__.__name__: float(value) for metric, value in zip(metrics, metrics_values)}
+        return {
+            metric.__class__.__name__: float(value)
+            for metric, value in zip(metrics, metrics_values)
+        }
 
     def add_basis_to_geometry(self, geometry: sisl.Geometry) -> sisl.Geometry:
         """Returns a copy of the geometry with the basis of this processor added to it.
@@ -122,40 +136,39 @@ class MatrixDataProcessor:
         new_geometry = geometry.copy()
 
         for atom in geometry.atoms.atom:
-
             for basis_atom in self.basis_table.atoms:
                 if basis_atom.Z == atom.Z:
                     break
             else:
                 raise ValueError(f"Couldn't find atom {atom} in the basis")
-            
+
             with warnings.catch_warnings():
                 warnings.simplefilter("ignore")
                 new_geometry.atoms.replace_atom(atom, basis_atom)
-        
+
         return new_geometry
-    
+
     @staticmethod
     def sort_edge_index(
-        edge_index:np.ndarray, 
-        sc_shifts: np.ndarray, 
-        shifts: np.ndarray, 
+        edge_index: np.ndarray,
+        sc_shifts: np.ndarray,
+        shifts: np.ndarray,
         edge_types: np.ndarray,
         isc_off: np.ndarray,
-        inplace: bool = False
+        inplace: bool = False,
     ) -> Tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray]:
         """Returns the sorted edge indices.
-        
+
         Edges are much easier to manipulate by the block producing routines if they are ordered properly.
 
-        This function orders edges in a way that both directions of the same edge come consecutively. 
+        This function orders edges in a way that both directions of the same edge come consecutively.
         It also always puts first the interaction (lowest point type, highest point type), that is the
         one with positive edge type.
 
         For the unit cell, the connection in different directions is simple to understand, as it's just
         a permutation of the points. I.e. edges (i, j) and (j, i) are the same connection in opposite directions.
         However, for connections between supercells (if there are periodic conditions), this condition is not
-        enough. The supercell shift of one direction must be the negative of the other direction. I.e. 
+        enough. The supercell shift of one direction must be the negative of the other direction. I.e.
         only edges between (i, j, x, y, z) and (j, i, -x, -y, -z) are the same connection in opposite directions.
         It is also important to notice that in the supercell connections i and j can be the same index.
 
@@ -184,7 +197,7 @@ class MatrixDataProcessor:
         """
         # Get the supercell index of the neighbor in each interaction
         isc = isc_off[sc_shifts[0], sc_shifts[1], sc_shifts[2]]
-        
+
         # Find unique edges:
         #  - For edges that are between different supercells: We get just connections from
         #   the unit cell to half of the supercells. One can then reproduce all the connections
@@ -193,7 +206,7 @@ class MatrixDataProcessor:
         #    still have both ij and ji connections. We solve this by only taking connections where
         #    i < j. That is, the upper triangle in the "matrix of connections". Notice that self
         #    connections in the unit cell are removed before this function, so we don't have to care
-        #    about them. 
+        #    about them.
         uc_edge = isc == 0
         uc_inter = edge_index[:, uc_edge]
         uc_unique_edge = uc_inter[0] < uc_inter[1]
@@ -220,14 +233,22 @@ class MatrixDataProcessor:
         # Order supercell connections.
         sc_unordered = edge_types[sc_unique_edge] < 0
         sc_unique_inter[:, sc_unordered] = sc_unique_inter[::-1, sc_unordered]
-        sc_unique_inter_sc_shift[:, sc_unordered] = - sc_unique_inter_sc_shift[:, sc_unordered]
-        sc_unique_inter_shift[:, sc_unordered] = - sc_unique_inter_shift[:, sc_unordered]
+        sc_unique_inter_sc_shift[:, sc_unordered] = -sc_unique_inter_sc_shift[
+            :, sc_unordered
+        ]
+        sc_unique_inter_shift[:, sc_unordered] = -sc_unique_inter_shift[:, sc_unordered]
 
         # Stack both unit cell and supercell connections
         unique_interactions = np.hstack([uc_unique_inter, sc_unique_inter])
-        unique_sc_shifts = np.hstack([np.zeros((3, uc_unique_inter.shape[1])), sc_unique_inter_sc_shift])
-        unique_shifts = np.hstack([np.zeros((3, uc_unique_inter.shape[1])), sc_unique_inter_shift])
-        unique_edge_types = abs(np.concatenate([uc_unique_edge_types, sc_unique_edge_types]))
+        unique_sc_shifts = np.hstack(
+            [np.zeros((3, uc_unique_inter.shape[1])), sc_unique_inter_sc_shift]
+        )
+        unique_shifts = np.hstack(
+            [np.zeros((3, uc_unique_inter.shape[1])), sc_unique_inter_shift]
+        )
+        unique_edge_types = abs(
+            np.concatenate([uc_unique_edge_types, sc_unique_edge_types])
+        )
 
         # Now, sort edges according to absolute edge type.
         edge_sort = np.argsort(unique_edge_types)
@@ -251,37 +272,45 @@ class MatrixDataProcessor:
 
         # Update edge types according to the new edge indices.
         edge_types[::2] = unique_edge_types
-        edge_types[1::2] = - edge_types[::2]
+        edge_types[1::2] = -edge_types[::2]
 
         # And also shifts and supercell shifts
         shifts[:, ::2] = unique_shifts
-        shifts[:, 1::2] = - unique_shifts
+        shifts[:, 1::2] = -unique_shifts
 
         sc_shifts[:, ::2] = unique_sc_shifts
-        sc_shifts[:, 1::2] = - unique_sc_shifts
+        sc_shifts[:, 1::2] = -unique_sc_shifts
 
         return edge_index, sc_shifts, shifts, edge_types
-    
-    def cartesian_to_basis(self, array: Union[np.ndarray, torch.Tensor], process_cob_array: Optional[Callable] = None):
+
+    def cartesian_to_basis(
+        self,
+        array: Union[np.ndarray, torch.Tensor],
+        process_cob_array: Optional[Callable] = None,
+    ):
         cob = self.basis_table.change_of_basis
         if process_cob_array is not None:
             cob = process_cob_array("change_of_basis", cob)
 
         return array @ cob.T
-    
-    def basis_to_cartesian(self, array: Union[np.ndarray, torch.Tensor], process_cob_array: Optional[Callable] = None):
+
+    def basis_to_cartesian(
+        self,
+        array: Union[np.ndarray, torch.Tensor],
+        process_cob_array: Optional[Callable] = None,
+    ):
         cob = self.basis_table.change_of_basis_inv
         if process_cob_array is not None:
             cob = process_cob_array("change_of_basis_inv", cob)
         return array @ cob.T
-    
+
     def get_point_types(self, config: BasisConfiguration) -> np.ndarray:
         """Returns the type (index in the basis table) of each point in the configuration."""
         return self.basis_table.types_to_indices(config.point_types)
-    
+
     def get_cutoff(self, point_types: np.ndarray) -> Union[float, np.ndarray]:
         """Returns the cutoff radius.
-        
+
         Parameters
         ----------
         point_types : np.ndarray of shape (n_points,)
@@ -293,7 +322,7 @@ class MatrixDataProcessor:
             The cutoff radius might be a single number if all points have the same cutoff radius,
             or an array with the cutoff radius of each point.
 
-            If each point has its own radius, one might find an edge between i and j if 
+            If each point has its own radius, one might find an edge between i and j if
             dist(i -> j) is smaller than cutoff_i + cutoff_j.
 
             If the cutoff radius is a single number, edges are found if dist(i -> j) is smaller than cutoff.
@@ -303,7 +332,7 @@ class MatrixDataProcessor:
             return self.basis_table.R * 2
         else:
             return self.basis_table.R[point_types]
-        
+
     def get_nlabels_per_edge_type(self, edge_types: np.ndarray) -> np.ndarray:
         """Returns the number of labels for each edge type in a given matrix.
 
@@ -316,22 +345,27 @@ class MatrixDataProcessor:
             Number of labels required for each edge type.
         """
         unique_edge_types, counts = np.unique(abs(edge_types), return_counts=True)
-        if self.symmetric_matrix: 
+        if self.symmetric_matrix:
             counts = counts / 2
 
-        edge_type_nlabels = np.zeros(self.basis_table.edge_type[-1, -1] + 1, dtype=np.int64)
-        edge_type_nlabels[unique_edge_types] = self.basis_table.edge_block_size[unique_edge_types] * counts
+        edge_type_nlabels = np.zeros(
+            self.basis_table.edge_type[-1, -1] + 1, dtype=np.int64
+        )
+        edge_type_nlabels[unique_edge_types] = (
+            self.basis_table.edge_block_size[unique_edge_types] * counts
+        )
 
         return edge_type_nlabels
-    
-    def get_labels_from_types_and_edges(self, 
-        config: BasisConfiguration, 
+
+    def get_labels_from_types_and_edges(
+        self,
+        config: BasisConfiguration,
         point_types: np.ndarray,
         edge_index: np.ndarray,
         neigh_isc: np.ndarray,
     ) -> Tuple[Union[np.ndarray, None], Union[np.ndarray, None]]:
         """Once point types and edges have been determined, one can call this function to get the labels of the matrix.
-        
+
         Parameters
         ----------
         config : BasisConfiguration
@@ -353,15 +387,18 @@ class MatrixDataProcessor:
 
         if config.matrix is not None:
             if self.symmetric_matrix:
-                needed_edge_blocks = edge_index[:, ::2] # only unique interactions
+                needed_edge_blocks = edge_index[:, ::2]  # only unique interactions
                 needed_neigh_isc = neigh_isc[::2]
             else:
                 needed_edge_blocks = edge_index
                 needed_neigh_isc = neigh_isc
 
             point_labels, edge_labels = config.matrix.to_flat_nodes_and_edges(
-                edge_index=needed_edge_blocks, edge_sc_shifts=needed_neigh_isc,
-                point_types=point_types, basis_table=self.basis_table, sub_point_matrix=self.sub_point_matrix,
+                edge_index=needed_edge_blocks,
+                edge_sc_shifts=needed_neigh_isc,
+                point_types=point_types,
+                basis_table=self.basis_table,
+                sub_point_matrix=self.sub_point_matrix,
             )
         else:
             # We are most likely in predict mode.
@@ -369,12 +406,12 @@ class MatrixDataProcessor:
             point_labels = edge_labels = None
 
         return point_labels, edge_labels
-    
+
     def one_hot_encode(self, point_types: np.ndarray) -> np.ndarray:
         """One hot encodes a vector of point types.
 
         It takes into account the number of different point types in the basis table.
-        
+
         Parameters
         ----------
         point_types : np.ndarray of shape (n_points,)
@@ -388,8 +425,13 @@ class MatrixDataProcessor:
         num_classes = len(self.basis_table)
 
         return np.eye(num_classes)[point_types]
-    
-    def labels_to_csr(self, data: dict[str, np.ndarray], coords_cartesian: bool = False, threshold: float = 1e-8):
+
+    def labels_to_csr(
+        self,
+        data: dict[str, np.ndarray],
+        coords_cartesian: bool = False,
+        threshold: float = 1e-8,
+    ):
         # Get all the arrays that we need.
         node_labels = data["point_labels"]
         edge_labels = data["edge_labels"]
@@ -414,7 +456,12 @@ class MatrixDataProcessor:
         # Add back atomic contributions to the node blocks in case they were removed
         if self.sub_point_matrix:
             assert self.basis_table.point_matrix is not None, "Point matrices"
-            node_labels = node_labels + np.concatenate([self.basis_table.point_matrix[atom_type].ravel() for atom_type in point_types])
+            node_labels = node_labels + np.concatenate(
+                [
+                    self.basis_table.point_matrix[atom_type].ravel()
+                    for atom_type in point_types
+                ]
+            )
 
         # Get the values for the edge blocks and the pointer to the start of each block.
         if self.symmetric_matrix:
@@ -431,19 +478,26 @@ class MatrixDataProcessor:
 
         # Construct the matrix.
         matrix = nodes_and_edges_to_csr(
-            node_vals=node_labels, node_ptr=node_labels_ptr,
-            edge_vals=edge_labels, edge_index=edge_index,
+            node_vals=node_labels,
+            node_ptr=node_labels_ptr,
+            edge_vals=edge_labels,
+            edge_index=edge_index,
             edge_neigh_isc=neigh_isc,
             edge_ptr=edge_labels_ptr,
             n_supercells=np.prod(nsc),
-            orbitals=orbitals, 
+            orbitals=orbitals,
             symmetrize_edges=self.symmetric_matrix,
-            threshold=threshold
+            threshold=threshold,
         )
 
         return matrix
-    
-    def labels_to_sparse_orbital(self, data: dict[str, np.ndarray], coords_cartesian: bool = False, threshold: float = 1e-8) -> sisl.SparseOrbital:
+
+    def labels_to_sparse_orbital(
+        self,
+        data: dict[str, np.ndarray],
+        coords_cartesian: bool = False,
+        threshold: float = 1e-8,
+    ) -> sisl.SparseOrbital:
         # Get all the arrays that we need.
         node_labels = data["point_labels"]
         edge_labels = data["edge_labels"]
@@ -470,7 +524,12 @@ class MatrixDataProcessor:
         # Add back atomic contributions to the node blocks in case they were removed
         if self.sub_point_matrix:
             assert self.basis_table.point_matrix is not None, "Point matrices"
-            node_labels = node_labels + np.concatenate([self.basis_table.point_matrix[atom_type].ravel() for atom_type in point_types])
+            node_labels = node_labels + np.concatenate(
+                [
+                    self.basis_table.point_matrix[atom_type].ravel()
+                    for atom_type in point_types
+                ]
+            )
 
         # Get the values for the edge blocks and the pointer to the start of each block.
         if self.symmetric_matrix:
@@ -481,7 +540,7 @@ class MatrixDataProcessor:
         edge_labels_ptr = self.basis_table.edge_block_pointer(edge_types)
 
         unique_atoms = self.basis_table.get_sisl_atoms()
-        
+
         geometry = sisl.Geometry(
             positions,
             atoms=[unique_atoms[at_type] for at_type in point_types],
@@ -491,29 +550,34 @@ class MatrixDataProcessor:
 
         # Construct the matrix.
         matrix = nodes_and_edges_to_sparse_orbital(
-            node_vals=node_labels, node_ptr=node_labels_ptr,
-            edge_vals=edge_labels, edge_index=edge_index,
+            node_vals=node_labels,
+            node_ptr=node_labels_ptr,
+            edge_vals=edge_labels,
+            edge_index=edge_index,
             edge_neigh_isc=neigh_isc,
             edge_ptr=edge_labels_ptr,
-            geometry=geometry, sp_class=self.matrix_cls, symmetrize_edges=self.symmetric_matrix,
-            threshold=threshold
+            geometry=geometry,
+            sp_class=self.matrix_cls,
+            symmetrize_edges=self.symmetric_matrix,
+            threshold=threshold,
         )
 
         return matrix
 
-class NumpyArraysProvider:
 
+class NumpyArraysProvider:
     def __init__(self, data: BasisMatrixData):
         self.data = data
 
     def __getitem__(self, key) -> np.ndarray:
         return self.data.ensure_numpy(self.data[key])
-    
+
     def __getattr__(self, key) -> np.ndarray:
         return self.data.ensure_numpy(self.data[key])
-    
+
     def __dir__(self):
         return dir(self.data)
+
 
 class BasisMatrixData:
     num_nodes: np.ndarray
@@ -537,52 +601,67 @@ class BasisMatrixData:
     def __init__(
         # All arguments must be optional in order for the get_example method of a batch to work
         self,
-        edge_index: Optional[np.ndarray]=None, # [2, n_edges]
-        neigh_isc: Optional[np.ndarray]=None, # [n_edges,]
-        node_attrs: Optional[np.ndarray]=None, # [n_nodes, n_node_feats]
-        positions: Optional[np.ndarray]=None,  # [n_nodes, 3]
-        shifts: Optional[np.ndarray]=None,  # [n_edges, 3],
-        cell: Optional[np.ndarray]=None,  # [3,3]
-        nsc: Optional[np.ndarray]=None,
-        point_labels: Optional[np.ndarray]=None, # [total_point_elements]
-        edge_labels: Optional[np.ndarray]=None, # [total_edge_elements]
-        point_types: Optional[np.ndarray]=None, # [n_nodes]
-        edge_types: Optional[np.ndarray]=None, # [n_edges]
-        edge_type_nlabels: Optional[np.ndarray]=None, # [n_edge_types]
-        data_processor: MatrixDataProcessor=None,
-        metadata: Optional[Dict[str, Any]]=None
+        edge_index: Optional[np.ndarray] = None,  # [2, n_edges]
+        neigh_isc: Optional[np.ndarray] = None,  # [n_edges,]
+        node_attrs: Optional[np.ndarray] = None,  # [n_nodes, n_node_feats]
+        positions: Optional[np.ndarray] = None,  # [n_nodes, 3]
+        shifts: Optional[np.ndarray] = None,  # [n_edges, 3],
+        cell: Optional[np.ndarray] = None,  # [3,3]
+        nsc: Optional[np.ndarray] = None,
+        point_labels: Optional[np.ndarray] = None,  # [total_point_elements]
+        edge_labels: Optional[np.ndarray] = None,  # [total_edge_elements]
+        point_types: Optional[np.ndarray] = None,  # [n_nodes]
+        edge_types: Optional[np.ndarray] = None,  # [n_edges]
+        edge_type_nlabels: Optional[np.ndarray] = None,  # [n_edge_types]
+        data_processor: MatrixDataProcessor = None,
+        metadata: Optional[Dict[str, Any]] = None,
     ):
-        
         self._data = self._sanitize_data(
-            edge_index=edge_index, neigh_isc=neigh_isc, node_attrs=node_attrs, positions=positions, shifts=shifts,
-            cell=cell, nsc=nsc, point_labels=point_labels, edge_labels=edge_labels, point_types=point_types,
-            edge_types=edge_types, edge_type_nlabels=edge_type_nlabels, data_processor=data_processor, metadata=metadata
+            edge_index=edge_index,
+            neigh_isc=neigh_isc,
+            node_attrs=node_attrs,
+            positions=positions,
+            shifts=shifts,
+            cell=cell,
+            nsc=nsc,
+            point_labels=point_labels,
+            edge_labels=edge_labels,
+            point_types=point_types,
+            edge_types=edge_types,
+            edge_type_nlabels=edge_type_nlabels,
+            data_processor=data_processor,
+            metadata=metadata,
         )
 
         for k in self._data:
             setattr(self, k, self._data[k])
 
-    def _sanitize_data(self,
-        edge_index: Optional[np.ndarray]=None, # [2, n_edges]
-        neigh_isc: Optional[np.ndarray]=None, # [n_edges,]
-        node_attrs: Optional[np.ndarray]=None, # [n_nodes, n_node_feats]
-        positions: Optional[np.ndarray]=None,  # [n_nodes, 3]
-        shifts: Optional[np.ndarray]=None,  # [n_edges, 3],
-        cell: Optional[np.ndarray]=None,  # [3,3]
-        nsc: Optional[np.ndarray]=None,
-        point_labels: Optional[np.ndarray]=None, # [total_point_elements]
-        edge_labels: Optional[np.ndarray]=None, # [total_edge_elements]
-        point_types: Optional[np.ndarray]=None, # [n_nodes]
-        edge_types: Optional[np.ndarray]=None, # [n_edges]
-        edge_type_nlabels: Optional[np.ndarray]=None, # [n_edge_types]
-        data_processor: MatrixDataProcessor=None,
-        metadata: Optional[Dict[str, Any]]=None
+    def _sanitize_data(
+        self,
+        edge_index: Optional[np.ndarray] = None,  # [2, n_edges]
+        neigh_isc: Optional[np.ndarray] = None,  # [n_edges,]
+        node_attrs: Optional[np.ndarray] = None,  # [n_nodes, n_node_feats]
+        positions: Optional[np.ndarray] = None,  # [n_nodes, 3]
+        shifts: Optional[np.ndarray] = None,  # [n_edges, 3],
+        cell: Optional[np.ndarray] = None,  # [3,3]
+        nsc: Optional[np.ndarray] = None,
+        point_labels: Optional[np.ndarray] = None,  # [total_point_elements]
+        edge_labels: Optional[np.ndarray] = None,  # [total_edge_elements]
+        point_types: Optional[np.ndarray] = None,  # [n_nodes]
+        edge_types: Optional[np.ndarray] = None,  # [n_edges]
+        edge_type_nlabels: Optional[np.ndarray] = None,  # [n_edge_types]
+        data_processor: MatrixDataProcessor = None,
+        metadata: Optional[Dict[str, Any]] = None,
     ) -> Dict[str, Any]:
         # Check shapes
         num_nodes = node_attrs.shape[0] if node_attrs is not None else None
 
-        assert edge_index is None or (edge_index.shape[0] == 2 and len(edge_index.shape) == 2)
-        assert neigh_isc is None or (neigh_isc.ndim == 1 and neigh_isc.shape[0] == edge_index.shape[1])
+        assert edge_index is None or (
+            edge_index.shape[0] == 2 and len(edge_index.shape) == 2
+        )
+        assert neigh_isc is None or (
+            neigh_isc.ndim == 1 and neigh_isc.shape[0] == edge_index.shape[1]
+        )
         assert positions is None or positions.shape == (num_nodes, 3)
         assert shifts is None or shifts.shape[1] == 3
         assert node_attrs is None or len(node_attrs.shape) == 2
@@ -603,7 +682,9 @@ class BasisMatrixData:
             "edge_labels": edge_labels,
             "point_types": point_types,
             "edge_types": edge_types,
-            "edge_type_nlabels": edge_type_nlabels.reshape(1, -1) if edge_type_nlabels is not None else None,
+            "edge_type_nlabels": edge_type_nlabels.reshape(1, -1)
+            if edge_type_nlabels is not None
+            else None,
             "metadata": {
                 **(metadata or {}),
                 "data_processor": data_processor,
@@ -615,23 +696,26 @@ class BasisMatrixData:
                 data[k] = self.process_input_array(k, array)
 
         # Because we want an output in the basis of spherical harmonics, we will need to change
-        # the basis of the inputs that are cartesian coordinates. 
+        # the basis of the inputs that are cartesian coordinates.
         # See: https://docs.e3nn.org/en/stable/guide/change_of_basis.html
-        # We do the change in the inputs (coordinates, which are vectors) because it's much simpler 
+        # We do the change in the inputs (coordinates, which are vectors) because it's much simpler
         # than doing it in the outputs (spherical harmonics with arbitrary l)
         # Matrix with the change of basis to go from cartesian coordinates to spherical harmonics.
-        for k in ['positions', 'shifts', 'cell']:
+        for k in ["positions", "shifts", "cell"]:
             if data[k] is not None:
-                data[k] = data_processor.cartesian_to_basis(data[k], process_cob_array=self.process_input_array)
-        
+                data[k] = data_processor.cartesian_to_basis(
+                    data[k], process_cob_array=self.process_input_array
+                )
+
         return data
-        
+
     @classmethod
-    def new(cls, 
+    def new(
+        cls,
         obj: Union[sisl.Geometry, sisl.SparseOrbital, str, Path],
         data_processor: MatrixDataProcessor,
-        labels: bool = True, 
-        **kwargs
+        labels: bool = True,
+        **kwargs,
     ):
         config_kwargs = data_processor.get_config_kwargs(obj)
         config_kwargs.update(kwargs)
@@ -640,8 +724,9 @@ class BasisMatrixData:
         return cls.from_config(config, data_processor)
 
     @classmethod
-    def from_config(cls, config: BasisConfiguration, data_processor: MatrixDataProcessor) -> "BasisMatrixData":
-
+    def from_config(
+        cls, config: BasisConfiguration, data_processor: MatrixDataProcessor
+    ) -> "BasisMatrixData":
         indices = data_processor.get_point_types(config)
         one_hot = data_processor.one_hot_encode(indices)
 
@@ -650,7 +735,10 @@ class BasisMatrixData:
         # if distance_ij <= maxR_i + maxR_j. We subtract 0.0001 from the radius to avoid numerical problems that
         # can cause two atoms to be considered neighbors when there is no entry in the sparse matrix.
         edge_index, sc_shifts, shifts = get_neighborhood(
-            positions=config.positions, cutoff=data_processor.get_cutoff(indices) - 1e-4, pbc=config.pbc, cell=config.cell
+            positions=config.positions,
+            cutoff=data_processor.get_cutoff(indices) - 1e-4,
+            pbc=config.pbc,
+            cell=config.cell,
         )
 
         # Given some supercell offset of all edges, find out what is the minimum number of supercells
@@ -664,7 +752,7 @@ class BasisMatrixData:
             # In SIESTA for example, there are the KB projectors, which add extra nonzero elements
             # for the sparse matrices.
             # However, these nonzero elements don't have any effect on the electronic density.
-            nsc = config.matrix.nsc 
+            nsc = config.matrix.nsc
         else:
             nsc = abs(sc_shifts).max(axis=1) * 2 + 1
 
@@ -673,13 +761,19 @@ class BasisMatrixData:
         supercell = sisl.Lattice(config.cell, nsc=nsc)
 
         # Get the edge types
-        edge_types = data_processor.basis_table.point_type_to_edge_type(indices[edge_index])
+        edge_types = data_processor.basis_table.point_type_to_edge_type(
+            indices[edge_index]
+        )
 
         # Sort the edges to make it easier for the reading routines
-        data_processor.sort_edge_index(edge_index, sc_shifts, shifts.T, edge_types, supercell.isc_off, inplace=True)
+        data_processor.sort_edge_index(
+            edge_index, sc_shifts, shifts.T, edge_types, supercell.isc_off, inplace=True
+        )
 
         # Count the number of labels that this matrix should have per edge type.
-        edge_type_nlabels = data_processor.get_nlabels_per_edge_type(edge_types=edge_types)
+        edge_type_nlabels = data_processor.get_nlabels_per_edge_type(
+            edge_types=edge_types
+        )
 
         # Then, get the supercell index of each interaction.
         neigh_isc = supercell.isc_off[sc_shifts[0], sc_shifts[1], sc_shifts[2]]
@@ -705,29 +799,29 @@ class BasisMatrixData:
             data_processor=data_processor,
             metadata=config.metadata,
         )
-    
+
     def process_input_array(self, key: str, array: np.ndarray) -> Any:
         """This function might be implemented by subclasses to e.g. convert the array to a torch tensor."""
         return array
-    
+
     def ensure_numpy(self, array: Any) -> np.ndarray:
         """This function might be implemented by subclasses to convert from their output to numpy arrays.
-        
+
         This is called by post processing utilities so that they can be sure they are dealing with numpy arrays.
         """
         return np.array(array)
-    
+
     def numpy_arrays(self) -> NumpyArraysProvider:
         """Returns object that provides data as numpy arrays."""
         return NumpyArraysProvider(self)
-    
+
     def to_csr(self, threshold: float = 1e-8) -> sisl.SparseOrbital:
         # Get the metadata to process things
         data_processor = self.metadata["data_processor"]
 
         # Make sure we are dealing with numpy arrays
         arrays = self.numpy_arrays()
-        
+
         return data_processor.labels_to_csr(arrays, threshold=threshold)
 
     def to_sparse_orbital_matrix(self, threshold: float = 1e-8) -> sisl.SparseOrbital:

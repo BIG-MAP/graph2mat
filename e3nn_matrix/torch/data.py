@@ -11,6 +11,7 @@ from torch_geometric.data.data import Data
 
 from ..data.processing import BasisMatrixData
 
+
 class BasisMatrixTorchData(BasisMatrixData, Data):
     num_nodes: torch.Tensor
     edge_index: torch.Tensor
@@ -35,12 +36,11 @@ class BasisMatrixTorchData(BasisMatrixData, Data):
         Data.__init__(self, **data)
 
     def process_input_array(self, key: str, array: np.ndarray) -> Any:
-
         if issubclass(array.dtype.type, float):
             return torch.tensor(array, dtype=torch.get_default_dtype())
         else:
             return torch.tensor(array)
-    
+
     def ensure_numpy(self, array: torch.Tensor) -> np.ndarray:
         if isinstance(array, torch.Tensor):
             return array.numpy(force=True)
