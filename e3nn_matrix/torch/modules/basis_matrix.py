@@ -502,7 +502,7 @@ class BasisMatrixReadout(torch.nn.Module):
             filtered_node_kwargs = {
                 key: (
                     value[type_edge_index[0, i_edges]],
-                    value[type_edge_index[1, j_edges]],
+                    value[type_edge_index[1, i_edges]],
                 )
                 for key, value in node_kwargs.items()
             }
