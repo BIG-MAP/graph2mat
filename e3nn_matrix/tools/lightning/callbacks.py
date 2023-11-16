@@ -162,7 +162,7 @@ class SamplewiseMetricsLogger(Callback):
         # Get the index of the current epoch
         current_epoch = trainer.current_epoch
         # And the names of the samples that we are going to log
-        sample_names = [Path(metadata["path"]).parent.name for metadata in batch.metadata]
+        sample_names = [Path(path).parent.name for path in batch.metadata["path"]]
 
         # Create an iterator that will return the data to be written to the CSV file for each row.
         # That is, first the sample name, then the metrics, and finally the split and the epoch index.
