@@ -256,7 +256,9 @@ def create_server_app(
             out = model["prediction_function"](input_data)
 
             # And finally, we convert the output to a matrix.
-            matrix = model["data_processor"].output_to_matrix(out, input_data)
+            matrix = model["data_processor"].matrix_from_data(
+                input_data, predictions=out
+            )
 
         # WRITE THE MATRIX TO A TEMPORARY FILE
         tmp_file = tempfile.NamedTemporaryFile(suffix=".DM", delete=False)
@@ -325,7 +327,9 @@ def create_server_app(
                 out = model["prediction_function"](input_data)
 
                 # And finally, we convert the output to a matrix.
-                matrix = model["data_processor"].output_to_matrix(out, input_data)
+                matrix = model["data_processor"].matrix_from_data(
+                    input_data, predictions=out
+                )
 
             if allow_overwrite and out_file.exists():
                 raise ValueError(

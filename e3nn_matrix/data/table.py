@@ -1,5 +1,7 @@
 from typing import List, Sequence, Union, Generator, Literal, Optional, Callable
 
+from e3nn import o3
+
 import itertools
 from pathlib import Path
 from io import StringIO
@@ -11,7 +13,84 @@ from .basis import PointBasis, BasisConvention, get_change_of_basis
 
 
 class BasisTableWithEdges:
-    """Stores the unique types of points in the system, with their basis and the possible edges."""
+    """Stores the unique types of points in the system, with their basis and the possible edges.
+
+    It also knows the size of the blocks, and other type dependent variables.
+
+    Its function is to assist in pre and post processing data by providing a centralized
+    source of truth for the basis that a model should be able to deal with.
+
+    Parameters
+    ----------
+    basis:
+        List of `PointBasis` objects for types that are (possibly) present in the systems
+        of interest.
+    get_point_matrix:
+        A function that takes a `PointBasis` object and returns the matrix that is a
+        constant for that type of point.
+
+        The constant matrix *can* be substracted from the training examples so that the
+        models only need to learn the part that is different.
+
+        A sensible choice for this constant matrix would be the matrix of the point if
+        it was isolated in the system, because then what the models learn is the
+        result of the interaction with other points.
+
+        However, this might not make any sense for your particular problem. In that
+        case just don't use this argument.
+
+    Attributes
+    ----------
+    basis:
+        List of `PointBasis` objects that this table knows about.
+    basis_convention:
+        The spherical harmonics convention used for the basis.
+    types:
+        Type identifier for each point basis.
+    point_matrix:
+        The matrix that is constant for each type of point.
+
+        See the `get_point_matrix` argument for more details.
+    edge_type:
+        Shape (n_point_types, n_point_types).
+        The edge type for each pair of point types.
+    R:
+        Shape (n_point_types,).
+        The reach of each point type.
+    basis_size:
+        Shape (n_point_types,).
+        The number of basis functions for each point type.
+    point_block_shape:
+        Shape (n_point_types, 2).
+        The shape of self-interacting matrix blocks of each point type.
+    point_block_size:
+        Shape (n_point_types,).
+        The number of elements for self-interacting matrix blocks of each point type.
+    edge_block_shape:
+        Shape (n_edge_types, 2).
+        The shape of interaction matrix blocks of each edge type.
+    edge_block_size:
+        Shape (n_edge_types,).
+        The number of elements for interaction matrix blocks of each edge type.
+    change_of_basis:
+        Shape (3, 3).
+        The change of basis matrix from cartesian to the convention of the basis.
+    change_of_basis_inv:
+        Shape (3, 3).
+        The change of basis matrix from the convention of the basis to cartesian.
+    file_names:
+        If the basis was read from files, this might store the names of the files.
+
+        For saving/loading purposes.
+    file_contents:
+        If the basis was read from files, this might store the contents of the files.
+
+        For saving/loading purposes.
+    edge_type_to_point_types:
+        Shape (n_edge_types, 2).
+
+        For each (positive) edge index, returns the pair of point types that make it.
+    """
 
     basis: List[PointBasis]
     basis_convention: BasisConvention
@@ -21,10 +100,12 @@ class BasisTableWithEdges:
     edge_type: np.ndarray
     R: np.ndarray
     basis_size: np.ndarray
-    atom_block_shape: np.ndarray
-    atom_block_size: np.ndarray
+    point_block_shape: np.ndarray
+    point_block_size: np.ndarray
     edge_block_shape: np.ndarray
     edge_block_size: np.ndarray
+
+    edge_type_to_point_types: np.ndarray
 
     change_of_basis: np.ndarray
     change_of_basis_inv: np.ndarray
@@ -60,7 +141,7 @@ class BasisTableWithEdges:
         )
 
         n_types = len(self.types)
-        # Array to get the edge type from atom types.
+        # Array to get the edge type from point types.
         point_types_to_edge_types = np.empty((n_types, n_types), dtype=np.int32)
         edge_type = 0
         for i in range(n_types):
@@ -86,10 +167,10 @@ class BasisTableWithEdges:
                 get_point_matrix(point_basis) for point_basis in self.basis
             ]
 
-        # Get also the cutoff radii for each atom.
+        # Get also the cutoff radii for each point.
         self.R = np.array([point_basis.maxR() for point_basis in self.basis])
 
-        # Store the sizes of each atom's basis.
+        # Store the sizes of each point's basis.
         self.basis_size = np.array(
             [basis.basis_size for basis in self.basis], dtype=np.int32
         )
@@ -101,6 +182,7 @@ class BasisTableWithEdges:
         point_types_combinations = np.array(
             list(itertools.combinations_with_replacement(range(n_types), 2))
         ).T
+        self.edge_type_to_point_types = point_types_combinations.T
         self.edge_block_shape = self.basis_size[point_types_combinations]
         self.edge_block_size = self.edge_block_shape.prod(axis=0)
 
@@ -151,12 +233,37 @@ class BasisTableWithEdges:
         return same
 
     def index_to_type(self, index: int) -> Union[str, int]:
+        """Converts from the index of the point type to the type ID.
+
+        Parameters
+        ----------
+        index:
+            The index of the point type in the table for which the ID is desired.
+        """
         return self.types[index]
 
     def type_to_index(self, point_type: Union[str, int]) -> int:
+        """Converts from the type ID to the index of the point type in the table.
+
+        Parameters
+        ----------
+        point_type:
+            The type ID of the point type for which the index in the table is desired.
+        """
         return self.types.index(point_type)
 
     def types_to_indices(self, types: Sequence) -> np.ndarray:
+        """Converts from an array of types IDs to their indices in the basis table.
+
+        Parameters
+        ----------
+        types:
+            The array of types to convert.
+
+        See Also
+        --------
+        type_to_index: The function used to convert each type.
+        """
         # Get the unique types and the inverse indices to reconstruct the original array
         unique_types, inverse_indices = np.unique(types, return_inverse=True)
 
@@ -169,26 +276,65 @@ class BasisTableWithEdges:
         return unique_indices[inverse_indices]
 
     def point_type_to_edge_type(self, point_type: np.ndarray) -> Union[int, np.ndarray]:
-        """Converts from an array of shape (2, n_edges) containing the pair
-        of point types for each edge to an array of shape (n_edges,) containing
-        its edge type."""
+        """Converts pairs of point types to edge types.
+
+        Parameters
+        ----------
+        point_type:
+            Shape (2, n_edges)
+            Pair of point types for each edge.
+        """
         return self.edge_type[point_type[0], point_type[1]]
 
     def maxR(self) -> float:
-        """Returns the maximum cutoff radius in the basis."""
+        """Maximum cutoff radius in the basis."""
         return self.R.max()
 
-    def point_block_pointer(self, point_types: Sequence[int]):
+    def point_block_pointer(self, point_types: Sequence[int]) -> np.ndarray:
+        """Pointers to the beggining of node blocks in a flattened matrix.
+
+        Given a flat array that contains all the elements of the matrix
+        corresponing to self-interacting matrix blocks, the indices returned
+        here point to the beggining of the values for each block.
+
+        These pointers are useful to recreate the full matrix, for example.
+
+        Parameters
+        ----------
+        point_types:
+            The type indices for the points in the system, in the order in
+            which they appear in the flattened matrix.
+        """
         pointers = np.zeros(len(point_types) + 1, dtype=np.int32)
         np.cumsum(self.point_block_size[point_types], out=pointers[1:])
         return pointers
 
     def edge_block_pointer(self, edge_types: Sequence[int]):
+        """Pointers to the beggining of edge blocks in a flattened matrix.
+
+        Given a flat array that contains all the elements of the matrix
+        corresponing to matrix blocks of interactions between two different
+        points, the indices returned here point to the beggining of the values
+        for each block.
+
+        These pointers are useful to recreate the full matrix, for example.
+
+        Parameters
+        ----------
+        edge_types:
+            The type indices for the edges in the system, in the order in
+            which they appear in the flattened matrix.
+        """
         pointers = np.zeros(len(edge_types) + 1, dtype=np.int32)
         np.cumsum(self.edge_block_size[edge_types], out=pointers[1:])
         return pointers
 
     def get_sisl_atoms(self) -> List[sisl.Atom]:
+        """Returns a list of sisl atoms corresponding to the basis.
+
+        If the basis does not contain atoms, `PointBasis` objects are
+        converted to atoms.
+        """
         if hasattr(self, "atoms"):
             return self.atoms
         else:
@@ -196,6 +342,17 @@ class BasisTableWithEdges:
 
 
 class AtomicTableWithEdges(BasisTableWithEdges):
+    """Variant of `BasisTableWithEdges` for the case in which points are atoms.
+
+    This class mostly just adds a few aliases to the methods of `BasisTableWithEdges`
+    by replacing "point" to "atom" in the method names. It also provides some methods
+    to create a table from atomic basis.
+
+    See also
+    --------
+    BasisTableWithEdges: The class that actually does the work.
+    """
+
     atoms: List[sisl.Atom]
 
     # These are used for saving the object in a more
@@ -245,6 +402,15 @@ class AtomicTableWithEdges(BasisTableWithEdges):
     def from_basis_dir(
         cls, basis_dir: str, basis_ext: str = "ion.xml"
     ) -> "AtomicTableWithEdges":
+        """Generates a table from a directory containing basis files.
+
+        Parameters
+        ----------
+        basis_dir:
+            The directory containing the basis files.
+        basis_ext:
+            The extension of the basis files.
+        """
         basis_path = Path(basis_dir)
 
         return cls.from_basis_glob(basis_path.glob(f"*.{basis_ext}"))
@@ -253,6 +419,13 @@ class AtomicTableWithEdges(BasisTableWithEdges):
     def from_basis_glob(
         cls, basis_glob: Union[str, Generator]
     ) -> "AtomicTableWithEdges":
+        """Generates a table from basis files that match a glob pattern.
+
+        Parameters
+        ----------
+        basis_glob:
+            The glob pattern to match the basis files.
+        """
         if isinstance(basis_glob, str):
             basis_glob = Path().glob(basis_glob)
 

@@ -55,7 +55,9 @@ class SimpleNodeBlock(NodeBlock):
     def __init__(self, irreps_in: o3.Irreps, irreps_out: o3.Irreps):
         super().__init__()
 
-        if isinstance(irreps_in, (list, tuple)):
+        if isinstance(irreps_in, (list, tuple)) and not isinstance(
+            irreps_in, o3.Irreps
+        ):
             assert all(
                 irreps == irreps_in[0] for irreps in irreps_in
             ), "All input irreps must be the same."

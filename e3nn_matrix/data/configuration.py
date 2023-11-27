@@ -1,4 +1,4 @@
-from typing import Optional, Union, Literal, Dict, Any
+from typing import Optional, Union, Literal, Dict, Any, Sequence
 
 from pathlib import Path
 from dataclasses import dataclass
@@ -6,6 +6,7 @@ from dataclasses import dataclass
 import numpy as np
 import sisl
 
+from .basis import PointBasis
 from .matrices import OrbitalMatrix, BasisMatrix, get_matrix_cls
 from .sparse import csr_to_block_dict
 
@@ -23,9 +24,40 @@ DEFAULT_CONFIG_TYPE = "Default"
 
 @dataclass
 class BasisConfiguration:
+    """Stores a distribution of points in space, with associated basis functions.
+
+    Optionally, it can also store an associated matrix.
+
+    Parameters
+    -----------
+    point_types:
+        Shape (n_points,).
+        The type of each point. Each type can be either a string or an integer,
+        and it should be the type key of a `PointBasis` object in the `basis` list.
+    positions:
+        Shape (n_points, 3).
+        The positions of each point in cartesian coordinates.
+    basis:
+        List of `PointBasis` objects for types that are (possibly) present in the system.
+    cell:
+        Shape (3, 3).
+        The cell vectors that delimit the system, in cartesian coordinates.
+    pbc:
+        Shape (3,).
+        Whether the system is periodic in each cell direction.
+    matrix:
+        The matrix associated to the configuration.
+    weight:
+        The weight of the configuration in the loss.
+    config_type:
+        A string that indicates the type of configuration.
+    metadata:
+        A dictionary with additional metadata related to the configuration.
+    """
+
     point_types: np.ndarray
-    positions: Positions  # Angstrom
-    basis: sisl.Atoms
+    positions: Positions
+    basis: Sequence[PointBasis]
     cell: Optional[Cell] = None
     pbc: Optional[Pbc] = None
     matrix: Optional[BasisMatrix] = None
@@ -34,9 +66,54 @@ class BasisConfiguration:
     config_type: Optional[str] = DEFAULT_CONFIG_TYPE  # config_type of config
     metadata: Optional[Dict[str, Any]] = None
 
+    def to_sisl_geometry(self) -> sisl.Geometry:
+        """Converts the configuration to a sisl Geometry."""
+
+        atoms = {pb.type: pb.to_sisl_atom(Z=i + 1) for i, pb in enumerate(self.basis)}
+
+        return sisl.Geometry(
+            xyz=self.positions,
+            atoms=[atoms[k] for k in self.point_types],
+            lattice=self.cell,
+        )
+
 
 @dataclass
 class OrbitalConfiguration(BasisConfiguration):
+    """Stores a distribution of atoms in space, with associated orbitals.
+
+    Optionally, it can also store an associated matrix.
+
+    This is a version of `BasisConfiguration` for atomic systems,
+    where points are atoms.
+
+    Parameters
+    -----------
+    point_types:
+        Shape (n_points,).
+        The type of each point. Each type can be either a string or an integer,
+        and it should be the type key of a `PointBasis` object in the `basis` list.
+    positions:
+        Shape (n_points, 3).
+        The positions of each point in cartesian coordinates.
+    basis:
+        Atoms that are (possibly) present in the system.
+    cell:
+        Shape (3, 3).
+        The cell vectors that delimit the system, in cartesian coordinates.
+    pbc:
+        Shape (3,).
+        Whether the system is periodic in each cell direction.
+    matrix:
+        The matrix associated to the configuration.
+    weight:
+        The weight of the configuration in the loss.
+    config_type:
+        A string that indicates the type of configuration.
+    metadata:
+        A dictionary with additional metadata related to the configuration.
+    """
+
     point_types: np.ndarray
     positions: Positions  # Angstrom
     basis: sisl.Atoms
@@ -115,7 +192,7 @@ class OrbitalConfiguration(BasisConfiguration):
         geometry: Union[sisl.Geometry, None] = None,
         labels: bool = True,
         **kwargs,
-    ):
+    ) -> "OrbitalConfiguration":
         """Initializes an OrbitalConfiguration object from a sisl matrix.
 
         Parameters
@@ -153,7 +230,7 @@ class OrbitalConfiguration(BasisConfiguration):
         cls,
         runfilepath: Union[str, Path],
         out_matrix: Optional[PhysicsMatrixType] = None,
-    ):
+    ) -> "OrbitalConfiguration":
         """Initializes an OrbitalConfiguration object from the main input file of a run.
 
         Parameters

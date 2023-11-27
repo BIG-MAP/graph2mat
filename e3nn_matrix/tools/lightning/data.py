@@ -18,7 +18,7 @@ from e3nn_matrix.data.table import BasisTableWithEdges, AtomicTableWithEdges
 from e3nn_matrix.data.processing import MatrixDataProcessor
 from e3nn_matrix.torch.data import BasisMatrixTorchData
 from e3nn_matrix.torch.dataset import (
-    OrbitalMatrixDataset,
+    BasisMatrixDataset,
     InMemoryData,
     RotatingPoolData,
 )
@@ -167,7 +167,7 @@ class MatrixDataModule(pl.LightningDataModule):
                 # Contruct the dataset
                 # For predictions, we don't need to load the labels (actually we don't have them)
                 # For the other splits, we need to load the labels (target matrices)
-                dataset = OrbitalMatrixDataset(
+                dataset = BasisMatrixDataset(
                     list(runs),
                     data_processor=self.data_processor,
                     data_cls=BasisMatrixTorchData,

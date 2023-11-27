@@ -53,26 +53,26 @@ extensions = [
     "sphinx.ext.napoleon",
     "sphinx.ext.todo",
     "sphinx.ext.viewcode",
-    "sphinx_autodoc_typehints",
+    # "sphinx_autodoc_typehints",
     # "sphinx_inline_tabs",
     # plotting and advanced usage
     # "IPython.sphinxext.ipython_directive",
     # "IPython.sphinxext.ipython_console_highlighting",
     "sphinx.ext.inheritance_diagram",
-    # "nbsphinx",
+    "nbsphinx",
     # "sphinx_gallery.load_style",
     # bibtex stuff
-    #"sphinxcontrib.bibtex",
+    # "sphinxcontrib.bibtex",
 ]
 napoleon_numpy_docstring = True
 napoleon_use_param = True
 
 # There currently is a bug with mathjax >= 3, so we resort to 2.7.7
 # mathjax_path = "https://cdnjs.cloudflare.com/ajax/libs/mathjax/2.7.7/latest.js?config=TeX-AMS-MML_HTMLorMML"
-#mathjax_path = "https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-svg.js"
+# mathjax_path = "https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-svg.js"
 
 # Add any paths that contain templates here, relative to this directory.
-templates_path = ['_templates']
+templates_path = ["_templates"]
 
 # Short-hand for :doi:
 extlinks = {}
@@ -80,7 +80,7 @@ extlinks = {}
 # The suffix(es) of source filenames.
 # You can specify multiple suffix as a list of string:
 # source_suffix = ['.rst', '.md']
-source_suffix = '.rst'
+source_suffix = ".rst"
 
 # prepend/append this snippet in _all_ sources
 rst_prolog = """
@@ -100,22 +100,28 @@ print(f"e3nn_matrix version {version}")
 
 
 # Add __init__ classes to the documentation
-autoclass_content = 'class'
+autoclass_content = "class"
 autodoc_default_options = {
-    'members': True,
-    'undoc-members': True,
-    'special-members': '__init__,__call__',
-    'inherited-members': True,
-    'show-inheritance': True,
+    "members": True,
+    "undoc-members": True,
+    "special-members": "__init__,__call__",
+    "inherited-members": False,
+    "show-inheritance": True,
 }
 
 # List of patterns, relative to source directory, that match files and
 # directories to ignore when looking for source files.
-exclude_patterns = ['build', '**/setupegg.py', '**/setup.rst', '**/tests', '**.ipynb_checkpoints']
+exclude_patterns = [
+    "build",
+    "**/setupegg.py",
+    "**/setup.rst",
+    "**/tests",
+    "**.ipynb_checkpoints",
+]
 
 # The reST default role (used for this markup: `text`) to use for all
 # documents.
-default_role = 'autolink'
+default_role = "autolink"
 
 # If true, '()' will be appended to :func: etc. cross-reference text.
 add_function_parentheses = False
@@ -125,13 +131,13 @@ add_function_parentheses = False
 show_authors = False
 
 # A list of ignored prefixes for module index sorting.
-modindex_common_prefix = ['e3nn_matrix.']
+modindex_common_prefix = ["e3nn_matrix."]
 
 
 # -- Options for HTML output ----------------------------------------------
 
 html_theme = "sphinx_rtd_theme"
-#html_theme = "furo"
+# html_theme = "furo"
 
 if html_theme == "furo":
     html_theme_options = {
@@ -150,34 +156,68 @@ html_short_title = "e3nn_matrix"
 # Add any paths that contain custom static files (such as style sheets) here,
 # relative to this directory. They are copied after the builtin static files,
 # so a file named "default.css" will overwrite the builtin "default.css".
-if os.path.exists('_static'):
-    html_static_path = ['_static']
+if os.path.exists("_static"):
+    html_static_path = ["_static"]
 else:
     html_static_path = []
 
 # Add any extra style files that we need
 html_css_files = [
-    # 'css/custom_styles.css',
+    "css/custom_styles.css",
 ]
 
 # If false, no index is generated.
 html_use_modindex = True
 html_use_index = True
 
+# Options for typehints
+typehints_use_signature = True
+typehints_use_signature_return = True
+
+# from sphinx_autodoc_typehints import format_annotation
+
+# def typehints_formatter(ann, config):
+#     config['typehints_formatter'] = None
+#     formatted = format_annotation(ann, config)
+
+#     return formatted + "HEY"
+
+# Insert a link to download the IPython notebook
+nbsphinx_prolog = r"""
+{% set docname = env.doc2path(env.docname, base="docs") %}
+
+.. raw:: html
+
+     <div align="right">
+     <a href="https://raw.githubusercontent.com/BIG-MAP/e3nn_matrix/main/{{ docname }}"><img alt="ipynb download badge" src="https://img.shields.io/badge/download-ipynb-blue.svg" style="vertical-align:text-bottom"></a>.
+     </div>
+
+"""
+
+
+def process_sig(app, what, name, obj, options, signature, return_annotation):
+    if signature is not None:
+        return (
+            signature.replace("<class '", "").replace("'>,", ",").replace("'>)", ")"),
+            return_annotation,
+        )
+
+
+def setup(app):
+    app.connect("autodoc-process-signature", process_sig)
+
+
 # -- Options for LaTeX output ---------------------------------------------
 
 latex_elements = {
-# The paper size ('letterpaper' or 'a4paper').
-'papersize': 'a4paper',
-
-# The font size ('10pt', '11pt' or '12pt').
-'pointsize': '11pt',
-
-# Additional stuff for the LaTeX preamble.
-'preamble': r"",
-
-# Latex figure (float) alignment
-'figure_align': '!htbp',
+    # The paper size ('letterpaper' or 'a4paper').
+    "papersize": "a4paper",
+    # The font size ('10pt', '11pt' or '12pt').
+    "pointsize": "11pt",
+    # Additional stuff for the LaTeX preamble.
+    "preamble": r"",
+    # Latex figure (float) alignment
+    "figure_align": "!htbp",
 }
 
 
@@ -185,10 +225,11 @@ latex_elements = {
 # Intersphinx configuration
 # -----------------------------------------------------------------------------
 intersphinx_mapping = {
-    'python': ('https://docs.python.org/3/', None),
-    'sisl': ('https://https://sisl.readthedocs.io/en/stable/', None),
-    'numpy': ('https://numpy.org/doc/stable/', None),
-    'scipy': ('https://docs.scipy.org/doc/scipy/', None),
-    'plotly': ('https://plotly.com/python-api-reference/', None),
+    "python": ("https://docs.python.org/3/", None),
+    "sisl": ("https://https://sisl.readthedocs.io/en/stable/", None),
+    "numpy": ("https://numpy.org/doc/stable/", None),
+    "scipy": ("https://docs.scipy.org/doc/scipy/", None),
+    "plotly": ("https://plotly.com/python-api-reference/", None),
+    "torch": ("https://pytorch.org/docs/stable/", None),
+    "e3nn": ("https://docs.e3nn.org/en/stable/", None),
 }
-

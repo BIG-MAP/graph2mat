@@ -13,6 +13,18 @@ from ..data.processing import BasisMatrixData
 
 
 class BasisMatrixTorchData(BasisMatrixData, Data):
+    """Extension of `BasisMatrixData` to be used with pytorch models.
+
+    All this class implements is the conversion of numpy arrays to torch tensors
+    and back. The rest of the functionality is inherited from `BasisMatrixData`.
+
+    Please refer to the documentation of `BasisMatrixData` for more information.
+
+    See Also
+    --------
+    BasisMatrixData: The class that implements the heavy lifting of the data processing.
+    """
+
     num_nodes: torch.Tensor
     edge_index: torch.Tensor
     neigh_isc: torch.Tensor
@@ -20,12 +32,10 @@ class BasisMatrixTorchData(BasisMatrixData, Data):
     positions: torch.Tensor
     shifts: torch.Tensor
     cell: torch.Tensor
-    n_supercells: int
+    n_supercells: torch.Tensor
     nsc: torch.Tensor
     point_labels: torch.Tensor
     edge_labels: torch.Tensor
-    point_label_ptr: torch.Tensor
-    edge_label_ptr: torch.Tensor
     point_types: torch.Tensor
     edge_types: torch.Tensor
     edge_type_nlabels: torch.Tensor

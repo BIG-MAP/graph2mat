@@ -1,7 +1,7 @@
-from typing import Tuple, Dict, Type, Callable, Union
+from typing import Any, Tuple, Dict, Type, Callable, Union
 import numpy as np
 
-from .batch_utils import batch_to_orbital_matrix_data, batch_to_sparse_orbital
+from .processing import MatrixDataProcessor
 
 
 def _isnan(values):
@@ -25,7 +25,15 @@ def get_predictions_error(
     return node_error, edge_error
 
 
-class OrbitalMatrixMetric:
+class Meta(type):
+    def __call__(self, *args: Any, **kwds: Any) -> Any:
+        if len(args) == 0 and len(kwds) == 0:
+            return super.__call__()
+
+        return super().__call__().get_metric(*args, **kwds)
+
+
+class OrbitalMatrixMetric(metaclass=Meta):
     def __call__(self, *args, **kwargs):
         return self.get_metric(*args, **kwargs)
 
@@ -70,19 +78,18 @@ class OrbitalMatrixMetric:
                     "basis_table is required to compute metrics individually for each configuration."
                 )
 
-            iterator_kwargs = {
-                "symmetric_matrix": kwargs["symmetric_matrix"],
-                "basis_table": kwargs["basis_table"],
-            }
+            processor = MatrixDataProcessor(
+                basis_table=kwargs["basis_table"],
+                symmetric_matrix=kwargs["symmetric_matrix"],
+            )
 
-            target_iterator = batch_to_orbital_matrix_data(batch, **iterator_kwargs)
-            pred_iterator = batch_to_orbital_matrix_data(
+            target_iterator = processor.yield_from_batch(batch)
+            pred_iterator = processor.yield_from_batch(
                 batch,
-                prediction={
+                predictions={
                     "node_labels": kwargs["nodes_pred"],
                     "edge_labels": kwargs["edges_pred"],
                 },
-                **iterator_kwargs,
             )
 
             metrics_array = None
@@ -404,12 +411,14 @@ def normalized_density_error(
         # as a sisl DensityMatrix.
         # Note here that we assume that the model was trained under the assumption
         # that the density matrix is symmetric, so we set symmetric_matrix=True. (Might not be the case?)
-        matrix_errors = batch_to_sparse_orbital(
+        processor = MatrixDataProcessor(
+            basis_table=basis_table, symmetric_matrix=True, out_matrix="density_matrix"
+        )
+
+        matrix_errors = processor.yield_from_batch(
             batch,
-            prediction={"node_labels": errors[0], "edge_labels": errors[1]},
-            basis_table=basis_table,
-            matrix_cls=sisl.DensityMatrix,
-            symmetric_matrix=True,
+            predictions={"node_labels": errors[0], "edge_labels": errors[1]},
+            as_matrix=True,
         )
 
     # Initialize counters

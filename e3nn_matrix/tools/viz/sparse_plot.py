@@ -7,31 +7,34 @@ from typing import Dict, Union
 import sisl
 from scipy.sparse import issparse, spmatrix
 
+from e3nn_matrix.data import BasisConfiguration
 from e3nn_matrix.data.irreps_tools import get_atom_irreps
 
 
-def plot_orbital_matrix(
+def plot_basis_matrix(
     matrix: Union[np.ndarray, sisl.SparseCSR, spmatrix],
-    geometry: Union[sisl.Geometry, None] = None,
-    atom_lines: Union[bool, Dict] = False,
+    configuration: Union[BasisConfiguration, sisl.Geometry, None] = None,
+    point_lines: Union[bool, Dict] = False,
     basis_lines: Union[bool, Dict] = False,
     sc_lines: Union[bool, Dict] = False,
     colorscale: str = "RdBu",
     text: Union[bool, str] = False,
+    basis_labels: bool = False,
 ) -> go.Figure:
-    """Plots a matrix where rows and columns are orbitals.
+    """Plots a matrix where rows and columns are spherical harmonics basis functions.
 
     Parameters
     -----------
     matrix:
         the matrix, either as a numpy array or as a sisl sparse matrix.
-    geometry:
-        The geometry associated with the matrix, only needed if separator lines are requested.
-    atom_lines:
-        If a boolean, whether to draw lines separating atoms, using default styles.
+    configuration:
+        Should contain the point coordinates and types associated with the matrix.
+        Only needed if separator lines or basis labels are requested.
+    point_lines:
+        If a boolean, whether to draw lines separating points, using default styles.
         If a dict, draws the lines with the specified plotly line styles.
     basis_lines:
-        If a boolean, whether to draw lines separating sets of orbitals, using default styles.
+        If a boolean, whether to draw lines separating sets of basis functions, using default styles.
         If a dict, draws the lines with the specified plotly line styles.
     sc_lines:
         If a boolean, whether to draw lines separating the supercells, using default styles.
@@ -43,20 +46,28 @@ def plot_orbital_matrix(
         default formatting.
         If a string, show text with the specified format. E.g. text=".3f" shows the value with three
         decimal places.
+    basis_labels:
+        Whether to label the axes with the basis function indices. If True, the labels will be of
+        the form "P: (l, m)", where `P` is the index of the point and l and m are the indices of
+        the spherical harmonic.
     """
     mode = "orbitals"
 
     if isinstance(matrix, sisl.SparseOrbital):
-        if geometry is None:
-            geometry = matrix.geometry
+        if configuration is None:
+            configuration = matrix.geometry
 
         matrix = matrix._csr
     elif isinstance(matrix, sisl.SparseAtom):
-        if geometry is None:
-            geometry = matrix.geometry
+        if configuration is None:
+            configuration = matrix.geometry
 
         matrix = matrix._csr
         mode = "atoms"
+
+    geometry = configuration
+    if isinstance(geometry, BasisConfiguration):
+        geometry = geometry.to_sisl_geometry()
 
     if isinstance(matrix, sisl.SparseCSR):
         matrix = matrix.tocsr()
@@ -78,21 +89,21 @@ def plot_orbital_matrix(
         text_auto=text is True,
     )
 
-    if atom_lines is not False and mode == "orbitals":
-        if atom_lines is True:
-            atom_lines = {}
+    if point_lines is not False and mode == "orbitals":
+        if point_lines is True:
+            point_lines = {}
 
-        atom_lines = {"color": "orange", **atom_lines}
+        point_lines = {"color": "orange", **point_lines}
 
         for atom_last_o in geometry.lasto[:-1]:
             line_pos = atom_last_o + 0.5
             fig.add_hline(
                 y=line_pos,
-                line=atom_lines,
+                line=point_lines,
             )
 
             for i_s in range(geometry.n_s):
-                fig.add_vline(x=line_pos + (i_s * geometry.no), line=atom_lines)
+                fig.add_vline(x=line_pos + (i_s * geometry.no), line=point_lines)
 
     if basis_lines is not False and mode == "orbitals":
         if basis_lines is True:
@@ -140,6 +151,26 @@ def plot_orbital_matrix(
     if isinstance(text, str):
         fig.update_traces(
             texttemplate="%{z:" + text + "}", selector={"type": "heatmap"}
+        )
+
+    if basis_labels:
+        atoms_ticks = []
+        atoms = geometry.atoms.atom
+        for i, atom in enumerate(atoms):
+            atom_ticks = []
+            atoms_ticks.append(atom_ticks)
+            for orb in atom.orbitals:
+                atom_ticks.append(f"({orb.l}, {orb.m})")
+
+        ticks = []
+        for i, specie in enumerate(geometry.atoms.specie):
+            ticks.extend([f"{i}: {orb}" for orb in atoms_ticks[specie]])
+
+        fig.update_layout(
+            yaxis_ticktext=ticks,
+            yaxis_tickvals=np.arange(geometry.no),
+            xaxis_ticktext=ticks,
+            xaxis_tickvals=np.arange(geometry.no),
         )
 
     return fig

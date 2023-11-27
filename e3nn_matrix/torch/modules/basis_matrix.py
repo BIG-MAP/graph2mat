@@ -3,7 +3,7 @@
 from e3nn import o3
 import itertools
 import torch
-from typing import Sequence, Type, Union, Tuple, List, Dict
+from typing import Sequence, Type, Union, Tuple, List, Dict, Optional
 
 from ...data.basis import PointBasis
 from .node_readouts import NodeBlock, SimpleNodeBlock
@@ -124,69 +124,78 @@ class MatrixBlock(torch.nn.Module):
 class BasisMatrixReadout(torch.nn.Module):
     """Computes a variable size sparse matrix coming from the products of spherical harmonics.
 
-    ## Design concept
+    **Design concept**
 
     The module builds the matrix block by block. We define a block as a region of the matrix
     where the rows are all the basis of a given point, and all the columns are the basis of another
     given point. There are then two clearly different types of blocks by their origin, which might also
     obey different symmetries:
-      -  Self interaction blocks: These are blocks that encode the interactions between basis functions of the
-      same point. These blocks are always square matrices. They are located at the diagonal of the matrix.
-      If the matrix is symmetric, these blocks must also be symmetric.
-      -  Interaction blocks: All the rest of blocks, that contain interactions between basis functions from different
-      points. Even if the matrix is symmetric, these blocks do not need to be symmetric. For each pair of points `ij`,
-      there are two blocks: `ij` and `ji` However, if the matrix is symmetric, one block is the transpose of the other.
-      Therefore, we only need to compute/predict one of them.
 
-    ## How it is implemented.
+        - Self interaction blocks: These are blocks that encode the interactions between basis functions of the
+          same point. These blocks are always square matrices. They are located at the diagonal of the matrix.
+          If the matrix is symmetric, these blocks must also be symmetric.
+
+        - Interaction blocks: All the rest of blocks, that contain interactions between basis functions from different
+          points. Even if the matrix is symmetric, these blocks do not need to be symmetric. For each pair of points `ij`,
+          there are two blocks: `ij` and `ji` However, if the matrix is symmetric, one block is the transpose of the other.
+          Therefore, we only need to compute/predict one of them.
+
+    **How it is implemented.**
 
     This module is implemented as a graph neural network. Block creating functions are convolved over
     edges and nodes to create the matrix blocks. Even though the matrix is computed with a convolution,
     we can not use a single function. There are two type of blocks that are different in nature:
-      - Self interaction blocks: Convolved over nodes. Since each point type has a different basis,
-      it will produce a block of different size. Therefore, we need **one function per point type**.
-      - Interaction blocks: Convolved over edges. For the same reason as the self interaction blocks,
-      we need one function per combination of point types.
+
+        - Self interaction blocks: Convolved over nodes. Since each point type has a different basis,
+          it will produce a block of different size. Therefore, we need **one function per point type**.
+
+        - Interaction blocks: Convolved over edges. For the same reason as the self interaction blocks,
+          we need one function per combination of point types.
 
     Each function is a `MatrixBlock` module.
 
     Parameters
     ----------
-    unique_basis: Sequence[PointBasis]
+    unique_basis:
         A list with all the unique point basis (one for each point type) that this module
         should be able to handle. The inputs passed on forward do not necessarily need to
         contain all of them.
-    node_operation: Type[torch.nn.Module]
+    irreps_in:
+        Shorthand to set `irreps_in` for both `node_operation_kwargs` and `edge_operation_kwargs`.
+        It will be ignored if the `*_operation_kwargs` argument already has an `"irreps_in"`
+        key.
+    node_operation:
         The operation used to compute the values for matrix blocks corresponding to
         self interactions (nodes).
         This is passed directly to the `MatrixBlock` class, see the `operation_cls`
         parameter there.
-    node_operation_kwargs: dict
+    node_operation_kwargs:
         Initialization arguments for the `node_operation` class.
         Same as `operation_kwargs` argument in `MatrixBlock`.
-    edge_operation: Type[torch.nn.Module]
+    edge_operation:
         The operation used to compute the values for matrix blocks corresponding to
         interactions between different nodes (edges).
         This is passed directly to the `MatrixBlock` class, see the `operation_cls`.
-    edge_operation_kwargs: dict
+    edge_operation_kwargs:
         Initialization arguments for the `edge_operation` class.
         Same as `operation_kwargs` argument in `MatrixBlock`.
-    node_irreps_in: o3.Irreps
+    node_irreps_in:
         The irreps that this module will accept for the node features. The order
         of the irreps needs to be at least as high as the maximum order found in
         the basis.
-    edge_irreps_in: o3.Irreps
+    edge_irreps_in:
         The irreps that this module will accept for the edge features. The order
         of the irreps needs to be at least as high as the maximum order found in
         the basis.
-    symmetric: bool, optional
+    symmetric:
         Whether the matrix is symmetric. If it is, edge blocks for edges connecting
         the same two atoms but in opposite directions will be computed only once (the
         block for the opposite direction is the transpose block).
-    blocks_symmetry: str, optional
+    blocks_symmetry:
         The symmetry that each point block must obey. By default no symmetries are assumed.
-    self_blocks_symmetry: str, optional
+    self_blocks_symmetry:
         The symmetry that node blocks must obey. If this is `None`:
+
           - If `symmetric` is `False`, self_blocks are assumed to have the same symmetry
             as other blocks, which is specified in the `blocks_symmetry` parameter.
           - If `symmetric` is `True`, self_blocks are assumed to be symmetric.
@@ -195,6 +204,7 @@ class BasisMatrixReadout(torch.nn.Module):
     def __init__(
         self,
         unique_basis: Sequence[PointBasis],
+        irreps_in: Optional[o3.Irreps] = None,
         node_operation: Type[NodeBlock] = SimpleNodeBlock,
         node_operation_kwargs: dict = {},
         edge_operation: Type[EdgeBlock] = SimpleEdgeBlock,
@@ -211,6 +221,10 @@ class BasisMatrixReadout(torch.nn.Module):
                 self_blocks_symmetry = "ij=ji"
             else:
                 self_blocks_symmetry = blocks_symmetry
+
+        if irreps_in is not None:
+            node_operation_kwargs = {"irreps_in": irreps_in, **node_operation_kwargs}
+            edge_operation_kwargs = {"irreps_in": irreps_in, **edge_operation_kwargs}
 
         self.symmetric = symmetric
 
@@ -324,21 +338,28 @@ class BasisMatrixReadout(torch.nn.Module):
         edge_index: torch.Tensor,
         edge_types: torch.Tensor,
         edge_type_nlabels: torch.Tensor,
+        node_kwargs: Dict[str, torch.Tensor] = {},
+        edge_kwargs: Dict[str, torch.Tensor] = {},
+        global_kwargs: dict = {},
         node_operation_node_kwargs: Dict[str, torch.Tensor] = {},
         node_operation_global_kwargs: dict = {},
         edge_operation_node_kwargs: Dict[str, torch.Tensor] = {},
-        edge_operation_edge_kwargs: Dict[str, torch.Tensor] = {},
         edge_operation_global_kwargs: dict = {},
     ) -> Tuple[torch.Tensor, torch.Tensor]:
-        """Computes the matrix.
+        """Computes the matrix elements.
 
-        VERY IMPORTANT: Edges are assumed to be sorted in a very specific way:
+        **VERY IMPORTANT NOTE**
+
+        Edges are assumed to be sorted in a very specific way:
+
           - Opposite directions of the same edge should come consecutively.
           - The direction that has a positive edge type should come first. The "positive" direction
             in an edge {i, j}, between point types "type_i" and "type_j" is the direction from the
             smallest point type to the biggest point type.
           - Sorted by edge type within the same structure. That is, edges where the same two species interact should
             be grouped within each structure in the batch. These groups should be ordered by edge type.
+
+        This is all taken care of by `BasisMatrixData`, so if you use it you don't need to worry about it.
 
         Parameters
         -----------
@@ -355,13 +376,37 @@ class BasisMatrixReadout(torch.nn.Module):
             structure in the batch, the amount of matrix elements that correspond to
             blocks of a certain edge type. This amount comes from multiplying the number
             of edges of this type by the size of the matrix block that they need.
-        node_feats, node_attrs, edge_feats, edge_attrs: torch.Tensor
-            tensors coming from the model that this function is reading out from.
-            Node tensors should be (n_nodes, X) and edge tensors (n_edges, X), where X
-            is the dimension of the irreps specified on initialization for each of these
-            tensors.
+        node_kwargs: Dict[str, torch.Tensor] = {},
+            Arguments to pass to node and edge operations that are node-wise.
+            Tensors should have shape (n_nodes, ...).
+
+            If you want to pass a node-wise argument only to node/edge operations,
+            you should pass it on `{node/edge}_operation_node_kwargs`.
+
+            The arguments passed here will be added to both `node_operation_node_kwargs` and
+            `edge_operation_node_kwargs`. See those parameters for more information
+            on how they are used.
+
+            If a key is present in both `node_kwargs` and `*_operation_node_kwargs`,
+            the value in `*_operation_node_kwargs` will be used.
+        edge_kwargs: Dict[str, torch.Tensor] = {},
+            Arguments to pass to edge operations that are edge-wise.
+            Tensors should have shape (n_edges, ...).
+
+            The module will filter and organize them to pass a tuple (type X, type -X) for
+            edge operation X. That is, the tuple will contain both directions of the edge.
+
+            NOTE: One can think of passing edge-wise arguments to the node operations, which
+            can then be aggregated into node-wise arguments. However, all this module does with
+            node-wise and endge-wise arguments is to organize and reshape them. Therefore, an
+            aggregation operation should be done outside of this module.
+        global_kwargs: dict = {},
+            Arguments to pass to node and edge operations that are global (e.g. neither
+            node-wise nor edge-wise). They are used by the operations as provided.
         node_operation_node_kwargs: Dict[str, torch.Tensor] = {}
             Arguments to pass to node operations that are node-wise.
+            Tensors should have shape (n_nodes, ...).
+
             The module will filter them to contain only the values for nodes of type X
             before passing them to function for node type X.
         node_operation_global_kwargs: dict = {},
@@ -369,12 +414,10 @@ class BasisMatrixReadout(torch.nn.Module):
             to each function as provided.
         edge_operation_node_kwargs: Dict[str, torch.Tensor] = {},
             Arguments to pass to edge operations that are node-wise.
+            Tensors should have shape (n_edges, ...).
+
             The module will filter and organize them to pass a tuple (type X, type Y) for
             edge operation X -> Y.
-        edge_operation_edge_kwargs: Dict[str, torch.Tensor] = {},
-            Arguments to pass to edge operations that are edge-wise.
-            The module will filter and organize them to pass a tuple (type X, type -X) for
-            edge operation X. That is, the tuple will contain both directions of the edge.
         edge_operation_global_kwargs: dict = {},
             Arguments to pass to edge operations that are global. They will be passed
             to each function as provided.
@@ -386,6 +429,12 @@ class BasisMatrixReadout(torch.nn.Module):
         edge_blocks:
             All the edge blocks, flattened and concatenated.
         """
+        node_operation_node_kwargs = {**node_kwargs, **node_operation_node_kwargs}
+        edge_operation_node_kwargs = {**node_kwargs, **edge_operation_node_kwargs}
+
+        node_operation_global_kwargs = {**global_kwargs, **node_operation_global_kwargs}
+        edge_operation_global_kwargs = {**global_kwargs, **edge_operation_global_kwargs}
+
         # Compute node blocks using the self interaction functions.
         node_labels = self._forward_self_interactions(
             node_types=node_types,
@@ -399,7 +448,7 @@ class BasisMatrixReadout(torch.nn.Module):
             edge_index=edge_index,
             edge_type_nlabels=edge_type_nlabels,
             node_kwargs=edge_operation_node_kwargs,
-            edge_kwargs=edge_operation_edge_kwargs,
+            edge_kwargs=edge_kwargs,
             global_kwargs=edge_operation_global_kwargs,
         )
 

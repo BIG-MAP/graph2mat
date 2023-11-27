@@ -64,8 +64,9 @@ def test_standalone_mace_readout(
         edge_type_nlabels=data["edge_type_nlabels"],
     )
 
-    matrix = processor.output_to_matrix(
-        {"node_labels": node_labels, "edge_labels": edge_labels}, data
+    matrix = processor.matrix_from_data(
+        data,
+        {"node_labels": node_labels, "edge_labels": edge_labels},
     )
 
     assert isinstance(matrix, csr_matrix)
