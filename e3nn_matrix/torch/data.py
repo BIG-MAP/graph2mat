@@ -45,6 +45,9 @@ class BasisMatrixTorchData(BasisMatrixData, Data):
         data = BasisMatrixData._sanitize_data(self, **kwargs)
         Data.__init__(self, **data)
 
+    def __getitem__(self, key: str) -> Any:
+        return Data.__getitem__(self, key)
+
     def process_input_array(self, key: str, array: np.ndarray) -> Any:
         if issubclass(array.dtype.type, float):
             return torch.tensor(array, dtype=torch.get_default_dtype())

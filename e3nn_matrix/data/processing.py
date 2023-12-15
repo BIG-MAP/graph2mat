@@ -1063,6 +1063,9 @@ class BasisMatrixData:
 
         return data
 
+    def __getitem__(self, key: str) -> Any:
+        return self._data[key]
+
     @classmethod
     def new(
         cls,
@@ -1084,7 +1087,7 @@ class BasisMatrixData:
 
     @classmethod
     def from_config(
-        cls, config: BasisConfiguration, data_processor: MatrixDataProcessor
+        cls, config: BasisConfiguration, data_processor: MatrixDataProcessor, nsc=None
     ) -> "BasisMatrixData":
         indices = data_processor.get_point_types(config)
         one_hot = data_processor.one_hot_encode(indices)
@@ -1095,7 +1098,7 @@ class BasisMatrixData:
         # can cause two atoms to be considered neighbors when there is no entry in the sparse matrix.
         edge_index, sc_shifts, shifts = get_neighborhood(
             positions=config.positions,
-            cutoff=data_processor.get_cutoff(indices) - 1e-4,
+            cutoff=data_processor.get_cutoff(indices) + 0.2,
             pbc=config.pbc,
             cell=config.cell,
         )
@@ -1105,15 +1108,16 @@ class BasisMatrixData:
         sc_shifts = sc_shifts.T
 
         # Get the number of supercells needed along each direction to account for all interactions
-        if config.matrix is not None:
-            # If we already have a matrix, take the nsc of the matrix, which might be higher than
-            # the strictly needed for the overlap of orbitals.
-            # In SIESTA for example, there are the KB projectors, which add extra nonzero elements
-            # for the sparse matrices.
-            # However, these nonzero elements don't have any effect on the electronic density.
-            nsc = config.matrix.nsc
-        else:
-            nsc = abs(sc_shifts).max(axis=1) * 2 + 1
+        if nsc is None:
+            if config.matrix is not None:
+                # If we already have a matrix, take the nsc of the matrix, which might be higher than
+                # the strictly needed for the overlap of orbitals.
+                # In SIESTA for example, there are the KB projectors, which add extra nonzero elements
+                # for the sparse matrices.
+                # However, these nonzero elements don't have any effect on the electronic density.
+                nsc = config.matrix.nsc
+            else:
+                nsc = abs(sc_shifts).max(axis=1) * 2 + 1
 
         # Then build the supercell that encompasses all of those atoms, so that we can get the
         # array that converts from sc shifts (3D) to a single supercell index. This is isc_off.
