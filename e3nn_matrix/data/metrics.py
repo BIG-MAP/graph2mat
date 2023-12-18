@@ -28,7 +28,7 @@ def get_predictions_error(
 class Meta(type):
     def __call__(self, *args: Any, **kwds: Any) -> Any:
         if len(args) == 0 and len(kwds) == 0:
-            return super.__call__()
+            return super().__call__()
 
         return super().__call__().get_metric(*args, **kwds)
 
