@@ -1,3 +1,5 @@
+from copy import copy
+
 from typing import Any, Tuple, Dict, Type, Callable, Union
 import numpy as np
 
@@ -142,6 +144,81 @@ def block_type_mse(
     stats = {
         "node_rmse": node_loss ** (1 / 2),
         "edge_rmse": edge_loss ** (1 / 2),
+    }
+
+    if log_verbose:
+        abs_node_error = abs(node_error)
+        abs_edge_error = abs(edge_error)
+
+        stats.update(
+            {
+                "node_mean": abs_node_error.mean(),
+                "edge_mean": abs_edge_error.mean(),
+                "node_std": abs_node_error.std(),
+                "edge_std": abs_edge_error.std(),
+                "node_max": abs_node_error.max(),
+                "edge_max": abs_edge_error.max(),
+            }
+        )
+
+    return node_loss + edge_loss, stats
+
+
+# @OrbitalMatrixMetric.from_metric_func
+# def O2_d(
+#     nodes_pred, nodes_ref, edges_pred, edges_ref, log_verbose=False, **kwargs
+# ) -> Tuple[float, Dict[str, float]]:
+#     node_error, edge_error = get_predictions_error(
+#         nodes_pred, nodes_ref, edges_pred, edges_ref
+#     )
+
+#     loss = 0.
+#     for i in range(8, 13):
+#         for j in range(8, 13):
+#             loss = loss + (node_error[i * 13 + j::13**2 + 50]**2).sum()
+
+#     return loss, {}
+
+#     node_loss = abs(node_error / nodes_ref).mean()
+#     edge_loss = abs(edge_error / edges_ref).mean()
+
+#     stats = {
+#         # "node_rmse": node_loss ** (1 / 2),
+#         # "edge_rmse": edge_loss ** (1 / 2),
+#     }
+
+#     if log_verbose:
+#         abs_node_error = abs(node_error)
+#         abs_edge_error = abs(edge_error)
+
+#         stats.update(
+#             {
+#                 "node_mean": abs_node_error.mean(),
+#                 "edge_mean": abs_edge_error.mean(),
+#                 "node_std": abs_node_error.std(),
+#                 "edge_std": abs_edge_error.std(),
+#                 "node_max": abs_node_error.max(),
+#                 "edge_max": abs_edge_error.max(),
+#             }
+#         )
+
+#     return node_loss + edge_loss, stats
+
+
+@OrbitalMatrixMetric.from_metric_func
+def block_type_mape(
+    nodes_pred, nodes_ref, edges_pred, edges_ref, log_verbose=False, **kwargs
+) -> Tuple[float, Dict[str, float]]:
+    node_error, edge_error = get_predictions_error(
+        nodes_pred, nodes_ref, edges_pred, edges_ref
+    )
+
+    node_loss = abs(node_error / nodes_ref).mean()
+    edge_loss = abs(edge_error / edges_ref[~_isnan(edges_ref)]).mean()
+
+    stats = {
+        # "node_rmse": node_loss ** (1 / 2),
+        # "edge_rmse": edge_loss ** (1 / 2),
     }
 
     if log_verbose:
@@ -402,7 +479,7 @@ def normalized_density_error(
     if isinstance(batch, BasisMatrixData):
         # We haven't really received a batch, but just a single structure.
         # Do as if we received a batch of size 1.
-        matrix_error = batch
+        matrix_error = copy(batch)
         matrix_error.point_labels = errors[0]
         matrix_error.edge_labels = errors[1]
         matrix_errors = [matrix_error.to_sparse_orbital_matrix()]

@@ -9,8 +9,9 @@ import torch
 
 from scipy.spatial.transform import Rotation
 
+from e3nn_matrix.data.processing import MatrixDataProcessor
 from e3nn_matrix.data.configuration import OrbitalConfiguration
-from e3nn_matrix.torch.data import OrbitalMatrixData
+from e3nn_matrix.torch.data import BasisMatrixTorchData
 from e3nn_matrix.data.table import AtomicTableWithEdges
 from e3nn_matrix.data.irreps_tools import get_atom_irreps
 from e3nn_matrix.data.sparse import (
@@ -62,14 +63,22 @@ def z_table(basis_shape):
     return AtomicTableWithEdges([H, O])
 
 
+@pytest.fixture(scope="module")
+def data_processor(z_table):
+    return MatrixDataProcessor(symmetric_matrix=True, basis_table=z_table)
+
+
 @pytest.fixture(scope="module", params=["mace"])
-def model(z_table, request):
+def model(
+    data_processor,
+    request,
+):
     model_name = request.param
 
     if model_name == "mace":
         return LitOrbitalMatrixMACE(
-            z_table=z_table,
-            symmetric_matrix=True,
+            basis_table=data_processor.basis_table,
+            symmetric_matrix=data_processor.symmetric_matrix,
             avg_num_neighbors=1,
             correlation=2,
             max_ell=2,
@@ -100,19 +109,20 @@ def geometry(request, z_table):
     return geom
 
 
-def test_model_equivariance(model, z_table, geometry):
+def test_model_equivariance(model, data_processor, geometry):
     geom = geometry
+    z_table = data_processor.basis_table
 
     # Helper function that returns the predicted matrix from a geometry.
     def get_matrix(geom):
         config = OrbitalConfiguration.from_geometry(geom)
-        data = OrbitalMatrixData.from_config(config, z_table, symmetric_matrix=True)
+        data = BasisMatrixTorchData.from_config(config, data_processor=data_processor)
 
         out = model.model(data)
 
         return nodes_and_edges_to_coo(
             out["node_labels"].detach().numpy(),
-            z_table.atom_block_pointer(data.atom_types),
+            z_table.atom_block_pointer(data.point_types),
             out["edge_labels"].detach().numpy(),
             data.edge_index[:, ::2].numpy(),
             z_table.edge_block_pointer(data.edge_types[::2]),
@@ -153,9 +163,9 @@ def test_model_equivariance(model, z_table, geometry):
 
     # Get the matrix that rotates the unrotated geometry output to get the expected output.
     # Note that a change of basis to the spherical harmonics is needed.
-    basis_change = OrbitalMatrixData._change_of_basis
+    basis_change = data_processor.basis_table.change_of_basis
     D = irreps.D_from_matrix(
-        basis_change @ torch.tensor(R, dtype=torch.get_default_dtype()) @ basis_change.T
+        torch.tensor(basis_change @ R @ basis_change.T, dtype=torch.get_default_dtype())
     )
 
     for isc in range(geometry.n_s):
@@ -167,24 +177,25 @@ def test_model_equivariance(model, z_table, geometry):
         assert np.allclose(D @ cell_out @ D.T, cell_rot_out, atol=5e-5), isc
 
 
-def test_model_supercell(model, z_table, geometry):
+def test_model_supercell(model, data_processor, geometry):
     """Checks if tiling the output of the model gives the same result as tiling the input.
 
     A periodic structure should produce exactly the same output regardless of the size of the supercell,
     and that is what we test here.
     """
     geom = geometry
+    z_table = data_processor.basis_table
 
     # Helper function that returns the predicted matrix from a geometry.
     def get_matrix(geom):
         config = OrbitalConfiguration.from_geometry(geom)
-        data = OrbitalMatrixData.from_config(config, z_table, symmetric_matrix=True)
+        data = BasisMatrixTorchData.from_config(config, data_processor=data_processor)
 
         out = model.model(data)
 
         return nodes_and_edges_to_sparse_orbital(
             out["node_labels"].detach().numpy(),
-            z_table.atom_block_pointer(data.atom_types),
+            z_table.atom_block_pointer(data.point_types),
             out["edge_labels"].detach().numpy(),
             data.edge_index[:, ::2].numpy(),
             z_table.edge_block_pointer(data.edge_types[::2]),

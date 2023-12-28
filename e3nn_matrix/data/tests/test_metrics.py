@@ -11,10 +11,10 @@ from e3nn_matrix.data.metrics import OrbitalMatrixMetric
 )
 def test_metric_runs(density_data, density_z_table, metric):
     metric(
-        nodes_pred=density_data.atom_labels - 0.001,
-        nodes_ref=density_data.atom_labels,
+        nodes_pred=density_data.point_labels - 0.001,
+        nodes_ref=density_data.point_labels,
         edges_pred=density_data.edge_labels,
         edges_ref=density_data.edge_labels,
         batch=density_data,
-        z_table=density_z_table,
+        basis_table=density_z_table,
     )

@@ -70,22 +70,28 @@ def test_full_block_dict_csr(density_matrix):
 
 
 def test_nodes_and_edges_to_csr(
-    density_matrix, density_config, density_data, density_z_table
+    density_matrix, density_config, density_data, density_z_table, symmetric
 ):
     csr = density_matrix._csr
 
-    atom_labels_ptr = density_z_table.atom_block_pointer(density_data.atom_types)
+    atom_labels_ptr = density_z_table.atom_block_pointer(density_data.point_types)
     edge_labels_ptr = density_z_table.edge_block_pointer(density_data.edge_types)
+    edge_index = density_data.edge_index
+    neigh_isc = density_data.neigh_isc
+    if symmetric:
+        edge_index = edge_index[:, ::2]
+        neigh_isc = neigh_isc[::2]
 
     new_csr = nodes_and_edges_to_csr(
-        density_data.atom_labels,
+        density_data.point_labels,
         atom_labels_ptr,
         density_data.edge_labels,
-        density_data.edge_index,
+        edge_index,
         edge_labels_ptr,
-        edge_neigh_isc=density_data.neigh_isc,
+        edge_neigh_isc=neigh_isc,
         n_supercells=density_matrix.n_s,
         orbitals=density_config.atoms.orbitals,
+        symmetrize_edges=symmetric,
     )
 
     assert csr.shape[:-1] == new_csr.shape
@@ -93,20 +99,26 @@ def test_nodes_and_edges_to_csr(
 
 
 def test_nodes_and_edges_to_dm(
-    density_matrix, density_config, density_data, density_z_table
+    density_matrix, density_config, density_data, density_z_table, symmetric
 ):
-    atom_labels_ptr = density_z_table.atom_block_pointer(density_data.atom_types)
+    atom_labels_ptr = density_z_table.atom_block_pointer(density_data.point_types)
     edge_labels_ptr = density_z_table.edge_block_pointer(density_data.edge_types)
+    edge_index = density_data.edge_index
+    neigh_isc = density_data.neigh_isc
+    if symmetric:
+        edge_index = edge_index[:, ::2]
+        neigh_isc = neigh_isc[::2]
 
     new_csr = nodes_and_edges_to_csr(
-        density_data.atom_labels,
+        density_data.point_labels,
         atom_labels_ptr,
         density_data.edge_labels,
-        density_data.edge_index,
+        edge_index,
         edge_labels_ptr,
-        edge_neigh_isc=density_data.neigh_isc,
+        edge_neigh_isc=neigh_isc,
         n_supercells=density_matrix.n_s,
         orbitals=density_config.atoms.orbitals,
+        symmetrize_edges=symmetric,
     )
 
     new_dm = csr_to_sisl_sparse_orbital(
@@ -119,19 +131,27 @@ def test_nodes_and_edges_to_dm(
     assert np.all(abs(new_dm - density_matrix)._csr.data < 1e-7)
 
 
-def test_nodes_and_edges_to_dm_direct(density_matrix, density_data, density_z_table):
-    atom_labels_ptr = density_z_table.atom_block_pointer(density_data.atom_types)
+def test_nodes_and_edges_to_dm_direct(
+    density_matrix, density_data, density_z_table, symmetric
+):
+    atom_labels_ptr = density_z_table.atom_block_pointer(density_data.point_types)
     edge_labels_ptr = density_z_table.edge_block_pointer(density_data.edge_types)
+    edge_index = density_data.edge_index
+    neigh_isc = density_data.neigh_isc
+    if symmetric:
+        edge_index = edge_index[:, ::2]
+        neigh_isc = neigh_isc[::2]
 
     new_dm = nodes_and_edges_to_sparse_orbital(
-        density_data.atom_labels,
+        density_data.point_labels,
         atom_labels_ptr,
         density_data.edge_labels,
-        density_data.edge_index,
+        edge_index,
         edge_labels_ptr,
-        edge_neigh_isc=density_data.neigh_isc,
+        edge_neigh_isc=neigh_isc,
         geometry=density_matrix.geometry,
         sp_class=sisl.DensityMatrix,
+        symmetrize_edges=symmetric,
     )
 
     assert isinstance(new_dm, sisl.DensityMatrix)
