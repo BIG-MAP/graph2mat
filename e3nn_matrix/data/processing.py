@@ -1,7 +1,7 @@
-"""Implements the Data class to use in pytorch models."""
+"""Data processing tools to interact with the models."""
 from __future__ import annotations
 
-from typing import Optional, Tuple, Union, Dict, Any, Callable, Sequence, Type
+from typing import Optional, Tuple, Union, Dict, Any, Callable, Sequence, Generator
 from functools import cached_property
 from pathlib import Path
 import dataclasses
@@ -11,7 +11,17 @@ import warnings
 import sisl
 import numpy as np
 
+from e3nn import o3
+
 import torch
+
+try:
+    from torch_geometric.data import Batch
+except ImportError:
+
+    class Batch:
+        pass
+
 
 from .neighborhood import get_neighborhood
 from .configuration import BasisConfiguration, OrbitalConfiguration, PhysicsMatrixType
@@ -64,17 +74,156 @@ class MatrixDataProcessor:
         else:
             return {}
 
-    def output_to_matrix(
-        self, output: dict, input: BasisMatrixData, threshold: float = 1e-8
+    def matrix_from_data(
+        self,
+        data: BasisMatrixData,
+        predictions: Optional[Dict] = None,
+        threshold: float = 1e-8,
+        is_batch: Optional[bool] = None,
     ):
-        matrix_data = copy(input)
-        matrix_data.point_labels = output["node_labels"]
-        matrix_data.edge_labels = output["edge_labels"]
+        """Converts a BasisMatrixData object into a matrix.
+
+        It takes into account the matrix class associated to the data processor
+        to return the corresponding matrix type.
+
+        It can also convert batches.
+
+        Parameters
+        ------------
+        data:
+            The data to convert.
+        predictions:
+            Predictions for the matrix labels, with the keys:
+                - node_labels: matrix elements that belong to node blocks.
+                - edge_labels: matrix elements that belong to edge blocks.
+
+            If None, the labels from the data object are used.
+        threshold:
+            Elements with a value below this number will be considered 0.
+        is_batch:
+            Whether the data is a batch or not.
+
+            If None, it will be considered a batch if it is an instance of
+            `torch_geometric`'s `Batch`.
+
+        Returns
+        ---------
+        A matrix if data is not a batch, a tuple of matrices if it is a batch.
+
+        See Also
+        ---------
+        yield_from_batch: The more explicit option for batches, which returns a generator.
+        """
+
+        if is_batch is None:
+            is_batch = isinstance(data, Batch)
+        if is_batch:
+            return tuple(
+                self.yield_from_batch(data, predictions, threshold, as_matrix=True)
+            )
+
+        if predictions is not None:
+            data = copy(data)
+            data.point_labels = predictions["node_labels"]
+            data.edge_labels = predictions["edge_labels"]
 
         if self.matrix_cls is None:
-            return matrix_data.to_csr(threshold=threshold)
+            return data.to_csr(threshold=threshold)
         else:
-            return matrix_data.to_sparse_orbital_matrix(threshold=threshold)
+            return data.to_sparse_orbital_matrix(threshold=threshold)
+
+    def yield_from_batch(
+        self,
+        data: BasisMatrixData,
+        predictions: Optional[Dict] = None,
+        threshold: float = 1e-8,
+        as_matrix: bool = False,
+    ) -> Generator:
+        """Yields matrices from a batch.
+
+        It takes into account the matrix class associated to the data processor
+        to return the corresponding matrix type.
+
+        Parameters
+        ------------
+        data:
+            The batched data.
+        predictions:
+            Predictions for the matrix labels, with the keys:
+                - node_labels: matrix elements that belong to node blocks.
+                - edge_labels: matrix elements that belong to edge blocks.
+
+            If None, the labels from the data object are used.
+        threshold:
+            Elements with a value below this number will be considered 0.
+        as_matrix:
+            Whether to return a matrix or a BasisMatrixData object.
+
+        See Also
+        ---------
+        matrix_from_data: The method used to convert data to matrices, which can
+            also be called with a batch.
+        """
+        if predictions is None:
+            for i in range(data.num_graphs):
+                example = data.get_example(i)
+                if as_matrix:
+                    yield self.matrix_from_data(example, threshold=threshold)
+                else:
+                    yield example
+        else:
+            arrays = data.numpy_arrays()
+
+            # Pointer arrays to understand where the data for each structure starts in the batch.
+            atom_ptr = arrays.ptr
+            edge_ptr = np.zeros_like(atom_ptr)
+            np.cumsum(arrays.n_edges, out=edge_ptr[1:])
+
+            # Types for both atoms and edges.
+            point_types = arrays.point_types
+            edge_types = arrays.edge_types
+
+            # Get the values for the node blocks and the pointer to the start of each block.
+            node_labels_ptr = self.basis_table.point_block_pointer(point_types)
+
+            # Get the values for the edge blocks and the pointer to the start of each block.
+            if self.symmetric_matrix:
+                edge_types = edge_types[::2]
+                edge_ptr = edge_ptr // 2
+
+            edge_labels_ptr = self.basis_table.edge_block_pointer(edge_types)
+
+            # Loop through structures in the batch
+            for i, (atom_start, edge_start) in enumerate(
+                zip(atom_ptr[:-1], edge_ptr[:-1])
+            ):
+                atom_end = atom_ptr[i + 1]
+                edge_end = edge_ptr[i + 1]
+
+                # Get one example from batch
+                example = data.get_example(i)
+                # Override node and edge labels if predictions are given
+                node_labels = predictions["node_labels"]
+                edge_labels = predictions["edge_labels"]
+                new_atom_label = node_labels[
+                    node_labels_ptr[atom_start] : node_labels_ptr[atom_end]
+                ]
+                new_edge_label = edge_labels[
+                    edge_labels_ptr[edge_start] : edge_labels_ptr[edge_end]
+                ]
+
+                if getattr(example, "point_labels", None) is not None:
+                    assert len(new_atom_label) == len(example.point_labels)
+                if getattr(example, "edge_labels", None) is not None:
+                    assert len(new_edge_label) == len(example.edge_labels)
+
+                example.point_labels = new_atom_label
+                example.edge_labels = new_edge_label
+
+                if as_matrix:
+                    yield self.matrix_from_data(example, threshold=threshold)
+                else:
+                    yield example
 
     def compute_metrics(
         self,
@@ -102,7 +251,7 @@ class MatrixDataProcessor:
 
         if metrics is None:
             metrics = [
-                metric_cls() for metric_cls in OrbitalMatrixMetric.__subclasses__()
+                metric_cls for metric_cls in OrbitalMatrixMetric.__subclasses__()
             ]
 
         input_arrays = input.numpy_arrays()
@@ -122,7 +271,7 @@ class MatrixDataProcessor:
         ]
 
         return {
-            metric.__class__.__name__: float(value)
+            metric.__name__: float(value)
             for metric, value in zip(metrics, metrics_values)
         }
 
@@ -147,6 +296,81 @@ class MatrixDataProcessor:
                 new_geometry.atoms.replace_atom(atom, basis_atom)
 
         return new_geometry
+
+    def get_point_block_rtps(self):
+        basis = self.basis_table.basis
+
+        symmetry = "ij=ji" if self.symmetric_matrix else "ij"
+        return tuple(
+            o3.ReducedTensorProducts(symmetry, i=pb.irreps, j=pb.irreps) for pb in basis
+        )
+
+    def get_edge_block_rtps(self):
+        basis = self.basis_table.basis
+
+        return tuple(
+            o3.ReducedTensorProducts("ij", i=basis[i].irreps, j=basis[j].irreps)
+            for i, j in self.basis_table.edge_type_to_point_types
+        )
+
+    def irreps_from_data(self, data):
+        if not self.symmetric_matrix:
+            raise NotImplementedError("Only implemented for symmetric matrices")
+
+        point_labels = data.point_labels
+        arrays = data.numpy_arrays()
+
+        point_types = arrays["point_types"]
+        point_pointers = self.basis_table.point_block_pointer(point_types)
+
+        reduced_tensor_products = self.get_point_block_rtps()
+
+        point_irreps = []
+        point_values = []
+        for i in range(len(point_types)):
+            point_type = point_types[i]
+
+            rtp = reduced_tensor_products[point_type]
+            point_irreps.extend(list(rtp.irreps_out))
+
+            block = point_labels[point_pointers[i] : point_pointers[i + 1]]
+
+            shape = self.basis_table.point_block_shape[:, point_type]
+            block = block.reshape(tuple(shape))
+
+            irreps_values = torch.einsum("zij, ij-> z", rtp.change_of_basis, block)
+
+            point_values.append(irreps_values)
+
+        edge_labels = data.edge_labels
+        edge_types = arrays["edge_types"][::2]
+        edge_pointers = self.basis_table.edge_block_pointer(edge_types)
+
+        reduced_tensor_products = self.get_edge_block_rtps()
+
+        edge_irreps = []
+        edge_values = []
+        for i in range(len(edge_types)):
+            edge_type = edge_types[i]
+
+            rtp = reduced_tensor_products[edge_type]
+            edge_irreps.extend(list(rtp.irreps_out))
+
+            block = edge_labels[edge_pointers[i] : edge_pointers[i + 1]]
+
+            shape = self.basis_table.edge_block_shape[:, edge_type]
+            block = block.reshape(tuple(shape))
+
+            irreps_values = torch.einsum("zij, ij-> z", rtp.change_of_basis, block)
+
+            edge_values.append(irreps_values)
+
+        return {
+            "node_labels": torch.concatenate(point_values),
+            "node_irreps": o3.Irreps(point_irreps),
+            "edge_labels": torch.concatenate(edge_values),
+            "edge_irreps": o3.Irreps(edge_irreps),
+        }
 
     @staticmethod
     def sort_edge_index(
@@ -580,7 +804,139 @@ class NumpyArraysProvider:
 
 
 class BasisMatrixData:
-    num_nodes: np.ndarray
+    """Stores the preprocessed data for a single configuration.
+
+    This class is the main interface between the data and the models.
+
+    The class accepts positions, cell, and displacements in cartesian coordinates,
+    but they are converted to the convention specified by the data processor (e.g. spherical harmonics),
+    and stored in this way.
+
+    Parameters
+    ------------
+    edge_index :
+        Shape (2, n_edges).
+        Array with point pairs (their index in the configuration) that form an edge.
+    neigh_isc :
+        Shape (n_edges,).
+        Array with the index of the supercell where the second point of each edge
+        is located.
+        This follows the conventions in ``sisl``
+    node_attrs :
+        Shape (n_points, n_node_feats).
+        Inputs for each point in the configuration.
+    positions :
+        Shape (n_points, 3).
+        Cartesian coordinates of each point in the configuration.
+    shifts :
+        Shape (n_edges, 3).
+        Cartesian shift of the second atom in each edge with respect to its
+        image in the primary cell. E.g. if the second atom is in the primary cell,
+        the shift will be [0,0,0].
+    cell :
+        Shape (3,3).
+        Lattice vectors of the unit cell in cartesian coordinates.
+    nsc :
+        Shape (3,).
+        Number of auxiliary cells required in each direction to account for
+        all neighbor interactions.
+    point_labels :
+        Shape (n_point_labels,).
+        The elements of the target matrix that correspond to interactions
+        within the same node. This is flattened to deal with the fact that
+        each block might have different shape.
+
+        All values for a given block come consecutively and in row-major order.
+    edge_labels :
+        Shape (n_edge_labels,).
+        The elements of the target matrix that correspond to interactions
+        between different nodes. This is flattened to deal with the fact that
+        each block might have different shape.
+
+        All values for a given block come consecutively and in row-major order.
+
+        NOTE: These should be sorted by edge type.
+    point_types :
+        Shape (n_points,).
+        The type of each point (index in the basis table).
+    edge_types :
+        Shape (n_edges,).
+        The type of each edge as defined by the basis table.
+    edge_type_nlabels :
+        Shape (n_edge_types,).
+        Edge labels are sorted by edge type. This array contains the number of
+        labels for each edge type.
+    data_processor :
+        Data processor associated to this data.
+    metadata :
+        Contains any extra metadata that might be useful for the model or to
+        postprocess outputs, for example.
+
+    Attributes
+    ------------
+    num_nodes:
+        Number of nodes in the configuration.
+    edge_index :
+        Shape (2, n_edges).
+        Array with point pairs (their index in the configuration) that form an edge.
+    neigh_isc :
+        Shape (n_edges,).
+        Array with the index of the supercell where the second point of each edge
+        is located.
+        This follows the conventions in ``sisl``
+    node_attrs :
+        Shape (n_points, n_node_feats).
+        Inputs for each point in the configuration.
+    positions :
+        Shape (n_points, 3).
+        Coordinates of each point in the configuration, in the convention specified
+        by the data processor (e.g. spherical harmonics).
+    shifts :
+        Shape (n_edges, 3).
+        Shift of the second atom in each edge with respect to its
+        image in the primary cell, in the convention specified
+        by the data processor (e.g. spherical harmonics).
+    cell :
+        Shape (3,3).
+        Lattice vectors of the unit cell in the convention specified
+        by the data processor (e.g. spherical harmonics).
+    n_supercell:
+        Total number of auxiliary cells.
+    nsc :
+        Number of auxiliary cells required in each direction to account for
+        all neighbor interactions.
+    point_labels :
+        Shape (n_point_labels,).
+        The elements of the target matrix that correspond to interactions
+        within the same node. This is flattened to deal with the fact that
+        each block might have different shape.
+
+        All values for a given block come consecutively and in row-major order.
+    edge_labels :
+        Shape (n_edge_labels,).
+        The elements of the target matrix that correspond to interactions
+        between different nodes. This is flattened to deal with the fact that
+        each block might have different shape.
+
+        All values for a given block come consecutively and in row-major order.
+
+        NOTE: These should be sorted by edge type.
+    point_types :
+        Shape (n_points,).
+        The type of each point (index in the basis table).
+    edge_types :
+        Shape (n_edges,).
+        The type of each edge as defined by the basis table.
+    edge_type_nlabels :
+        Shape (n_edge_types,).
+        Edge labels are sorted by edge type. This array contains the number of
+        labels for each edge type.
+    metadata :
+        Contains any extra metadata that might be useful for the model or to
+        postprocess outputs, for example. It includes the data processor.
+    """
+
+    num_nodes: Optional[int]
     edge_index: np.ndarray
     neigh_isc: np.ndarray
     node_attrs: np.ndarray
@@ -591,8 +947,6 @@ class BasisMatrixData:
     nsc: np.ndarray
     point_labels: np.ndarray
     edge_labels: np.ndarray
-    point_label_ptr: np.ndarray
-    edge_label_ptr: np.ndarray
     point_types: np.ndarray
     edge_types: np.ndarray
     edge_type_nlabels: np.ndarray
@@ -607,7 +961,7 @@ class BasisMatrixData:
         positions: Optional[np.ndarray] = None,  # [n_nodes, 3]
         shifts: Optional[np.ndarray] = None,  # [n_edges, 3],
         cell: Optional[np.ndarray] = None,  # [3,3]
-        nsc: Optional[np.ndarray] = None,
+        nsc: Optional[np.ndarray] = None,  # [3,]
         point_labels: Optional[np.ndarray] = None,  # [total_point_elements]
         edge_labels: Optional[np.ndarray] = None,  # [total_edge_elements]
         point_types: Optional[np.ndarray] = None,  # [n_nodes]
@@ -709,23 +1063,31 @@ class BasisMatrixData:
 
         return data
 
+    def __getitem__(self, key: str) -> Any:
+        return self._data[key]
+
     @classmethod
     def new(
         cls,
-        obj: Union[sisl.Geometry, sisl.SparseOrbital, str, Path],
+        obj: Union[BasisConfiguration, sisl.Geometry, sisl.SparseOrbital, str, Path],
         data_processor: MatrixDataProcessor,
         labels: bool = True,
         **kwargs,
-    ):
-        config_kwargs = data_processor.get_config_kwargs(obj)
-        config_kwargs.update(kwargs)
-        config = OrbitalConfiguration.new(obj, labels=labels, **config_kwargs)
+    ) -> "BasisMatrixData":
+        if isinstance(obj, cls):
+            return obj
+        elif isinstance(obj, BasisConfiguration):
+            config = obj
+        else:
+            config_kwargs = data_processor.get_config_kwargs(obj)
+            config_kwargs.update(kwargs)
+            config = OrbitalConfiguration.new(obj, labels=labels, **config_kwargs)
 
         return cls.from_config(config, data_processor)
 
     @classmethod
     def from_config(
-        cls, config: BasisConfiguration, data_processor: MatrixDataProcessor
+        cls, config: BasisConfiguration, data_processor: MatrixDataProcessor, nsc=None
     ) -> "BasisMatrixData":
         indices = data_processor.get_point_types(config)
         one_hot = data_processor.one_hot_encode(indices)
@@ -736,7 +1098,7 @@ class BasisMatrixData:
         # can cause two atoms to be considered neighbors when there is no entry in the sparse matrix.
         edge_index, sc_shifts, shifts = get_neighborhood(
             positions=config.positions,
-            cutoff=data_processor.get_cutoff(indices) - 1e-4,
+            cutoff=data_processor.get_cutoff(indices) -1e-4, #+ 0.2,
             pbc=config.pbc,
             cell=config.cell,
         )
@@ -746,15 +1108,16 @@ class BasisMatrixData:
         sc_shifts = sc_shifts.T
 
         # Get the number of supercells needed along each direction to account for all interactions
-        if config.matrix is not None:
-            # If we already have a matrix, take the nsc of the matrix, which might be higher than
-            # the strictly needed for the overlap of orbitals.
-            # In SIESTA for example, there are the KB projectors, which add extra nonzero elements
-            # for the sparse matrices.
-            # However, these nonzero elements don't have any effect on the electronic density.
-            nsc = config.matrix.nsc
-        else:
-            nsc = abs(sc_shifts).max(axis=1) * 2 + 1
+        if nsc is None:
+            if config.matrix is not None:
+                # If we already have a matrix, take the nsc of the matrix, which might be higher than
+                # the strictly needed for the overlap of orbitals.
+                # In SIESTA for example, there are the KB projectors, which add extra nonzero elements
+                # for the sparse matrices.
+                # However, these nonzero elements don't have any effect on the electronic density.
+                nsc = config.matrix.nsc
+            else:
+                nsc = abs(sc_shifts).max(axis=1) * 2 + 1
 
         # Then build the supercell that encompasses all of those atoms, so that we can get the
         # array that converts from sc shifts (3D) to a single supercell index. This is isc_off.

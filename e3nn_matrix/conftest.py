@@ -16,8 +16,13 @@ def periodic(request):
     return request.param
 
 
+@pytest.fixture(scope="session", params=[True, False])
+def symmetric(request):
+    return request.param
+
+
 @pytest.fixture(scope="session")
-def density_matrix(periodic):
+def density_matrix(periodic, symmetric):
     rs = RandomState(32)
 
     r = np.linspace(0, 3)
@@ -67,20 +72,23 @@ def density_matrix(periodic):
         dists = dm.geometry.rij(dm.o2a(row), dm.o2a(cols))
         dm[row, cols[dists < 6]] = vals[dists < 6]
 
+    if symmetric:  # and not periodic:
+        dm = (dm + dm.transpose()) / 2
+
     return dm
 
 
 @pytest.fixture(scope="session")
 def density_z_table(density_matrix):
-    return AtomicTableWithEdges(density_matrix.atoms)
+    return AtomicTableWithEdges(density_matrix.atoms.atom)
 
 
 @pytest.fixture(scope="session")
-def density_data_processor(density_z_table):
+def density_data_processor(density_z_table, symmetric):
     return MatrixDataProcessor(
         basis_table=density_z_table,
         sub_point_matrix=False,
-        symmetric_matrix=True,
+        symmetric_matrix=symmetric,
         out_matrix="density_matrix",
     )
 

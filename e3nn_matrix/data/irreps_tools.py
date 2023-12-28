@@ -48,11 +48,13 @@ def get_atom_irreps(atom: sisl.Atom):
 
 def get_atom_from_irreps(
     irreps: Union[o3.Irreps, str],
-    orb_kwargs: Iterable[dict] = ({},),
+    orb_kwargs: Union[Iterable[dict], dict] = {},
     atom_args: Sequence = (),
     **kwargs,
 ):
     """Returns a sisl atom with the basis specified by irreps."""
+    if isinstance(orb_kwargs, dict):
+        orb_kwargs = [orb_kwargs] * len(o3.Irreps(irreps).ls)
 
     orbitals = []
     for orbital_l, orbital_kwargs in zip(o3.Irreps(irreps).ls, orb_kwargs):

@@ -19,6 +19,30 @@ from e3nn_matrix.torch.data import BasisMatrixTorchData
 from e3nn_matrix.torch.modules import BasisMatrixReadout
 
 
+def test_irreps_in(ABA_basis_configuration: BasisConfiguration):
+    config = ABA_basis_configuration
+    basis = ABA_basis_configuration.basis
+
+    input_irreps = o3.Irreps("0e + 1o")
+
+    readout = BasisMatrixReadout(
+        unique_basis=basis,
+        node_operation_kwargs={"irreps_in": input_irreps},
+        edge_operation_kwargs={
+            "irreps_in": input_irreps,
+        },
+        symmetric=True,
+    )
+
+    readout2 = BasisMatrixReadout(
+        unique_basis=basis,
+        irreps_in=input_irreps,
+        symmetric=True,
+    )
+
+    assert str(readout) == str(readout2)
+
+
 def test_readout(ABA_basis_configuration: BasisConfiguration, long_A_basis: bool):
     config = ABA_basis_configuration
     basis = ABA_basis_configuration.basis
@@ -59,8 +83,9 @@ def test_readout(ABA_basis_configuration: BasisConfiguration, long_A_basis: bool
         },
     )
 
-    matrix = processor.output_to_matrix(
-        {"node_labels": node_labels, "edge_labels": edge_labels}, data
+    matrix = processor.matrix_from_data(
+        data,
+        {"node_labels": node_labels, "edge_labels": edge_labels},
     )
 
     assert isinstance(matrix, csr_matrix)
@@ -146,13 +171,14 @@ def test_readout_filtering(
             "node_state": node_state,
             "node_types": node_types,
         },
-        edge_operation_edge_kwargs={
+        edge_kwargs={
             "edge_types": edge_types,
         },
     )
 
-    matrix = processor.output_to_matrix(
-        {"node_labels": node_labels, "edge_labels": edge_labels}, data
+    matrix = processor.matrix_from_data(
+        data,
+        {"node_labels": node_labels, "edge_labels": edge_labels},
     )
 
     assert isinstance(matrix, csr_matrix)

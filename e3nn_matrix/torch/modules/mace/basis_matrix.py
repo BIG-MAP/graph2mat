@@ -180,7 +180,7 @@ class MACEBasisMatrixReadout(BasisMatrixReadout):
             },
             node_operation_global_kwargs={},
             edge_operation_node_kwargs=edge_operation_node_kwargs,
-            edge_operation_edge_kwargs=edge_operation_edge_kwargs,
+            edge_kwargs=edge_operation_edge_kwargs,
             edge_operation_global_kwargs={},
         )
 

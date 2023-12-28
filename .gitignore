@@ -24,3 +24,6 @@ build/
 # Docs
 docs/build
 docs/api/generated
+
+# Jupyter notebook checkpoints
+**/.ipynb_checkpoints

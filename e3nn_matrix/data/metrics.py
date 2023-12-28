@@ -1,7 +1,9 @@
-from typing import Tuple, Dict, Type, Callable, Union
+from copy import copy
+
+from typing import Any, Tuple, Dict, Type, Callable, Union
 import numpy as np
 
-from .batch_utils import batch_to_orbital_matrix_data, batch_to_sparse_orbital
+from .processing import MatrixDataProcessor
 
 
 def _isnan(values):
@@ -25,7 +27,15 @@ def get_predictions_error(
     return node_error, edge_error
 
 
-class OrbitalMatrixMetric:
+class Meta(type):
+    def __call__(self, *args: Any, **kwds: Any) -> Any:
+        if len(args) == 0 and len(kwds) == 0:
+            return super().__call__()
+
+        return super().__call__().get_metric(*args, **kwds)
+
+
+class OrbitalMatrixMetric(metaclass=Meta):
     def __call__(self, *args, **kwargs):
         return self.get_metric(*args, **kwargs)
 
@@ -70,19 +80,18 @@ class OrbitalMatrixMetric:
                     "basis_table is required to compute metrics individually for each configuration."
                 )
 
-            iterator_kwargs = {
-                "symmetric_matrix": kwargs["symmetric_matrix"],
-                "basis_table": kwargs["basis_table"],
-            }
+            processor = MatrixDataProcessor(
+                basis_table=kwargs["basis_table"],
+                symmetric_matrix=kwargs["symmetric_matrix"],
+            )
 
-            target_iterator = batch_to_orbital_matrix_data(batch, **iterator_kwargs)
-            pred_iterator = batch_to_orbital_matrix_data(
+            target_iterator = processor.yield_from_batch(batch)
+            pred_iterator = processor.yield_from_batch(
                 batch,
-                prediction={
+                predictions={
                     "node_labels": kwargs["nodes_pred"],
                     "edge_labels": kwargs["edges_pred"],
                 },
-                **iterator_kwargs,
             )
 
             metrics_array = None
@@ -135,6 +144,81 @@ def block_type_mse(
     stats = {
         "node_rmse": node_loss ** (1 / 2),
         "edge_rmse": edge_loss ** (1 / 2),
+    }
+
+    if log_verbose:
+        abs_node_error = abs(node_error)
+        abs_edge_error = abs(edge_error)
+
+        stats.update(
+            {
+                "node_mean": abs_node_error.mean(),
+                "edge_mean": abs_edge_error.mean(),
+                "node_std": abs_node_error.std(),
+                "edge_std": abs_edge_error.std(),
+                "node_max": abs_node_error.max(),
+                "edge_max": abs_edge_error.max(),
+            }
+        )
+
+    return node_loss + edge_loss, stats
+
+
+# @OrbitalMatrixMetric.from_metric_func
+# def O2_d(
+#     nodes_pred, nodes_ref, edges_pred, edges_ref, log_verbose=False, **kwargs
+# ) -> Tuple[float, Dict[str, float]]:
+#     node_error, edge_error = get_predictions_error(
+#         nodes_pred, nodes_ref, edges_pred, edges_ref
+#     )
+
+#     loss = 0.
+#     for i in range(8, 13):
+#         for j in range(8, 13):
+#             loss = loss + (node_error[i * 13 + j::13**2 + 50]**2).sum()
+
+#     return loss, {}
+
+#     node_loss = abs(node_error / nodes_ref).mean()
+#     edge_loss = abs(edge_error / edges_ref).mean()
+
+#     stats = {
+#         # "node_rmse": node_loss ** (1 / 2),
+#         # "edge_rmse": edge_loss ** (1 / 2),
+#     }
+
+#     if log_verbose:
+#         abs_node_error = abs(node_error)
+#         abs_edge_error = abs(edge_error)
+
+#         stats.update(
+#             {
+#                 "node_mean": abs_node_error.mean(),
+#                 "edge_mean": abs_edge_error.mean(),
+#                 "node_std": abs_node_error.std(),
+#                 "edge_std": abs_edge_error.std(),
+#                 "node_max": abs_node_error.max(),
+#                 "edge_max": abs_edge_error.max(),
+#             }
+#         )
+
+#     return node_loss + edge_loss, stats
+
+
+@OrbitalMatrixMetric.from_metric_func
+def block_type_mape(
+    nodes_pred, nodes_ref, edges_pred, edges_ref, log_verbose=False, **kwargs
+) -> Tuple[float, Dict[str, float]]:
+    node_error, edge_error = get_predictions_error(
+        nodes_pred, nodes_ref, edges_pred, edges_ref
+    )
+
+    node_loss = abs(node_error / nodes_ref).mean()
+    edge_loss = abs(edge_error / edges_ref[~_isnan(edges_ref)]).mean()
+
+    stats = {
+        # "node_rmse": node_loss ** (1 / 2),
+        # "edge_rmse": edge_loss ** (1 / 2),
     }
 
     if log_verbose:
@@ -395,7 +479,7 @@ def normalized_density_error(
     if isinstance(batch, BasisMatrixData):
         # We haven't really received a batch, but just a single structure.
         # Do as if we received a batch of size 1.
-        matrix_error = batch
+        matrix_error = copy(batch)
         matrix_error.point_labels = errors[0]
         matrix_error.edge_labels = errors[1]
         matrix_errors = [matrix_error.to_sparse_orbital_matrix()]
@@ -404,12 +488,14 @@ def normalized_density_error(
         # as a sisl DensityMatrix.
         # Note here that we assume that the model was trained under the assumption
         # that the density matrix is symmetric, so we set symmetric_matrix=True. (Might not be the case?)
-        matrix_errors = batch_to_sparse_orbital(
+        processor = MatrixDataProcessor(
+            basis_table=basis_table, symmetric_matrix=True, out_matrix="density_matrix"
+        )
+
+        matrix_errors = processor.yield_from_batch(
             batch,
-            prediction={"node_labels": errors[0], "edge_labels": errors[1]},
-            basis_table=basis_table,
-            matrix_cls=sisl.DensityMatrix,
-            symmetric_matrix=True,
+            predictions={"node_labels": errors[0], "edge_labels": errors[1]},
+            as_matrix=True,
         )
 
     # Initialize counters

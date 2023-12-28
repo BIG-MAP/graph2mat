@@ -1,0 +1,48 @@
+/* Newlines (\a) and spaces (\20) before each parameter */
+.sig-param:not(:only-of-type):before {
+    content: "\a\20\20\20\20\20\20\20\20\20\20\20\20\20\20\20\20";
+    white-space: pre;
+}
+
+/* Closing bracket on a new line */
+em.sig-param:not(:only-of-type) + .sig-paren::before {
+    content: "\a";
+    white-space: pre;
+}
+
+/* To have blue background of width of the block (instead of width of content) */
+dl.function > dt.sig, dl.class > dt.sig {
+    display: block !important;
+}
+
+em.sig-param span.default_value {
+    color: gray;
+}
+
+/* Black and bold argument names, including **kwargs */
+em.sig-param span.n:nth-child(-n + 2) {
+    color: black;
+    font-weight: bold !important;
+}
+em.sig-param span.o:first-child {
+    color: black;
+    font-weight: bold !important;
+}
+
+/* Don't bold typehints */
+em.sig-param span.n {
+    font-weight: 300;
+}
+
+a.reference.external:visited {
+    color: inherit;
+}
+
+/* Remove number from code cells in jupyter notebooks*/
+div.nbinput .prompt, div.nboutput .prompt {
+    display: none;
+}
+
+div.nblast.container {
+    margin-bottom: 24px;
+}
