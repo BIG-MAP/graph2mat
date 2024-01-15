@@ -272,6 +272,127 @@ def block_type_mape(
 
 
 @OrbitalMatrixMetric.from_metric_func
+def block_type_mapemaemix(
+    nodes_pred, nodes_ref, edges_pred, edges_ref, log_verbose=False, **kwargs
+) -> Tuple[float, Dict[str, float]]:
+    node_error, edge_error = get_predictions_error(
+        nodes_pred, nodes_ref, edges_pred, edges_ref
+    )
+
+    node_mape = abs(node_error / nodes_ref)
+    edge_mape = abs(edge_error / edges_ref[~_isnan(edges_ref)])
+
+    node_loss = node_mape[abs(nodes_ref) > 1e-6].mean() + (100 * abs(node_error).mean())
+    edge_loss = edge_mape[abs(edges_ref[~_isnan(edges_ref)]) > 1e-6].mean() + (
+        100 * abs(edge_error).mean()
+    )
+
+    stats = {
+        # "node_rmse": node_loss ** (1 / 2),
+        # "edge_rmse": edge_loss ** (1 / 2),
+    }
+
+    if log_verbose:
+        abs_node_error = abs(node_error)
+        abs_edge_error = abs(edge_error)
+
+        stats.update(
+            {
+                "node_mean": abs_node_error.mean(),
+                "edge_mean": abs_edge_error.mean(),
+                "node_std": abs_node_error.std(),
+                "edge_std": abs_edge_error.std(),
+                "node_max": abs_node_error.max(),
+                "edge_max": abs_edge_error.max(),
+            }
+        )
+
+    return node_loss + edge_loss, stats
+
+
+@OrbitalMatrixMetric.from_metric_func
+def block_type_mapemsemix(
+    nodes_pred, nodes_ref, edges_pred, edges_ref, log_verbose=False, **kwargs
+) -> Tuple[float, Dict[str, float]]:
+    node_error, edge_error = get_predictions_error(
+        nodes_pred, nodes_ref, edges_pred, edges_ref
+    )
+
+    node_mape = abs(node_error / nodes_ref)
+    edge_mape = abs(edge_error / edges_ref[~_isnan(edges_ref)])
+
+    node_loss = (
+        node_mape[abs(nodes_ref) > 1e-6].mean() + ((100 * node_error) ** 2).mean()
+    )
+    edge_loss = (
+        edge_mape[abs(edges_ref[~_isnan(edges_ref)]) > 1e-6].mean()
+        + ((100 * edge_error) ** 2).mean()
+    )
+
+    stats = {
+        # "node_rmse": node_loss ** (1 / 2),
+        # "edge_rmse": edge_loss ** (1 / 2),
+    }
+
+    if log_verbose:
+        abs_node_error = abs(node_error)
+        abs_edge_error = abs(edge_error)
+
+        stats.update(
+            {
+                "node_mean": abs_node_error.mean(),
+                "edge_mean": abs_edge_error.mean(),
+                "node_std": abs_node_error.std(),
+                "edge_std": abs_edge_error.std(),
+                "node_max": abs_node_error.max(),
+                "edge_max": abs_edge_error.max(),
+            }
+        )
+
+    return node_loss + edge_loss, stats
+
+
+@OrbitalMatrixMetric.from_metric_func
+def block_type_mapestdmix(
+    nodes_pred, nodes_ref, edges_pred, edges_ref, log_verbose=False, **kwargs
+) -> Tuple[float, Dict[str, float]]:
+    node_error, edge_error = get_predictions_error(
+        nodes_pred, nodes_ref, edges_pred, edges_ref
+    )
+
+    node_mape = abs(node_error / nodes_ref)
+    edge_mape = abs(edge_error / edges_ref[~_isnan(edges_ref)])
+
+    node_mape = node_mape[abs(nodes_ref) > 1e-6]
+    edge_mape = edge_mape[abs(edges_ref[~_isnan(edges_ref)]) > 1e-6]
+
+    node_loss = node_mape.mean() + node_mape.std()
+    edge_loss = node_mape.mean() + node_mape.std()
+
+    stats = {
+        # "node_rmse": node_loss ** (1 / 2),
+        # "edge_rmse": edge_loss ** (1 / 2),
+    }
+
+    if log_verbose:
+        abs_node_error = abs(node_error)
+        abs_edge_error = abs(edge_error)
+
+        stats.update(
+            {
+                "node_mean": abs_node_error.mean(),
+                "edge_mean": abs_edge_error.mean(),
+                "node_std": abs_node_error.std(),
+                "edge_std": abs_edge_error.std(),
+                "node_max": abs_node_error.max(),
+                "edge_max": abs_edge_error.max(),
+            }
+        )
+
+    return node_loss + edge_loss, stats
+
+
+@OrbitalMatrixMetric.from_metric_func
 def elementwise_mse(
     nodes_pred, nodes_ref, edges_pred, edges_ref, log_verbose=False, **kwargs
 ) -> Tuple[float, Dict[str, float]]:
