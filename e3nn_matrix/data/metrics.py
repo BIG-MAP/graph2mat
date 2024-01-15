@@ -163,6 +163,38 @@ def block_type_mse(
 
     return node_loss + edge_loss, stats
 
+@OrbitalMatrixMetric.from_metric_func
+def block_type_mae(
+    nodes_pred, nodes_ref, edges_pred, edges_ref, log_verbose=False, **kwargs
+) -> Tuple[float, Dict[str, float]]:
+    node_error, edge_error = get_predictions_error(
+        nodes_pred, nodes_ref, edges_pred, edges_ref
+    )
+
+    node_loss = abs(node_error).mean()
+    edge_loss = abs(edge_error).mean()
+
+    stats = {
+        #"node_rmse": node_loss ** (1 / 2),
+        #"edge_rmse": edge_loss ** (1 / 2),
+    }
+
+    if log_verbose:
+        abs_node_error = abs(node_error)
+        abs_edge_error = abs(edge_error)
+
+        stats.update(
+            {
+                "node_mean": abs_node_error.mean(),
+                "edge_mean": abs_edge_error.mean(),
+                "node_std": abs_node_error.std(),
+                "edge_std": abs_edge_error.std(),
+                "node_max": abs_node_error.max(),
+                "edge_max": abs_edge_error.max(),
+            }
+        )
+
+    return node_loss + edge_loss, stats
 
 # @OrbitalMatrixMetric.from_metric_func
 # def O2_d(
