@@ -9,6 +9,7 @@ import dataclasses
 from pathlib import Path
 import tempfile
 from io import StringIO
+from functools import partial
 
 import sisl
 import numpy as np
@@ -19,6 +20,8 @@ import torch
 from e3nn_matrix.data.processing import MatrixDataProcessor
 from e3nn_matrix.torch.data import BasisMatrixData, BasisMatrixTorchData
 from e3nn_matrix.torch.load import load_from_lit_ckpt
+
+from e3nn_matrix.tools.server.extrapolation import create_extrapolation_app
 
 try:
     from fastapi import (
@@ -224,6 +227,24 @@ def create_server_app(
             "available_files": list(model["files"].keys()),
         }
 
+    def predict_from_geometry(model, geometry):
+        with torch.no_grad():
+            # USE THE MODEL
+            # First, we need to process the input data, to get inputs as the model expects.
+            input_data = BasisMatrixTorchData.new(
+                geometry, data_processor=model["data_processor"], labels=False
+            )
+
+            # Then, we run the model.
+            out = model["prediction_function"](input_data)
+
+            # And finally, we convert the output to a matrix.
+            matrix = model["data_processor"].matrix_from_data(
+                input_data, predictions=out
+            )
+
+        return matrix
+
     @api.post("/models/{model_name}/predict", response_class=FileResponse)
     async def predict(
         model_name: ModelName,
@@ -245,20 +266,7 @@ def create_server_app(
         # Get model.
         model = models[model_name.value]
 
-        with torch.no_grad():
-            # USE THE MODEL
-            # First, we need to process the input data, to get inputs as the model expects.
-            input_data = BasisMatrixTorchData.new(
-                geometry, data_processor=model["data_processor"], labels=False
-            )
-
-            # Then, we run the model.
-            out = model["prediction_function"](input_data)
-
-            # And finally, we convert the output to a matrix.
-            matrix = model["data_processor"].matrix_from_data(
-                input_data, predictions=out
-            )
+        matrix = predict_from_geometry(model, geometry)
 
         # WRITE THE MATRIX TO A TEMPORARY FILE
         tmp_file = tempfile.NamedTemporaryFile(suffix=".DM", delete=False)
@@ -316,20 +324,7 @@ def create_server_app(
             geometry = sisl.get_sile(runfile).read_geometry()
 
             # USE THE MODEL
-            with torch.no_grad():
-                # USE THE MODEL
-                # First, we need to process the input data, to get inputs as the model expects.
-                input_data = BasisMatrixData.new(
-                    geometry, data_processor=model["data_processor"], labels=False
-                )
-
-                # Then, we run the model.
-                out = model["prediction_function"](input_data)
-
-                # And finally, we convert the output to a matrix.
-                matrix = model["data_processor"].matrix_from_data(
-                    input_data, predictions=out
-                )
+            matrix = predict_from_geometry(model, geometry)
 
             if allow_overwrite and out_file.exists():
                 raise ValueError(
@@ -425,6 +420,14 @@ def create_server_app(
             )
 
         return metrics
+
+    # Functionality for time series forecasting
+    extrapolate_api = create_extrapolation_app(
+        matrix_refs={
+            k: partial(predict_from_geometry, model) for k, model in models.items()
+        }
+    )
+    api.mount("/extrapolation", extrapolate_api)
 
     # From here below, we define the endpoints that handle the frontend. It is a very simple
     # frontend using Jinja2 templates.
