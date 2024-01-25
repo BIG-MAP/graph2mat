@@ -67,7 +67,7 @@ def md_guess_performance_dataframe(out_file: Union[str, Path]) -> pd.DataFrame:
     out_file : Union[str, Path]
         Path to SIESTA's output file.
     """
-    out_sile = sisl.get_sile(out_file, cls=sisl.io.siesta.outSileSiesta)
+    out_sile = sisl.get_sile(out_file, cls=sisl.io.siesta.stdoutSileSiesta)
 
     # Read the first and last iteration of every scf loop,
     # we don't care about the iterations in the middle (for now)
