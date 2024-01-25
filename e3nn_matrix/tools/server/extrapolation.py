@@ -507,7 +507,8 @@ def create_extrapolation_app(
         this_series = time_series[series]
 
         # The basis table.
-        table = AtomicTableWithEdges.from_basis_dir(basis_dir, "ion.nc")
+        basis_ext = "ion.nc" if len(list(Path(basis_dir).glob("*ion.nc"))) > 0 else "ion.xml"
+        table = AtomicTableWithEdges.from_basis_dir(basis_dir, basis_ext)	
 
         # The data processor.
         processor = MatrixDataProcessor(
