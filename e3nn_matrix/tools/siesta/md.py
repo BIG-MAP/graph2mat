@@ -67,7 +67,7 @@ def md_guess_performance_dataframe(out_file: Union[str, Path]) -> pd.DataFrame:
     out_file : Union[str, Path]
         Path to SIESTA's output file.
     """
-    out_sile = sisl.get_sile(out_file, cls=sisl.io.siesta.outSileSiesta)
+    out_sile = sisl.get_sile(out_file, cls=sisl.io.siesta.stdoutSileSiesta)
 
     # Read the first and last iteration of every scf loop,
     # we don't care about the iterations in the middle (for now)
@@ -114,10 +114,15 @@ def md_guess_performance_dataframe_multi(
     dfs = []
     # Loop through output files and get the dataframe for each of them,
     # adding the run name.
+    names = []
     for out_file in out_files:
         out_file = Path(out_file)
         df = md_guess_performance_dataframe(out_file)
-        df["Run name"] = out_file.parent.name
+        name = out_file.parent.name
+        if name in names:
+            name = str(out_file.parent)
+        names.append(name)
+        df["Run name"] = name
         dfs.append(df)
 
     # Concatenate all the dataframes

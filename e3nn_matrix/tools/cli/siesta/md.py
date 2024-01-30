@@ -1,4 +1,4 @@
-from typing import Optional
+from typing import Optional, List
 from typing_extensions import Annotated
 
 import typer
@@ -8,6 +8,9 @@ app = typer.Typer(help="Utilities for molecular dynamics runs.")
 
 @app.command()
 def analyze(
+    out_files: Annotated[
+        List[str], typer.Argument(help="Paths to the output files of the MD runs.")
+    ],
     precision: Annotated[
         int, typer.Option(help="Number of decimal places to show in the table.")
     ] = 3,
@@ -17,9 +20,6 @@ def analyze(
             help="Path to save the HTML table to. If not provided, the table is displayed in the browser."
         ),
     ] = None,
-    *out_files: Annotated[
-        str, typer.Argument(help="Paths to the output files of the MD runs.")
-    ],
 ):
     """Analyzes the output of a MD run and generates a table with the performance of the run."""
     from e3nn_matrix.tools.siesta.md import visualize_performance_table
