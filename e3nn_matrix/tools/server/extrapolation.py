@@ -1,6 +1,6 @@
 """Functionality for matrix extrapolation from a time series"""
 
-from typing import Union, Type, Tuple, Any, Dict, Callable
+from typing import Union, Type, Tuple, Any, Dict, Callable, Optional
 
 from copy import copy
 from pathlib import Path
@@ -24,6 +24,7 @@ from e3nn_matrix.data import (
 )
 from e3nn_matrix.data.matrices import get_matrix_cls
 from e3nn_matrix.data.sparse import csr_to_block_dict
+from e3nn_matrix.data.processing import MatrixDataProcessor
 
 
 class DescriptorManager(ABC):
@@ -488,6 +489,7 @@ def extrapolate_from_series(
 def create_extrapolation_app(
     time_series: Union[Dict[Any, MatrixTimeSeriesState], None] = None,
     matrix_refs: Union[Dict[str, Callable], None] = None,
+    data_processors: Union[Dict[str, MatrixDataProcessor], None] = None,
 ):
     from fastapi import FastAPI
 
@@ -495,20 +497,27 @@ def create_extrapolation_app(
         time_series = {}
     if matrix_refs is None:
         matrix_refs = {}
+    if data_processors is None:
+        data_processors = {}
 
     app = FastAPI()
 
     @app.get("/init")
-    def init_time_series(history_len: int):
-        time_series[0] = MatrixTimeSeriesState(history_len)
+    def init_time_series(history_len: int, data_processor: Optional[str] = None):
+        if data_processor is not None:
+            data_processor = data_processors[data_processor]
+
+        time_series[0] = MatrixTimeSeriesState(history_len, processor=data_processor)
 
     @app.get("/setup_processor")
     def setup_processor(basis_dir: str, matrix: str, series: int = 0):
         this_series = time_series[series]
 
         # The basis table.
-        basis_ext = "ion.nc" if len(list(Path(basis_dir).glob("*ion.nc"))) > 0 else "ion.xml"
-        table = AtomicTableWithEdges.from_basis_dir(basis_dir, basis_ext)	
+        basis_ext = (
+            "ion.nc" if len(list(Path(basis_dir).glob("*ion.nc"))) > 0 else "ion.xml"
+        )
+        table = AtomicTableWithEdges.from_basis_dir(basis_dir, basis_ext)
 
         # The data processor.
         processor = MatrixDataProcessor(

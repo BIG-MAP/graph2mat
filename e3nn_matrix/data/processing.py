@@ -70,7 +70,10 @@ class MatrixDataProcessor:
 
     def get_config_kwargs(self, obj: Any) -> Dict[str, Any]:
         if isinstance(obj, (str, Path)):
-            return {"out_matrix": self.out_matrix}
+            kwargs = {"out_matrix": self.out_matrix}
+            if hasattr(self.basis_table, "atoms"):
+                kwargs["basis"] = self.basis_table.atoms
+            return kwargs
         else:
             return {}
 
@@ -1098,7 +1101,7 @@ class BasisMatrixData:
         # can cause two atoms to be considered neighbors when there is no entry in the sparse matrix.
         edge_index, sc_shifts, shifts = get_neighborhood(
             positions=config.positions,
-            cutoff=data_processor.get_cutoff(indices) -1e-4, #+ 0.2,
+            cutoff=data_processor.get_cutoff(indices) - 1e-4,  # + 0.2,
             pbc=config.pbc,
             cell=config.cell,
         )

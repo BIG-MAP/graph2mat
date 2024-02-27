@@ -20,7 +20,8 @@ Installation
    :caption: Tutorials
    :hidden:
 
-   tutorials/index
+   tutorials/low_level/index
+   tutorials/siesta_fitting/index
 
 .. toctree::
    :maxdepth: 3

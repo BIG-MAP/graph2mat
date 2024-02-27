@@ -8,6 +8,7 @@ from .request import app as request_app
 app = typer.Typer(
     help="Command line interface for e3nn_matrix functionality.",
     pretty_exceptions_show_locals=False,
+    rich_markup_mode="markdown",
 )
 
 app.add_typer(models_app, name="models")
