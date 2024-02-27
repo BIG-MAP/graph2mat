@@ -425,7 +425,8 @@ def create_server_app(
     extrapolate_api = create_extrapolation_app(
         matrix_refs={
             k: partial(predict_from_geometry, model) for k, model in models.items()
-        }
+        },
+        data_processors={k: model["data_processor"] for k, model in models.items()},
     )
     api.mount("/extrapolation", extrapolate_api)
 

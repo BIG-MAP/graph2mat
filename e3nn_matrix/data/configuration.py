@@ -1,5 +1,7 @@
 from typing import Optional, Union, Literal, Dict, Any, Sequence
 
+import warnings
+
 from pathlib import Path
 from dataclasses import dataclass
 
@@ -230,6 +232,7 @@ class OrbitalConfiguration(BasisConfiguration):
         cls,
         runfilepath: Union[str, Path],
         out_matrix: Optional[PhysicsMatrixType] = None,
+        basis: Optional[sisl.Atoms] = None,
     ) -> "OrbitalConfiguration":
         """Initializes an OrbitalConfiguration object from the main input file of a run.
 
@@ -248,16 +251,46 @@ class OrbitalConfiguration(BasisConfiguration):
         # Build some metadata so that the OrbitalConfiguration object can be traced back to the run.
         metadata = {"path": runfilepath}
 
+        def _change_geometry_basis(geometry, basis):
+            # new_atoms = geometry.atoms.copy()
+            with warnings.catch_warnings():
+                warnings.simplefilter("ignore")
+                for atom in [*geometry.atoms.atom]:
+                    for basis_at in basis:
+                        if atom.tag == basis_at.tag:
+                            geometry.atoms[atom.tag] = basis_at
+                            break
+                    else:
+                        raise ValueError(
+                            f"Atom '{atom.tag}' not found in the provided basis"
+                        )
+
+        def _read_geometry(main_input, basis):
+            # Read the geometry from the main input file
+            try:
+                geometry = main_input.read_geometry(output=True)
+            except TypeError:
+                geometry = main_input.read_geometry()
+
+            if basis is not None:
+                _change_geometry_basis(geometry, basis)
+
+            return geometry
+
         if out_matrix is not None:
             # Get the method to read the desired matrix and read it
             read = getattr(main_input, f"read_{out_matrix}")
-            matrix = read()
+            if basis is not None:
+                geometry = _read_geometry(main_input, basis)
+                matrix = read(geometry=geometry)
+            else:
+                matrix = read()
 
             # Now build the OrbitalConfiguration object using this matrix.
             return cls.from_matrix(matrix=matrix, metadata=metadata)
         else:
             # We have no matrix to read, we will just read the geometry.
-            geometry = main_input.read_geometry()
+            geometry = _read_geometry(main_input, basis)
 
             # And build the OrbitalConfiguration object using this geometry.
             return cls.from_geometry(geometry=geometry, metadata=metadata)

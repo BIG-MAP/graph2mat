@@ -171,9 +171,7 @@ class SamplewiseMetricsLogger(Callback):
         # Get the index of the current epoch
         current_epoch = trainer.current_epoch
         # And the names of the samples that we are going to log
-        sample_names = [
-            Path(path).parent.name for path in batch.metadata["path"]
-        ]
+        sample_names = [Path(path).parent.name for path in batch.metadata["path"]]
 
         # Create an iterator that will return the data to be written to the CSV file for each row.
         # That is, first the sample name, then the metrics, and finally the split and the epoch index.
@@ -208,15 +206,23 @@ class SamplewiseMetricsLogger(Callback):
         self.output_fd.close()
 
 
-class PlotMatrixValidationError(Callback):
+class PlotMatrixError(Callback):
     """Add plots of MAE and RMSE for each entry of matrix.
     Does only work if the matrix is the same format for every datapoint as in molecular dynamics data
     """
 
-    def __init__(self):
+    def __init__(
+        self,
+        split: Literal[None, "val", "test"] = None,
+        show: bool = False,
+        store_in_logger: bool = True,
+    ):
         super().__init__()
+        self.split = split
+        self.show = show
+        self.store_in_logger = store_in_logger
 
-    def on_validation_epoch_start(self, trainer, pl_module):
+    def _setup(self):
         self.node_running_ae = None
         self.node_running_se = None
         self.edge_running_ae = None
@@ -226,7 +232,7 @@ class PlotMatrixValidationError(Callback):
         self.point_types = None
         self.cell = None
 
-    def on_validation_batch_end(
+    def _on_batch_end(
         self, trainer, pl_module, outputs, batch, batch_idx, dataloader_idx
     ):
         # And the atomic table, which will help us constructing the matrices from
@@ -307,9 +313,7 @@ class PlotMatrixValidationError(Callback):
             ese + self.edge_running_se if self.edge_running_se is not None else ese
         )
 
-    def on_validation_epoch_end(self, trainer, pl_module):
-        import PIL.Image
-
+    def _on_epoch_end(self, trainer, pl_module):
         # Find out which matrix class we should use based on what matrix type the data
         # has been trained on.
         matrix_cls = {
@@ -366,16 +370,54 @@ class PlotMatrixValidationError(Callback):
                 point_lines=True,
                 basis_lines=True,
                 text=".3f",
+                colorscale="temps",
+            ).update_layout(title=label)
+
+            if self.show:
+                fig.show()
+            if self.store_in_logger:
+                import PIL.Image
+
+                # Convert image to png
+                img_bytes = fig.to_image(format="png", width=800, height=600)
+                img_buf = io.BytesIO(img_bytes)
+                img = PIL.Image.open(img_buf, formats=["PNG"])
+                # Convert to numpy array
+                img_array = np.array(img)
+                # Add to tensorboard
+                tensorboard = trainer.logger.experiment
+                tensorboard.add_image(
+                    label, img_array, dataformats="HWC", global_step=trainer.global_step
+                )
+
+    def on_validation_epoch_start(self, trainer, pl_module):
+        if self.split in [None, "val"]:
+            self._setup()
+
+    def on_validation_batch_end(
+        self, trainer, pl_module, outputs, batch, batch_idx, dataloader_idx=0
+    ):
+        if self.split in [None, "val"]:
+            self._on_batch_end(
+                trainer, pl_module, outputs, batch, batch_idx, dataloader_idx
             )
 
-            # Convert image to png
-            img_bytes = fig.to_image(format="png", width=800, height=600)
-            img_buf = io.BytesIO(img_bytes)
-            img = PIL.Image.open(img_buf, formats=["PNG"])
-            # Convert to numpy array
-            img_array = np.array(img)
-            # Add to tensorboard
-            tensorboard = trainer.logger.experiment
-            tensorboard.add_image(
-                label, img_array, dataformats="HWC", global_step=trainer.global_step
+    def on_validation_epoch_end(self, trainer, pl_module):
+        if self.split in [None, "val"]:
+            self._on_epoch_end(trainer, pl_module)
+
+    def on_test_epoch_start(self, trainer, pl_module):
+        if self.split in [None, "test"]:
+            self._setup()
+
+    def on_test_batch_end(
+        self, trainer, pl_module, outputs, batch, batch_idx, dataloader_idx=0
+    ):
+        if self.split in [None, "test"]:
+            self._on_batch_end(
+                trainer, pl_module, outputs, batch, batch_idx, dataloader_idx
             )
+
+    def on_test_epoch_end(self, trainer, pl_module):
+        if self.split in [None, "test"]:
+            self._on_epoch_end(trainer, pl_module)
