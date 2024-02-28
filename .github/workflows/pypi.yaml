@@ -51,10 +51,6 @@ jobs:
       - name: Build wheels (Linux)
         if: runner.os == 'Linux'
         uses: pypa/cibuildwheel@v2.16
-        env:
-          SKBUILD_CMAKE_ARGS: -DCMAKE_Fortran_COMPILER=${{ steps.sf.outputs.fc }};-DCMAKE_C_COMPILER=${{ steps.sf.outputs.cc }}
-          CC: ${{ steps.setup-fortran.outputs.cc }}
-          FC: ${{ steps.setup-fortran.outputs.fc }}
 
       - name: Build wheels (Windows)
         if: runner.os == 'Windows'
@@ -67,7 +63,7 @@ jobs:
           PIP_NO_CLEAN: "yes"
 
       # Upload the wheel to the action's articfact.
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v3
         with:
           path: ./wheelhouse/*.whl
 
@@ -84,7 +80,7 @@ jobs:
       - name: Build sdist
         run: pipx run build --sdist
 
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v3
         with:
           path: dist/*.tar.gz
 
