@@ -63,8 +63,9 @@ jobs:
           PIP_NO_CLEAN: "yes"
 
       # Upload the wheel to the action's articfact.
-      - uses: actions/upload-artifact@v3
+      - uses: actions/upload-artifact@v4
         with:
+          name: artifact-${{ matrix.os }}
           path: ./wheelhouse/*.whl
 
   # Build the source distribution as well
@@ -80,7 +81,7 @@ jobs:
       - name: Build sdist
         run: pipx run build --sdist
 
-      - uses: actions/upload-artifact@v3
+      - uses: actions/upload-artifact@v4
         with:
           path: dist/*.tar.gz
 
@@ -93,8 +94,8 @@ jobs:
     steps:
       - uses: actions/download-artifact@v4
         with:
-          name: artifact
           path: dist
+          merge_multiple: True
 
       - uses: pypa/gh-action-pypi-publish@v1.8.11
         with:
