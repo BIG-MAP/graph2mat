@@ -1,9 +1,103 @@
-[build-system]
-requires = [
-    "setuptools>=42",
-    "wheel",
+[project]
+requires-python = ">=3.8"
+
+name = "e3nn_matrix"
+version = "0.0.1"
+description = "Utility package to work with equivariant matrices within the e3nn framework"
+readme = "README.md"
+license = {text = "MIT"}
+keywords = [
+    "machine learning",
+    "equivariance",
+    "e3nn",
+    "matrix",
 ]
-build-backend = "setuptools.build_meta"
+
+authors = [
+    {name = "Pol Febrer", email = "pfebrer96@gmail.com"},
+    {name = "Peter B. Jørgensen", email = "peterbjorgensen@gmail.com"}
+]
+
+dependencies = [
+    "e3nn>=0.5.0",
+    "numpy",
+    "scipy",
+    "ase",
+    "sisl>=0.13.0",
+    "typer[all]",
+    "torch",
+    "torch_geometric"
+]
+
+classifiers = [
+    "Programming Language :: Python :: 3.8",
+    "Programming Language :: Python :: 3.9",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Topic :: Scientific/Engineering",
+]
+
+[project.scripts]
+e3mat = "e3nn_matrix.tools.cli.cli:app"
+
+[build-system]
+requires = ["scikit-build-core", "cython"]
+build-backend = "scikit_build_core.build"
+
+[tool.scikit-build]
+# Consider adding
+# minimum-version to choose the fallback mechanism in scikit-build-core
+wheel.packages = ["src/e3nn_matrix"]
+
+[project.optional-dependencies]
+server = [
+    "pyyaml",
+    "fastapi",
+    "uvicorn",
+    "jinja2"
+]
+
+analysis = [
+    "plotly",
+    "pandas"
+]
+
+lightning = [
+    "pytorch-lightning",
+    "jsonargparse"
+]
+
+siesta = [
+    "jinja2"
+]
+
+tools = [
+    "pyyaml",
+    "fastapi",
+    "uvicorn",
+    "plotly",
+    "pandas",
+    "pytorch-lightning",
+    "jsonargparse",
+    "jinja2"
+]
+
+docs = [
+    "pyyaml",
+    "fastapi",
+    "uvicorn",
+    "plotly",
+    "pandas",
+    "pytorch-lightning",
+    "jsonargparse",
+    "jinja2",
+    "sphinx",
+    "sphinx_autodoc_typehints",
+    "sphinx_rtd_theme",
+    "nbsphinx",
+    "ipykernel"
+]
 
 [tool.black]
 line-length = 88

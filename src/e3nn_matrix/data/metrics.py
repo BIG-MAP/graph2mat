@@ -163,6 +163,7 @@ def block_type_mse(
 
     return node_loss + edge_loss, stats
 
+
 @OrbitalMatrixMetric.from_metric_func
 def block_type_mae(
     nodes_pred, nodes_ref, edges_pred, edges_ref, log_verbose=False, **kwargs
@@ -175,8 +176,8 @@ def block_type_mae(
     edge_loss = abs(edge_error).mean()
 
     stats = {
-        #"node_rmse": node_loss ** (1 / 2),
-        #"edge_rmse": edge_loss ** (1 / 2),
+        # "node_rmse": node_loss ** (1 / 2),
+        # "edge_rmse": edge_loss ** (1 / 2),
     }
 
     if log_verbose:
@@ -195,6 +196,7 @@ def block_type_mae(
         )
 
     return node_loss + edge_loss, stats
+
 
 # @OrbitalMatrixMetric.from_metric_func
 # def O2_d(
@@ -683,6 +685,7 @@ def block_type_mse_sigmoid_thresh(
 
     return node_loss + edge_loss, stats
 
+
 @OrbitalMatrixMetric.from_metric_func
 def block_type_mae_sigmoid_thresh(
     nodes_pred,
@@ -742,6 +745,7 @@ def block_type_mae_sigmoid_thresh(
         )
 
     return node_loss + edge_loss, stats
+
 
 @OrbitalMatrixMetric.from_metric_func
 def normalized_density_error(
