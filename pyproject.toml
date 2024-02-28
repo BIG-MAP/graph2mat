@@ -99,6 +99,18 @@ docs = [
     "ipykernel"
 ]
 
+test = [
+    "pytest",
+    "pyyaml",
+    "fastapi",
+    "uvicorn",
+    "plotly",
+    "pandas",
+    "pytorch-lightning",
+    "jsonargparse",
+    "jinja2"
+]
+
 [tool.cibuildwheel]
 build-verbosity = 3
 skip = [
