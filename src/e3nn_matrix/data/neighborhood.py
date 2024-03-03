@@ -1,8 +1,11 @@
-###########################################################################################
-# Neighborhood construction
-# Authors: Ilyes Batatia, Gregor Simm
-# This program is distributed under the MIT License (see MIT.md)
-###########################################################################################
+"""Neighborhood construction.
+
+This uses ``ASE`` and is heavily based on former MACE code by
+Ilyes Batatia and Gregor Simm.
+
+A future refactoring will probably make use of ``sisl``, since this
+is the only place we depend on ASE explicitly.
+"""
 
 from typing import Optional, Tuple
 

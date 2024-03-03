@@ -301,7 +301,7 @@ Errors will probably still be decreasing, which means that if you continued trai
 would get a better model. But this is good enough for us to continue the tutorial.
 
 Using the trained model from the CLI
--------------------
+------------------------------------
 
 We now have a model that is supposedly good at predicting the density matrix of a water molecule.
 You can find **a checkpoint files, containing the model's parameters** at particular steps,
@@ -524,6 +524,7 @@ It will open a table in the browser summarizing the performance of the SCF cycle
 save the results to a csv file with the ``--save`` option.
 
 .. code-block:: bash
+
     # Ask only for the mean
     e3mat siesta md analyze RUN.out --agg mean --save results.csv
 
@@ -532,6 +533,7 @@ we need to compare with how it performed previously. Step back one directory and
 files to ``analyze``:
 
 .. code-block:: bash
+
     cd .. # To the e3mat_tutorial directory
     e3mat siesta md analyze dataset/RUN.out MD_continuation/RUN.out
 

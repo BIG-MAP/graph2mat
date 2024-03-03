@@ -1,3 +1,5 @@
+"""Simple HTTP client to interact with the server."""
+
 from typing import Union, List, Type, Optional
 
 import tempfile

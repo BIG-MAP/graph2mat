@@ -1,3 +1,5 @@
+"""Wrapping of raw models to use them in pytorch_lightning."""
+
 from pathlib import Path
 from typing import Type, Union
 import warnings
@@ -13,6 +15,8 @@ from e3nn_matrix import __version__
 
 
 class LitBasisMatrixModel(pl.LightningModule):
+    """Base class to wrap a matrix model to use it in pytorch_lightning."""
+
     basis_table: BasisTableWithEdges
     model: torch.nn.Module
     model_kwargs: dict

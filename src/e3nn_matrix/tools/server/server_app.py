@@ -1,4 +1,4 @@
-"""Implements a flask server that accepts requests to predict matrices."""
+"""Implements a fastapi server API that accepts requests to predict matrices."""
 
 
 from typing import Callable, Dict, Optional, TypedDict, List, Union

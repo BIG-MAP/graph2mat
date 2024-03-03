@@ -1,3 +1,16 @@
+"""Implements classes to store an example of the dataset in memory.
+
+A "configuration" is an object that contains all the information about a
+given example in the dataset. It contains all the features needed to
+describe the example (e.g. coordinates, lattice vectors...), and optionally
+the matrix that corresponds to this example.
+
+In a typical case, your configurations will contain the matrix as a label
+for training, validating or testing. When doing inference, the configurations
+will not have an associated matrix, since the matrix is what you are trying
+to calculate.
+"""
+
 from typing import Optional, Union, Literal, Dict, Any, Sequence
 
 import warnings

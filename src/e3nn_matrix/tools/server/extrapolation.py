@@ -1,4 +1,4 @@
-"""Functionality for matrix extrapolation from a time series"""
+"""Functionality for matrix extrapolation from a time series."""
 
 from typing import Union, Type, Tuple, Any, Dict, Callable, Optional
 

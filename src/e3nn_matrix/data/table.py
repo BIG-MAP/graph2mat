@@ -1,3 +1,17 @@
+"""Relating point types to their properties.
+
+In a dataset, different point types are represented by an integer that
+is the type index. However, there are moments in which information
+of what that type means is required. E.g. to know what's the size of
+the basis for that point or what are its irreps.
+
+All the data for the types that a model might see is stored in an object
+that we call a ``Table``.
+
+In a typical matrix, there will be elements that belong to connections between
+different points. Therefore, these tables also need to keep track of edge types.
+"""
+
 from typing import List, Sequence, Union, Generator, Literal, Optional, Callable
 
 from e3nn import o3

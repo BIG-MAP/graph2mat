@@ -1,3 +1,9 @@
+"""Conversion between different sparse representations.
+
+Different sparse representations of a matrix are required during the different
+steps of a typical workflow using ``e3nn_matrix``.
+"""
+
 from dataclasses import dataclass
 from typing import Dict, Tuple, Type, Optional
 

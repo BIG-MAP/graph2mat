@@ -1,4 +1,8 @@
-"""Data processing tools to interact with the models."""
+"""Core of the data processing.
+
+The classes here are the high-level classes that are used for graph processing,
+including the management of dataset batches.
+"""
 from __future__ import annotations
 
 from typing import Optional, Tuple, Union, Dict, Any, Callable, Sequence, Generator
@@ -793,6 +797,15 @@ class MatrixDataProcessor:
 
 
 class NumpyArraysProvider:
+    """Helper classs to get attributes from the data object making sure they are numpy arrays.
+
+    Some subclasses of `BasisMatrixData` might not use `numpy` arrays to store the data. For example,
+    they might use ``torch`` tensors. However, postprocessing tools are usually based on ``numpy``.
+
+    If you get data directly from the data class you are risking that there might be incompatibilities.
+    However, if you use the arrays provider, you can be sure that you will receive ``numpy`` arrays.
+    """
+
     def __init__(self, data: BasisMatrixData):
         self.data = data
 
@@ -807,7 +820,14 @@ class NumpyArraysProvider:
 
 
 class BasisMatrixData:
-    """Stores the preprocessed data for a single configuration.
+    """Stores a graph with the preprocessed data for one or multiple configurations.
+
+    The differences between this class and ``BasisConfiguration`` are:
+
+      - This class stores examples as graphs, while ``BasisConfiguration`` just stores the
+        raw data.
+      - This class might store a batch of examples inside the same graph. Different
+        dataset examples are just graph clusters that are not connected with each other.
 
     This class is the main interface between the data and the models.
 

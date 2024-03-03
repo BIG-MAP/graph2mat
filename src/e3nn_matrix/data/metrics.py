@@ -1,3 +1,13 @@
+"""Functions to assess performance.
+
+When answering "How similar are these two matrices?", there is no
+perfectly right answer. Depending on what you are most interested in,
+you might use any of the functions implemented here.
+
+Functions are wrapped into an ``OrbitalMatrixMetric`` class to make
+sure they share the same interface and that they are all registered.
+"""
+
 from copy import copy
 
 from typing import Any, Tuple, Dict, Type, Callable, Union

@@ -1,3 +1,8 @@
+"""Implements a custom CLI that slightly tweaks pytorch_lightning's default.
+
+Most
+"""
+
 import copy
 import os
 from pytorch_lightning.cli import (
@@ -13,6 +18,18 @@ from e3nn_matrix.torch.load import sanitize_checkpoint
 
 
 class OrbitalMatrixCLI(LightningCLI):
+    """Custom pytorch_lightning CLI optimized for matrix learning.
+
+    There are some defaults that change.
+
+    However, the most relevant change is that when loading a checkpoint
+    with the ``ckpt_path`` key, all the options stored in the checkpoint
+    file will be used as defaults. This change was made so that you can
+    just load a checkpoint file and use it without needing to provide
+    all the settings that were used to generate that checkpoint (which
+    is the way raw pytorch_lightning works).
+    """
+
     def add_arguments_to_parser(self, parser: LightningArgumentParser):
         parser.link_arguments("data.root_dir", "model.root_dir")
         parser.link_arguments("data.basis_files", "model.basis_files")

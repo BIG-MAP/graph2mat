@@ -1,3 +1,9 @@
+"""Utility tools to deal with irreps.
+
+These are basically tools to convert from/to irreps.
+"""
+
+
 from typing import Union, Sequence, Iterable
 
 import sisl

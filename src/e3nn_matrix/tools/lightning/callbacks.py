@@ -1,4 +1,13 @@
-"""Pytorch_lightning callbacks for I/O, progress tracking and visualization, etc..."""
+"""Pytorch_lightning uses callbacks that can be plugged into the main loop.
+
+Callbacks are independent from each other and can be included
+into the main loop, which might be training, testing, predicting...
+They provide some extra functionality like writing predictions to
+disk or progress tracking.
+
+This module implements some callbacks that might be useful in particular
+for the matrix learning process.
+"""
 from pathlib import Path
 from typing import Sequence, Union, Literal, Dict, Any, Type
 import io
