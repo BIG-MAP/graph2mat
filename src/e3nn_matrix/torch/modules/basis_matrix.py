@@ -257,13 +257,17 @@ class BasisMatrixReadout(torch.nn.Module):
         self_interactions = []
 
         for point_type_irreps in basis_irreps:
-            self_interactions.append(
-                MatrixBlock(
-                    i_irreps=point_type_irreps,
-                    j_irreps=point_type_irreps,
-                    **kwargs,
+            if point_type_irreps.dim == 0:
+                # The point type has no basis functions
+                self_interactions.append(None)
+            else:
+                self_interactions.append(
+                    MatrixBlock(
+                        i_irreps=point_type_irreps,
+                        j_irreps=point_type_irreps,
+                        **kwargs,
+                    )
                 )
-            )
 
         return self_interactions
 
@@ -285,12 +289,16 @@ class BasisMatrixReadout(torch.nn.Module):
                 perms.append((-edge_type, neigh_type, point_type))
 
             for signed_edge_type, point_i, point_j in perms:
-                interactions[point_i, point_j, signed_edge_type] = MatrixBlock(
-                    i_irreps=basis_irreps[point_i],
-                    j_irreps=basis_irreps[point_j],
-                    symm_transpose=neigh_type == point_type,
-                    **kwargs,
-                )
+                if basis_irreps[point_i].dim == 0 or basis_irreps[point_j].dim == 0:
+                    # One of the involved point types has no basis functions
+                    interactions[point_i, point_j, signed_edge_type] = None
+                else:
+                    interactions[point_i, point_j, signed_edge_type] = MatrixBlock(
+                        i_irreps=basis_irreps[point_i],
+                        j_irreps=basis_irreps[point_j],
+                        symm_transpose=neigh_type == point_type,
+                        **kwargs,
+                    )
 
         return interactions
 
@@ -307,6 +315,11 @@ class BasisMatrixReadout(torch.nn.Module):
         s += "Node operations:"
         for i, x in enumerate(self.self_interactions):
             point = self._unique_basis[i]
+
+            if x is None:
+                s += f"\n ({point.type}) No basis functions."
+                continue
+
             s = (
                 s
                 + f"\n ({point.type}) {str(x.operation.__class__.__name__)}: ({point.irreps})^2 -> {x._irreps_out}"
@@ -321,6 +334,10 @@ class BasisMatrixReadout(torch.nn.Module):
 
             point = self._unique_basis[point_type]
             neigh = self._unique_basis[neigh_type]
+
+            if x is None:
+                s += f"\n ({point.type}, {neigh.type}) No basis functions."
+                continue
 
             s = (
                 s
@@ -456,17 +473,24 @@ class BasisMatrixReadout(torch.nn.Module):
         return (node_labels, edge_labels)
 
     def _forward_self_interactions(
-        self, node_types: torch.Tensor, node_kwargs, global_kwargs
+        self,
+        node_types: torch.Tensor,
+        node_kwargs,
+        global_kwargs,
     ) -> torch.Tensor:
         # Allocate a list where we will store the outputs of all node blocks.
         n_nodes = len(node_types)
-        node_labels = [None] * n_nodes
+        node_labels = [torch.tensor([], device=node_types.device)] * n_nodes
 
         # Call each unique self interaction function with only the features
         # of nodes that correspond to that type.
         for node_type, func in enumerate(self.self_interactions):
+            if func is None:
+                continue
+
             # Select the features for nodes of this type
             mask = node_types == node_type
+
             # Quick exit if there are no features of this type
             if not mask.any():
                 continue
@@ -514,6 +538,10 @@ class BasisMatrixReadout(torch.nn.Module):
         # Call each unique interaction function with only the features
         # of edges that correspond to that type.
         for module_key, func in self.interactions.items():
+            if func is None:
+                # Case where one of the point types has no basis functions.
+                continue
+
             # The key of the module is the a tuple (int, int, int) converted to a string.
             point_type, neigh_type, edge_type = map(int, module_key[1:-1].split(","))
 

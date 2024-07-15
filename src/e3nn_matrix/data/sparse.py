@@ -3,8 +3,6 @@
 Different sparse representations of a matrix are required during the different
 steps of a typical workflow using ``e3nn_matrix``.
 """
-
-from dataclasses import dataclass
 from typing import Dict, Tuple, Type, Optional
 
 import itertools
@@ -23,13 +21,25 @@ def csr_to_block_dict(
     spmat: sisl.SparseCSR,
     atoms: sisl.Atoms,
     nsc: np.ndarray,
+    geometry_atoms: Optional[sisl.Atoms] = None,
     matrix_cls: Type[OrbitalMatrix] = OrbitalMatrix,
 ) -> OrbitalMatrix:
-    """
-    Creates a OrbitalMatrix object from a SparseCSR matrix
-    In the block dictionary of the OrbitalMatrix:
-    Each key is a 2-tuple of atom indices
-    each value is the corresponding block of the orbital matrix as a dense numpy ndarray
+    """Creates a OrbitalMatrix object from a SparseCSR matrix
+
+    Parameters
+    ----------
+    spmat :
+        The sparse matrix to convert to a block dictionary.
+    atoms :
+        The atoms object for the matrix, containing orbital information.
+    nsc :
+        The auxiliary supercell size.
+    matrix_cls :
+        Matrix class to initialize.
+    geometry_atoms :
+        The atoms object for the full geometry. This allows the matrix to contain
+        atoms without any orbital. Geometry atoms should contain the matrix atoms
+        first and then the orbital-less atoms.
     """
     orbitals = atoms.orbitals
 
@@ -41,6 +51,8 @@ def csr_to_block_dict(
         orbitals=orbitals,
         n_atoms=len(atoms.specie),
     )
+
+    orbitals = geometry_atoms.orbitals if geometry_atoms is not None else atoms.orbitals
 
     return matrix_cls(block_dict=block_dict, nsc=nsc, orbital_count=orbitals)
 

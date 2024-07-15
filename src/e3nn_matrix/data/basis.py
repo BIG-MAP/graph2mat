@@ -51,6 +51,9 @@ class PointBasis:
     irreps : o3.Irreps
         Irreps of the basis. E.g. ``o3.Irreps("3x0e + 2x1o")``
         for a basis with 3 l=0 functions and 2 sets of l=1 functions.
+
+        ``o3.Irreps("")``, the default value, means that this point
+        has no basis functions.
     R : Union[float, np.ndarray]
         The reach of the basis.
         If a float, the same reach is used for all functions.
@@ -75,17 +78,17 @@ class PointBasis:
         # Let's create a basis with 3 l=0 functions and 2 sets of l=1 functions.
         # The convention for spherical harmonics will be the standard one.
         # We call this type of basis set "A", and functions have a reach of 5.
-        basis = PointBasis("A", "spherical", o3.Irreps("3x0e + 2x1o"), 5)
+        basis = PointBasis("A", R=5, irreps=o3.Irreps("3x0e + 2x1o"), basis_convention="spherical")
 
         # Same but with a different reach for l=0 (R=5) and l=1 functions (R=3).
-        basis = PointBasis("A", "spherical", o3.Irreps("3x0e + 2x1o"), np.array([5, 5, 5, 3, 3, 3, 3, 3, 3]))
+        basis = PointBasis("A", R=np.array([5, 5, 5, 3, 3, 3, 3, 3, 3]), irreps=o3.Irreps("3x0e + 2x1o"), basis_convention="spherical" )
 
     """
 
     type: Union[str, int]
-    basis_convention: BasisConvention
-    irreps: o3.Irreps
     R: Union[float, np.ndarray]
+    irreps: o3.Irreps = o3.Irreps("")
+    basis_convention: BasisConvention = "spherical"
 
     def __post_init__(self):
         assert isinstance(self.R, Number) or (
@@ -141,7 +144,7 @@ class PointBasis:
             type=atom.Z,
             basis_convention=basis_convention,
             irreps=get_atom_irreps(atom),
-            R=atom.R,
+            R=atom.R if atom.no != 0 else atom.R[0],
         )
 
     def to_sisl_atom(self, Z: int = 1) -> "sisl.Atom":
@@ -154,6 +157,9 @@ class PointBasis:
         """
 
         import sisl
+
+        if self.basis_size == 0:
+            return NoBasisAtom(Z=Z, R=self.R)
 
         orbitals = []
 
@@ -174,3 +180,17 @@ class PointBasis:
                     i += 1
 
         return sisl.Atom(Z=Z, orbitals=orbitals)
+
+class NoBasisAtom(sisl.Atom):
+    """Placeholder for atoms without orbitals.
+    
+    This should no longer be needed once sisl allows atoms with 0 orbitals."""
+
+    @property
+    def no(self):
+        return 0
+    
+    @property
+    def q0(self):
+        return np.array([])
+    

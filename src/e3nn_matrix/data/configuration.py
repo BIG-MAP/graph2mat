@@ -21,7 +21,7 @@ from dataclasses import dataclass
 import numpy as np
 import sisl
 
-from .basis import PointBasis
+from .basis import PointBasis, NoBasisAtom
 from .matrices import OrbitalMatrix, BasisMatrix, get_matrix_cls
 from .sparse import csr_to_block_dict
 
@@ -233,7 +233,11 @@ class OrbitalConfiguration(BasisConfiguration):
             # sparse structure.
             matrix_cls = get_matrix_cls(matrix.__class__)
             matrix_block = csr_to_block_dict(
-                matrix._csr, matrix.atoms, nsc=matrix.nsc, matrix_cls=matrix_cls
+                matrix._csr,
+                matrix.atoms,
+                nsc=matrix.nsc,
+                matrix_cls=matrix_cls,
+                geometry_atoms=geometry.atoms,
             )
 
             kwargs["matrix"] = matrix_block
@@ -244,6 +248,7 @@ class OrbitalConfiguration(BasisConfiguration):
     def from_run(
         cls,
         runfilepath: Union[str, Path],
+        geometry_path: Optional[Union[str, Path]] = None,
         out_matrix: Optional[PhysicsMatrixType] = None,
         basis: Optional[sisl.Atoms] = None,
     ) -> "OrbitalConfiguration":
@@ -290,6 +295,35 @@ class OrbitalConfiguration(BasisConfiguration):
 
             return geometry
 
+        def _copy_basis(
+            original: sisl.Geometry, geometry: sisl.Geometry, notfound_ok=False
+        ) -> sisl.Geometry:
+            import warnings
+
+            new_geometry = geometry.copy()
+
+            for atom in geometry.atoms.atom:
+                for basis_atom in original.atoms:
+                    if basis_atom.tag == atom.tag:
+                        break
+                else:
+                    if not notfound_ok:
+                        raise ValueError(f"Couldn't find atom {atom} in the basis")
+                    basis_atom = NoBasisAtom(atom.Z, tag=atom.tag)
+
+                with warnings.catch_warnings():
+                    warnings.simplefilter("ignore")
+                    new_geometry.atoms.replace_atom(atom, basis_atom)
+
+            return new_geometry
+        
+        if isinstance(main_input, sisl.io.fdfSileSiesta):
+            type_of_run = main_input.get("MD.TypeOfRun")
+            if type_of_run == "qmmm":
+                pipe_file = main_input.get("QMMM.Driver.QMRegionFile")
+                #geometry_path = main_input.file.parent / (pipe_file.split(".")[0] + ".last.pdb")
+                geometry_path = main_input.file.parent / (pipe_file.split(".")[0] + ".XV")
+
         if out_matrix is not None:
             # Get the method to read the desired matrix and read it
             read = getattr(main_input, f"read_{out_matrix}")
@@ -299,11 +333,32 @@ class OrbitalConfiguration(BasisConfiguration):
             else:
                 matrix = read()
 
+            kwargs = {}
+            if geometry_path is not None:
+                # If we have a geometry path, we will read the geometry from there.
+                #from ase.io import read
+
+                kwargs["geometry"] = sisl.Geometry.read(geometry_path)
+                kwargs["geometry"] = _copy_basis(
+                    matrix.geometry, kwargs["geometry"], notfound_ok=True
+                )
+
+            metadata["geometry"] = kwargs.get("geometry", matrix.geometry)
+
             # Now build the OrbitalConfiguration object using this matrix.
-            return cls.from_matrix(matrix=matrix, metadata=metadata)
+            return cls.from_matrix(matrix=matrix, metadata=metadata, **kwargs)
         else:
             # We have no matrix to read, we will just read the geometry.
             geometry = _read_geometry(main_input, basis)
+
+            if geometry_path is not None:
+                # If we have a geometry path, we will read the geometry from there.
+                from ase.io import read
+
+                new_geometry = sisl.Geometry.new(read(geometry_path))
+                geometry = _copy_basis(geometry, new_geometry, notfound_ok=True)
+
+            metadata["geometry"] = geometry
 
             # And build the OrbitalConfiguration object using this geometry.
             return cls.from_geometry(geometry=geometry, metadata=metadata)

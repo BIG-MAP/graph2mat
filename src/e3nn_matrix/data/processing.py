@@ -5,7 +5,7 @@ including the management of dataset batches.
 """
 from __future__ import annotations
 
-from typing import Optional, Tuple, Union, Dict, Any, Callable, Sequence, Generator
+from typing import Optional, Tuple, Union, Dict, Any, Callable, Sequence, Generator, List
 from functools import cached_property
 from pathlib import Path
 import dataclasses
@@ -58,6 +58,8 @@ class MatrixDataProcessor:
     symmetric_matrix: bool = False
     sub_point_matrix: bool = True
     out_matrix: Optional[PhysicsMatrixType] = None
+    node_attr_getters: List[Any] = dataclasses.field(default_factory=list)
+    
 
     def copy(self, **kwargs):
         """Create a copy of the object with the given attributes replaced."""
@@ -81,6 +83,28 @@ class MatrixDataProcessor:
         else:
             return {}
 
+    def torch_predict(self, torch_model, geometry: sisl.Geometry):  
+        import torch
+        
+        from ..torch import BasisMatrixTorchData
+
+        with torch.no_grad():
+            # USE THE MODEL
+            # First, we need to process the input data, to get inputs as the model expects.
+            input_data = BasisMatrixTorchData.new(
+                geometry, data_processor=self, labels=False
+            )
+
+            # Then, we run the model.
+            out = torch_model(input_data)
+
+            # And finally, we convert the output to a matrix.
+            matrix = self.matrix_from_data(
+                input_data, predictions=out
+            )
+
+        return matrix
+    
     def matrix_from_data(
         self,
         data: BasisMatrixData,
@@ -638,6 +662,10 @@ class MatrixDataProcessor:
 
         return point_labels, edge_labels
 
+    def get_node_attrs(self, config: BasisConfiguration) -> np.ndarray:
+        """Returns the initial features of nodes."""
+        return np.concatenate([getter(config, self) for getter in self.node_attr_getters], axis=1)
+    
     def one_hot_encode(self, point_types: np.ndarray) -> np.ndarray:
         """One hot encodes a vector of point types.
 
@@ -792,6 +820,11 @@ class MatrixDataProcessor:
             symmetrize_edges=self.symmetric_matrix,
             threshold=threshold,
         )
+
+        # Remove atoms with no basis.
+        for i, point_basis in enumerate(self.basis_table.basis):
+            if point_basis.basis_size == 0:
+                matrix = matrix.remove(unique_atoms[i])
 
         return matrix
 
@@ -959,6 +992,9 @@ class BasisMatrixData:
         postprocess outputs, for example. It includes the data processor.
     """
 
+    _node_attr_keys = ("node_attrs", "positions", "point_types")
+    _edge_attr_keys = ("edge_types", "shifts", "neigh_isc")
+
     num_nodes: Optional[int]
     edge_index: np.ndarray
     neigh_isc: np.ndarray
@@ -973,6 +1009,8 @@ class BasisMatrixData:
     point_types: np.ndarray
     edge_types: np.ndarray
     edge_type_nlabels: np.ndarray
+    labels_point_filter: np.ndarray
+    labels_edge_filter: np.ndarray
     metadata: Dict[str, Any]
 
     def __init__(
@@ -987,6 +1025,8 @@ class BasisMatrixData:
         nsc: Optional[np.ndarray] = None,  # [3,]
         point_labels: Optional[np.ndarray] = None,  # [total_point_elements]
         edge_labels: Optional[np.ndarray] = None,  # [total_edge_elements]
+        labels_point_filter: Optional[np.ndarray] = None,  # [n_point_labels]
+        labels_edge_filter: Optional[np.ndarray] = None,  # [n_edge_labels]
         point_types: Optional[np.ndarray] = None,  # [n_nodes]
         edge_types: Optional[np.ndarray] = None,  # [n_edges]
         edge_type_nlabels: Optional[np.ndarray] = None,  # [n_edge_types]
@@ -1003,6 +1043,8 @@ class BasisMatrixData:
             nsc=nsc,
             point_labels=point_labels,
             edge_labels=edge_labels,
+            labels_point_filter=labels_point_filter,
+            labels_edge_filter=labels_edge_filter,
             point_types=point_types,
             edge_types=edge_types,
             edge_type_nlabels=edge_type_nlabels,
@@ -1024,6 +1066,8 @@ class BasisMatrixData:
         nsc: Optional[np.ndarray] = None,
         point_labels: Optional[np.ndarray] = None,  # [total_point_elements]
         edge_labels: Optional[np.ndarray] = None,  # [total_edge_elements]
+        labels_point_filter: Optional[np.ndarray] = None,  # [total_point_elements]
+        labels_edge_filter: Optional[np.ndarray] = None,  # [total_edge_elements]
         point_types: Optional[np.ndarray] = None,  # [n_nodes]
         edge_types: Optional[np.ndarray] = None,  # [n_edges]
         edge_type_nlabels: Optional[np.ndarray] = None,  # [n_edge_types]
@@ -1113,7 +1157,7 @@ class BasisMatrixData:
         cls, config: BasisConfiguration, data_processor: MatrixDataProcessor, nsc=None
     ) -> "BasisMatrixData":
         indices = data_processor.get_point_types(config)
-        one_hot = data_processor.one_hot_encode(indices)
+        node_attrs = data_processor.get_node_attrs(config)
 
         # Search for the neighbors. We use the max radius of each atom as cutoff for looking over neighbors.
         # This means that two atoms ij are neighbors if they have some overlap between their orbitals. That is
@@ -1172,7 +1216,7 @@ class BasisMatrixData:
         return cls(
             edge_index=edge_index,
             neigh_isc=neigh_isc,
-            node_attrs=one_hot,
+            node_attrs=node_attrs,
             positions=config.positions,
             shifts=shifts,
             cell=config.cell if config.cell is not None else None,
@@ -1218,3 +1262,53 @@ class BasisMatrixData:
         arrays = self.numpy_arrays()
 
         return data_processor.labels_to_sparse_orbital(arrays, threshold=threshold)
+
+    def node_types_subgraph(self, node_types: np.ndarray) -> "BasisMatrixData":
+        """Returns a subgraph with only the nodes of the given types.
+
+        If the BasisMatrixData has labels (i.e. a matrix), this function will
+        raise an error because we don't support filtering labels yet.
+
+        Parameters
+        ----------
+        node_types :
+            Array with the node types to keep.
+        """
+        # Initialize the data dictionary, removing the num_nodes and n_edges keys
+        # which should be recomputed on init. Also, pass the data processor as an argument.
+        new_data = {**self._data}
+        new_data.pop("num_nodes")
+        new_data.pop("n_edges")
+        new_data["metadata"] = new_data["metadata"].copy()
+        new_data["data_processor"] = new_data["metadata"].pop("data_processor", None)
+
+        # Filtering point labels and edge labels is complicated, we don't support it yet
+        if "point_labels" in new_data or "edge_labels" in new_data:
+            raise ValueError("point_labels and edge_labels are not supported yet")
+
+        # Find the indices of the nodes that belong to the requested types
+        mask = np.isin(self.point_types, node_types)
+        # And the edge indices for edges between nodes that we will keep
+        edge_mask = np.all(mask[self.edge_index], axis=0)
+
+        # Filter node attributes
+        for k in self._node_attr_keys:
+            if new_data.get(k) is not None:
+                new_data[k] = new_data[k][mask]
+
+        # Filter edge indices
+        new_data["edge_index"] = new_data["edge_index"][:, edge_mask]
+
+        # Filter edge attributes
+        for k in self._edge_attr_keys:
+            if new_data.get(k) is not None:
+                new_data[k] = new_data[k][edge_mask]
+
+        # Set nlabels to 0 for edge types that are not present anymore
+        new_data["edge_type_nlabels"] = copy(new_data["edge_type_nlabels"])
+        u_edge_types = abs(new_data["edge_types"]).unique()
+        for i in range(new_data["edge_type_nlabels"].shape[1]):
+            if i not in u_edge_types:
+                new_data["edge_type_nlabels"][:, i] = 0
+
+        return self.__class__(**new_data)

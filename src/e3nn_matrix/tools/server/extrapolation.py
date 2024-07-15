@@ -386,7 +386,12 @@ class MatrixTimeSeriesState:
         next_config = OrbitalConfiguration.from_geometry(
             geometry, metadata={"geometry": geometry}
         )
-        self.configs.append(next_config)
+        self.add_next_config(next_config)
+
+    def add_next_config(self, config):
+        print("ADDING CONFIG")
+        print(config.metadata["geometry"])
+        self.configs.append(config)
 
     def add_last_matrix_ref(self, matrix_ref):
         self.last_matrix_ref = matrix_ref
@@ -539,6 +544,7 @@ def create_extrapolation_app(
         descriptor_order: int = 2,
         node_rcond: float = 1e-6,
         edge_rcond: float = 1e-6,
+        m_0: Optional[str] = None,
     ):
         this_series = time_series[series]
 
@@ -576,26 +582,36 @@ def create_extrapolation_app(
             if this_series.last_matrix_ref is not None:
                 m = m + this_series.last_matrix_ref
 
+        if m_0 is not None:
+            mat_0 = sisl.get_sile(m_0).read_density_matrix(geometry=m.geometry)
+            m = mat_0 + m
+
         m.write(out)
 
     @app.get("/add_step")
     def add_geometry(path: str, series: int = 0, matrix_ref: Union[str, None] = None):
-        geometry = sisl.get_sile(path).read_geometry(output=True)
-        time_series[series].add_next_geometry(geometry)
+
+        config = OrbitalConfiguration.from_run(path)
+        time_series[series].add_next_config(config)
 
         if matrix_ref is not None:
-            time_series[series].add_last_matrix_ref(matrix_refs[matrix_ref](geometry))
+            time_series[series].add_last_matrix_ref(matrix_refs[matrix_ref](config.metadata["geometry"]))
 
         # geometry_xv = sisl.get_sile(Path(path).parent / "siesta.XV").read_geometry()
 
         # print("XV", np.allclose(geometry.xyz, geometry_xv.xyz))
 
     @app.get("/add_matrix")
-    def add_matrix(path: str, series: int = 0):
+    def add_matrix(path: str, series: int = 0, m_0: Optional[str] = None):
         this_series = time_series[series]
 
         sile = sisl.get_sile(path)
         matrix = getattr(sile, f"read_{this_series.processor.out_matrix}")()
+
+        if m_0 is not None:
+            mat_0 = getattr(sisl.get_sile(m_0), f"read_{this_series.processor.out_matrix}")()
+            matrix = matrix - mat_0
+
         this_series.add_last_matrix(matrix)
 
     return app

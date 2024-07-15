@@ -1,4 +1,5 @@
 """Data loading for pytorch_lightning workflows."""
+from typing import Type, Union, List
 
 import json
 import math
@@ -18,6 +19,7 @@ from torch_geometric.loader.dataloader import DataLoader
 from e3nn_matrix.data.configuration import PhysicsMatrixType
 from e3nn_matrix.data.table import BasisTableWithEdges, AtomicTableWithEdges
 from e3nn_matrix.data.processing import MatrixDataProcessor
+from e3nn_matrix.data.node_feats import NodeFeature
 from e3nn_matrix.torch.data import BasisMatrixTorchData
 from e3nn_matrix.torch.dataset import (
     BasisMatrixDataset,
@@ -31,6 +33,7 @@ class MatrixDataModule(pl.LightningDataModule):
         self,
         out_matrix: Optional[PhysicsMatrixType] = None,
         basis_files: Optional[str] = None,
+        no_basis: Optional[dict] = None,
         basis_table: Optional[BasisTableWithEdges] = None,
         root_dir: str = ".",
         train_runs: Optional[str] = None,
@@ -45,6 +48,7 @@ class MatrixDataModule(pl.LightningDataModule):
         copy_root_to_tmp: bool = False,
         store_in_memory: bool = False,
         rotating_pool_size: Optional[int] = None,
+        initial_node_feats: str = "OneHotZ",
     ):
         """
 
@@ -83,9 +87,11 @@ class MatrixDataModule(pl.LightningDataModule):
         self.root_dir = root_dir
 
         self.basis_files = basis_files
+        self.no_basis = no_basis
         self.basis_table = basis_table
         self.out_matrix: Optional[PhysicsMatrixType] = out_matrix
         self.symmetric_matrix = symmetric_matrix
+        self.initial_node_feats = [NodeFeature.registry[k] for k in initial_node_feats.split(" ")]
 
         self.train_runs = train_runs
         self.val_runs = val_runs
@@ -127,7 +133,7 @@ class MatrixDataModule(pl.LightningDataModule):
             # Read the basis from the basis files provided.
             assert self.basis_files is not None
             self.basis_table = AtomicTableWithEdges.from_basis_glob(
-                Path(root).glob(self.basis_files)
+                Path(root).glob(self.basis_files), no_basis_atoms=self.no_basis
             )
 
         # Initialize the data.
@@ -151,6 +157,7 @@ class MatrixDataModule(pl.LightningDataModule):
             out_matrix=self.out_matrix,
             symmetric_matrix=self.symmetric_matrix,
             sub_point_matrix=self.sub_point_matrix,
+            node_attr_getters=self.initial_node_feats,
         )
 
         # Set the paths for each split

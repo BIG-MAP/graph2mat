@@ -228,22 +228,7 @@ def create_server_app(
         }
 
     def predict_from_geometry(model, geometry):
-        with torch.no_grad():
-            # USE THE MODEL
-            # First, we need to process the input data, to get inputs as the model expects.
-            input_data = BasisMatrixTorchData.new(
-                geometry, data_processor=model["data_processor"], labels=False
-            )
-
-            # Then, we run the model.
-            out = model["prediction_function"](input_data)
-
-            # And finally, we convert the output to a matrix.
-            matrix = model["data_processor"].matrix_from_data(
-                input_data, predictions=out
-            )
-
-        return matrix
+        return model["data_processor"].torch_predict(model["prediction_function"], geometry)
 
     @api.post("/models/{model_name}/predict", response_class=FileResponse)
     async def predict(

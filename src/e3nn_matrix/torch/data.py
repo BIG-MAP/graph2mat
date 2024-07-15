@@ -49,7 +49,9 @@ class BasisMatrixTorchData(BasisMatrixData, Data):
         return Data.__getitem__(self, key)
 
     def process_input_array(self, key: str, array: np.ndarray) -> Any:
-        if issubclass(array.dtype.type, float):
+        if isinstance(array, torch.Tensor):
+            return array
+        elif issubclass(array.dtype.type, float):
             return torch.tensor(array, dtype=torch.get_default_dtype())
         else:
             return torch.tensor(array)
@@ -59,3 +61,13 @@ class BasisMatrixTorchData(BasisMatrixData, Data):
             return array.numpy(force=True)
         else:
             return np.array(array)
+
+    def is_node_attr(self, key: str) -> bool:
+        return key in self._node_attr_keys
+
+    def is_edge_attr(self, key: str) -> bool:
+        return key in self._edge_attr_keys
+
+    @property
+    def _data(self):
+        return {**self._store}
