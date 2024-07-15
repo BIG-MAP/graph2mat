@@ -1,4 +1,4 @@
-from typing import Type, Union
+from typing import Type, Union, Optional
 
 from e3nn import o3
 import torch
@@ -30,6 +30,7 @@ class LitOrbitalMatrixMACE(LitBasisMatrixModel):
         root_dir: str = ".",
         basis_files: Union[str, None] = None,
         basis_table: Union[BasisTableWithEdges, None] = None,
+        no_basis: Optional[dict] = None,
         # r_max: float=3.0,
         num_bessel: int = 10,
         num_polynomial_cutoff: int = 3,
@@ -45,6 +46,7 @@ class LitOrbitalMatrixMACE(LitBasisMatrixModel):
         avg_num_neighbors: float = 1.0,
         # atomic_numbers: List[int],
         correlation: int = 1,
+        initial_node_feats: str = "OneHotZ",
         # unique_atoms: Sequence[sisl.Atom],
         matrix_readout: Type[MACEBasisMatrixReadout] = MACEBasisMatrixReadout,
         symmetric_matrix: bool = False,
@@ -60,7 +62,9 @@ class LitOrbitalMatrixMACE(LitBasisMatrixModel):
             root_dir=root_dir,
             basis_files=basis_files,
             basis_table=basis_table,
+            no_basis=no_basis,
             loss=loss,
+            initial_node_feats=initial_node_feats,
             model_cls=OrbitalMatrixMACE,
         )
         self.save_hyperparameters()
@@ -89,6 +93,7 @@ class LitOrbitalMatrixMACE(LitBasisMatrixModel):
             node_block_readout=node_block_readout,
             edge_block_readout=edge_block_readout,
             only_last_readout=only_last_readout,
+            node_attr_irreps=self.initial_node_feats_irreps,
         )
 
     def configure_optimizers(self):

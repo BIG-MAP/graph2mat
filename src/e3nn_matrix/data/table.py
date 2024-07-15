@@ -24,8 +24,7 @@ import numpy as np
 import sisl
 
 from .basis import PointBasis, BasisConvention, get_change_of_basis
-
-
+            
 class BasisTableWithEdges:
     """Stores the unique types of points in the system, with their basis and the possible edges.
 
@@ -132,6 +131,7 @@ class BasisTableWithEdges:
     def __init__(
         self, basis: Sequence[PointBasis], get_point_matrix: Optional[Callable] = None
     ):
+        self._init_args = {"atoms": basis, "get_point_matrix": get_point_matrix}
         self.basis = list(basis)
 
         self.types = [point_basis.type for point_basis in self.basis]
@@ -377,15 +377,24 @@ class AtomicTableWithEdges(BasisTableWithEdges):
     def __init__(self, atoms: Sequence[sisl.Atom]):
         from .matrices.physics.density_matrix import get_atomic_DM
 
-        self.atoms = list(atoms)
+        self.atoms = list([atom if isinstance(atom, sisl.Atom) else atom.to_sisl_atom(Z=atom.type) for atom in atoms])
 
-        basis = [PointBasis.from_sisl_atom(atom) for atom in self.atoms]
+        basis = [
+            PointBasis.from_sisl_atom(atom)
+            if not isinstance(atom, PointBasis)
+            else atom
+            for atom in atoms
+        ]
 
         super().__init__(basis=basis, get_point_matrix=None)
+        self._init_args = {"atoms": atoms}
 
         # Get the point matrix for each type. This is the matrix that a point would
         # have if it was the only one in the system, and it depends only on the type.
-        self.point_matrix = [get_atomic_DM(atom) for atom in self.atoms]
+        self.point_matrix = [
+            get_atomic_DM(atom) if not isinstance(atom, PointBasis) else None
+            for atom in self.atoms
+        ]
 
         self.file_names = None
         self.file_contents = None
@@ -414,7 +423,10 @@ class AtomicTableWithEdges(BasisTableWithEdges):
 
     @classmethod
     def from_basis_dir(
-        cls, basis_dir: str, basis_ext: str = "ion.xml"
+        cls,
+        basis_dir: str,
+        basis_ext: str = "ion.xml",
+        no_basis_atoms: Optional[dict] = None,
     ) -> "AtomicTableWithEdges":
         """Generates a table from a directory containing basis files.
 
@@ -427,11 +439,13 @@ class AtomicTableWithEdges(BasisTableWithEdges):
         """
         basis_path = Path(basis_dir)
 
-        return cls.from_basis_glob(basis_path.glob(f"*.{basis_ext}"))
+        return cls.from_basis_glob(
+            basis_path.glob(f"*.{basis_ext}"), no_basis_atoms=no_basis_atoms
+        )
 
     @classmethod
     def from_basis_glob(
-        cls, basis_glob: Union[str, Generator]
+        cls, basis_glob: Union[str, Generator], no_basis_atoms: Optional[dict] = None
     ) -> "AtomicTableWithEdges":
         """Generates a table from basis files that match a glob pattern.
 
@@ -452,6 +466,12 @@ class AtomicTableWithEdges(BasisTableWithEdges):
             # with open(basis_file, "r") as f:
             #    file_contents.append(f.read())
             basis.append(sisl.get_sile(basis_file).read_basis())
+
+        if no_basis_atoms is not None:
+            for k, v in no_basis_atoms.items():
+                basis.append(
+                    PointBasis(k, R=v["R"], basis_convention="siesta_spherical")
+                )
 
         obj = cls(basis)
         # obj.file_names = file_names

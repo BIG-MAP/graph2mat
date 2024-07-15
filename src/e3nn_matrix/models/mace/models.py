@@ -1,6 +1,6 @@
 """Variant of the MACE model using the orbital matrix readouts."""
 
-from typing import Any, Dict, Type, Sequence
+from typing import Any, Dict, Type, Sequence, Optional
 
 import torch
 from e3nn import o3
@@ -40,12 +40,16 @@ class OrbitalMatrixMACE(torch.nn.Module):
         node_block_readout: Type[NodeBlock],
         edge_block_readout: Type[EdgeBlock],
         only_last_readout: bool,
+        node_attr_irreps: Optional[o3.Irreps] = None,
     ):
         super().__init__()
         self.r_max = r_max
+        self.num_elements = num_elements
         # Embedding
-        node_attr_irreps = o3.Irreps([(num_elements, (0, 1))])
-        node_feats_irreps = o3.Irreps([(hidden_irreps.count(o3.Irrep(0, 1)), (0, 1))])
+        if node_attr_irreps is None:
+            node_attr_irreps = o3.Irreps([(num_elements, (0, 1))])
+        node_feats_irreps = o3.Irreps([(hidden_irreps.count(ir.ir), ir.ir) for ir in node_attr_irreps])
+
         self.node_embedding = LinearNodeEmbeddingBlock(
             irreps_in=node_attr_irreps, irreps_out=node_feats_irreps
         )
@@ -145,7 +149,11 @@ class OrbitalMatrixMACE(torch.nn.Module):
 
                 self.readouts.append(readout)
 
-    def forward(self, data: BasisMatrixTorchData, training=False) -> Dict[str, Any]:
+    def forward(
+        self,
+        data: BasisMatrixTorchData,
+        training=False,
+    ) -> Dict[str, Any]:
         # Setup
         # This is only if we want to compute matrix gradients. For now, we don't.
         # data.positions.requires_grad = True
@@ -181,7 +189,7 @@ class OrbitalMatrixMACE(torch.nn.Module):
             )
 
             node_feats = product(
-                node_feats=node_feats, sc=sc, node_attrs=data["node_attrs"]
+                node_feats=node_feats, sc=sc, node_attrs=data["node_attrs"][:, :self.num_elements]
             )
 
             if readout is None:

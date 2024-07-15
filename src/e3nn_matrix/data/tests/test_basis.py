@@ -9,25 +9,36 @@ from e3nn_matrix.data import PointBasis
 
 
 def test_simplest():
-    basis = PointBasis("A", "spherical", o3.Irreps("3x0e + 2x1o"), 5)
+    basis = PointBasis(
+        "A", basis_convention="spherical", irreps=o3.Irreps("3x0e + 2x1o"), R=5
+    )
 
 
 def test_siesta_convention():
-    basis = PointBasis("A", "siesta_spherical", o3.Irreps("3x0e + 2x1o"), 5)
+    basis = PointBasis(
+        "A", basis_convention="siesta_spherical", irreps=o3.Irreps("3x0e + 2x1o"), R=5
+    )
+
+
+def test_no_basis():
+    basis = PointBasis("A", R=5)
 
 
 def test_multiple_R():
     basis = PointBasis(
         "A",
-        "spherical",
-        o3.Irreps("3x0e + 2x1o"),
-        np.array([5, 5, 5, 3, 3, 3, 3, 3, 3]),
+        basis_convention="spherical",
+        irreps=o3.Irreps("3x0e + 2x1o"),
+        R=np.array([5, 5, 5, 3, 3, 3, 3, 3, 3]),
     )
 
     # Wrong number of Rs
     with pytest.raises(AssertionError):
         basis = PointBasis(
-            "A", "spherical", o3.Irreps("3x0e + 2x1o"), np.array([5, 5, 5, 3, 3])
+            "A",
+            basis_convention="spherical",
+            irreps=o3.Irreps("3x0e + 2x1o"),
+            R=np.array([5, 5, 5, 3, 3]),
         )
 
 
@@ -46,9 +57,9 @@ def test_from_sisl_atom():
 def test_to_sisl_atom():
     basis = PointBasis(
         "A",
-        "siesta_spherical",
-        o3.Irreps("3x0e + 2x1o"),
-        np.array([5, 5, 5, 3, 3, 3, 3, 3, 3]),
+        basis_convention="siesta_spherical",
+        irreps=o3.Irreps("3x0e + 2x1o"),
+        R=np.array([5, 5, 5, 3, 3, 3, 3, 3, 3]),
     )
 
     atom = basis.to_sisl_atom()

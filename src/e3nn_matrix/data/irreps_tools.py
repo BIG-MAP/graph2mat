@@ -26,6 +26,9 @@ def get_atom_irreps(atom: sisl.Atom):
         the basis irreps.
     """
 
+    if atom.no == 0:
+        return o3.Irreps("")
+
     atom_irreps = []
 
     # Array that stores the number of orbitals for each l.

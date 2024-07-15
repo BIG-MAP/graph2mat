@@ -18,17 +18,26 @@ from e3nn_matrix.torch.data import BasisMatrixTorchData
 from e3nn_matrix.torch.modules import BasisMatrixReadout
 
 
-@pytest.fixture(scope="module", params=[True, False])
-def long_A_basis(request):
+@pytest.fixture(scope="module", params=["normal", "long_A", "nobasis_A"])
+def basis_type(request):
     return request.param
 
 
 @pytest.fixture(scope="module")
-def ABA_basis_configuration(long_A_basis):
+def ABA_basis_configuration(basis_type):
     """Dummy basis configuration with"""
 
-    point_1 = PointBasis("A", "spherical", o3.Irreps("0e"), R=5 if long_A_basis else 2)
-    point_2 = PointBasis("B", "spherical", o3.Irreps("1o"), R=5)
+    if basis_type == "nobasis_A":
+        point_1 = PointBasis("A", R=5)
+    else:
+        point_1 = PointBasis(
+            "A",
+            R=5 if basis_type == "long_A" else 2,
+            irreps=o3.Irreps("0e"),
+            basis_convention="spherical",
+        )
+
+    point_2 = PointBasis("B", R=5, irreps=o3.Irreps("1o"), basis_convention="spherical")
 
     positions = np.array([[0, 0, 0], [3.0, 0, 0], [5.0, 0, 0]])
 

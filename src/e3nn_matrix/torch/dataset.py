@@ -11,7 +11,7 @@ import torch.utils.data
 
 from ..data import BasisConfiguration
 from ..data.processing import MatrixDataProcessor
-from .data import BasisMatrixTorchData
+from .data import BasisMatrixTorchData 
 
 
 class BasisMatrixDataset(torch.utils.data.Dataset):

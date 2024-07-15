@@ -13,6 +13,7 @@ from pytorch_lightning.cli import (
 )
 import torch
 from jsonargparse import Namespace
+from jsonargparse._typehints import ActionTypeHint
 
 from e3nn_matrix.torch.load import sanitize_checkpoint
 
@@ -34,7 +35,9 @@ class OrbitalMatrixCLI(LightningCLI):
         parser.link_arguments("data.root_dir", "model.root_dir")
         parser.link_arguments("data.basis_files", "model.basis_files")
         parser.link_arguments("data.basis_table", "model.basis_table")
+        parser.link_arguments("data.no_basis", "model.no_basis")
         parser.link_arguments("data.symmetric_matrix", "model.symmetric_matrix")
+        parser.link_arguments("data.initial_node_feats", "model.initial_node_feats")
 
         defaults = {}
         # Set logger defaults based on environment variables
@@ -113,14 +116,15 @@ class OrbitalMatrixCLI(LightningCLI):
             # arguments are linked and therefore "data.x" might not exist because it is linked
             # to "model.x". That's why we need to set the defaults one by one inside a try/except
             # block (I found no way to check if the argument is defined in the parser).
-            for k in defaults:
-                for subkey in defaults[k]:
-                    try:
-                        subcommand_parser.set_defaults(
-                            {f"{k}.{subkey}": defaults[k][subkey]}
-                        )
-                    except KeyError:
-                        pass
+            with ActionTypeHint.allow_default_instance_context():
+                for k in defaults:
+                    for subkey in defaults[k]:
+                        try:
+                            subcommand_parser.set_defaults(
+                                {f"{k}.{subkey}": defaults[k][subkey]}
+                            )
+                        except KeyError:
+                            pass
 
             # We have set all the right defaults now! So we can reparse the arguments.
             super().parse_arguments(parser, args)

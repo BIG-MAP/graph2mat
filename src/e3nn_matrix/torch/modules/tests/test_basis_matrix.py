@@ -43,7 +43,7 @@ def test_irreps_in(ABA_basis_configuration: BasisConfiguration):
     assert str(readout) == str(readout2)
 
 
-def test_readout(ABA_basis_configuration: BasisConfiguration, long_A_basis: bool):
+def test_readout(ABA_basis_configuration: BasisConfiguration, basis_type: str):
     config = ABA_basis_configuration
     basis = ABA_basis_configuration.basis
 
@@ -89,12 +89,12 @@ def test_readout(ABA_basis_configuration: BasisConfiguration, long_A_basis: bool
     )
 
     assert isinstance(matrix, csr_matrix)
-    assert matrix.shape == (5, 5)
-    assert matrix.nnz == 25 if long_A_basis else 23
+    assert matrix.shape == (5, 5) if basis_type != "nobasis_A" else (3, 3)
+    assert matrix.nnz == {"normal": 23, "long_A": 25, "nobasis_A": 9}[basis_type]
 
 
 def test_readout_filtering(
-    ABA_basis_configuration: BasisConfiguration, long_A_basis: bool
+    ABA_basis_configuration: BasisConfiguration, basis_type: str
 ):
     config = ABA_basis_configuration
     basis = ABA_basis_configuration.basis
@@ -182,5 +182,5 @@ def test_readout_filtering(
     )
 
     assert isinstance(matrix, csr_matrix)
-    assert matrix.shape == (5, 5)
-    assert matrix.nnz == 25 if long_A_basis else 23
+    assert matrix.shape == (5, 5) if basis_type != "nobasis_A" else (3, 3)
+    assert matrix.nnz == {"normal": 23, "long_A": 25, "nobasis_A": 9}[basis_type]

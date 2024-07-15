@@ -25,19 +25,43 @@ from e3nn_matrix.data.metrics import OrbitalMatrixMetric
 from e3nn_matrix.tools.viz import plot_basis_matrix
 
 
-class MatrixWriter(BasePredictionWriter):
+class MatrixWriter(Callback):
     """Callback to write predicted matrices to disk."""
-
-    def __init__(self, output_file: str, write_interval: str = "batch"):
-        super().__init__(write_interval)
-        self.output_file = output_file
-
-    def write_on_batch_end(
+    
+    def __init__(
         self,
+        output_file: str,
+        splits: Sequence = [
+            "train",
+            "val",
+            "test",
+            "predict"
+        ],  # I don't know why, but Sequence[str] breaks the lightning CLI
+    ):
+        super().__init__()
+
+        splits = [
+            "train",
+            "val",
+            "test",
+            "predict"
+        ]
+
+        if splits in ["train", "val", "test", "predict"]:
+            splits = [splits]
+        elif isinstance(splits, str):
+            raise ValueError(f"Invalid value for splits: {splits}")
+
+        self.splits = splits
+        self.output_file = output_file
+        self.out_is_absolute = Path(output_file).is_absolute()
+
+    def _on_batch_end(
+        self,
+        split: str,
         trainer: "pl.Trainer",
         pl_module: "pl.LightningModule",
         prediction: Dict,
-        batch_indices: Sequence[int],
         batch: Any,
         batch_idx: int,
         dataloader_idx: int,
@@ -50,12 +74,53 @@ class MatrixWriter(BasePredictionWriter):
 
         # Loop through structures in the batch
         for matrix_data in matrix_iter:
+            sparse_orbital_matrix = matrix_data.to_sparse_orbital_matrix()
+            
             # Get the path from which this structure was read.
             path = matrix_data.metadata["path"]
-            sparse_orbital_matrix = matrix_data.to_sparse_orbital_matrix()
+            out_file = Path(self.output_file.replace("$name$", path.parent.name))
+            if not self.out_is_absolute:
+                out_file = path.parent / out_file
+
+            if not out_file.parent.exists():
+                out_file.parent.mkdir(parents=True)
 
             # And write the matrix to it.
-            sparse_orbital_matrix.write(path.parent / self.output_file)
+            sparse_orbital_matrix.write(out_file)
+
+
+    def on_train_batch_end(
+        self, trainer, pl_module, outputs, batch, batch_idx, dataloader_idx=None
+    ):
+        if "train" in self.splits:
+            self._on_batch_end(
+                "train", trainer, pl_module, outputs, batch, batch_idx, dataloader_idx
+            )
+
+    def on_validation_batch_end(
+        self, trainer, pl_module, outputs, batch, batch_idx, dataloader_idx=None
+    ):
+        if "val" in self.splits:
+            self._on_batch_end(
+                "val", trainer, pl_module, outputs, batch, batch_idx, dataloader_idx
+            )
+
+    def on_test_batch_end(
+        self, trainer, pl_module, outputs, batch, batch_idx, dataloader_idx=None
+    ):
+        if "test" in self.splits:
+            self._on_batch_end(
+                "test", trainer, pl_module, outputs, batch, batch_idx, dataloader_idx
+            )
+    
+    def on_predict_batch_end(
+        self, trainer, pl_module, outputs, batch, batch_idx, dataloader_idx=None
+    ):
+        if "predict" in self.splits:
+            self._on_batch_end(
+                "predict", trainer, pl_module, outputs, batch, batch_idx, dataloader_idx
+            )
+
 
 
 class SamplewiseMetricsLogger(Callback):

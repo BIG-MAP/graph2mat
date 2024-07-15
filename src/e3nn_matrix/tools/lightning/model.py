@@ -1,8 +1,10 @@
 """Wrapping of raw models to use them in pytorch_lightning."""
 
 from pathlib import Path
-from typing import Type, Union
+from typing import Type, Union, Optional
 import warnings
+
+from e3nn import o3
 
 import pytorch_lightning as pl
 import torch
@@ -11,6 +13,7 @@ import torch
 from e3nn_matrix.data.metrics import OrbitalMatrixMetric, block_type_mse
 from e3nn_matrix.data.table import BasisTableWithEdges, AtomicTableWithEdges
 from e3nn_matrix.torch.load import sanitize_checkpoint
+from e3nn_matrix.data.node_feats import NodeFeature
 from e3nn_matrix import __version__
 
 
@@ -27,7 +30,9 @@ class LitBasisMatrixModel(pl.LightningModule):
         root_dir: str = ".",
         basis_files: Union[str, None] = None,
         basis_table: Union[BasisTableWithEdges, None] = None,
+        no_basis: Optional[dict] = None,
         loss: Type[OrbitalMatrixMetric] = block_type_mse,
+        initial_node_feats: str = "OneHotZ",
         **kwargs,
     ):
         super().__init__()
@@ -39,10 +44,15 @@ class LitBasisMatrixModel(pl.LightningModule):
                 self.basis_table = None
             else:
                 self.basis_table = AtomicTableWithEdges.from_basis_glob(
-                    Path(root_dir).glob(basis_files)
+                    Path(root_dir).glob(basis_files), no_basis_atoms=no_basis
                 )
         else:
             self.basis_table = basis_table
+        
+        self.initial_node_feats = [NodeFeature.registry[k] for k in initial_node_feats.split(" ")]
+        self.initial_node_feats_irreps = sum([f.get_irreps(self.basis_table) for f in self.initial_node_feats], o3.Irreps()).simplify()
+
+        print(self.initial_node_feats_irreps)
 
         self.loss_fn = loss()
 

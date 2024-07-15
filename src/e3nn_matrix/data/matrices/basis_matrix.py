@@ -64,9 +64,14 @@ class BasisMatrix:
             blocks = [
                 (self.block_dict[i, i, 0] - point_matrices[point_types[i]]).flatten()
                 for i in order
+                if self.basis_count[i] > 0
             ]
         else:
-            blocks = [self.block_dict[i, i, 0].flatten() for i in order]
+            blocks = [
+                self.block_dict[i, i, 0].flatten()
+                for i in order
+                if self.basis_count[i] > 0
+            ]
 
         node_values = np.concatenate(blocks)
 
@@ -74,6 +79,7 @@ class BasisMatrix:
         blocks = [
             self.block_dict[edge[0], edge[1], sc_shift].flatten()
             for edge, sc_shift in zip(edge_index.transpose(), edge_sc_shifts)
+            if self.basis_count[edge[0]] > 0 and self.basis_count[edge[1]] > 0
         ]
 
         edge_values = np.concatenate(blocks)
