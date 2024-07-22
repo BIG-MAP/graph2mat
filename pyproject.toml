@@ -1,9 +1,9 @@
 [project]
 requires-python = ">=3.8"
 
-name = "e3nn_matrix"
+name = "graph2mat"
 version = "0.0.1"
-description = "Utility package to work with equivariant matrices within the e3nn framework"
+description = "Utility package to work with equivariant matrices and graphs."
 readme = "README.md"
 license = {text = "MIT"}
 keywords = [
@@ -39,7 +39,7 @@ classifiers = [
 ]
 
 [project.scripts]
-e3mat = "e3nn_matrix.tools.cli.cli:app"
+graph2mat = "graph2mat.tools.cli.cli:app"
 
 [build-system]
 requires = ["scikit-build-core", "cython"]
@@ -48,7 +48,7 @@ build-backend = "scikit_build_core.build"
 [tool.scikit-build]
 # Consider adding
 # minimum-version to choose the fallback mechanism in scikit-build-core
-wheel.packages = ["src/e3nn_matrix"]
+wheel.packages = ["src/graph2mat"]
 
 [project.optional-dependencies]
 server = [

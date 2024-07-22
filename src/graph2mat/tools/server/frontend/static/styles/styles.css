@@ -1,0 +1,39 @@
+/* Scrolling behavior is specified in the html templates using the
+overflow-y-auto class. Get those cases and customize the scrollbar.*/
+
+/* For Firefox Browser */
+.overflow-y-auto {
+    scrollbar-width: thin;
+    scrollbar-color: #000 #ccc;
+}
+
+/* For Chrome, EDGE, Opera, Others */
+.overflow-y-auto::-webkit-scrollbar {
+    width: 5px;
+}
+
+.overflow-y-auto::-webkit-scrollbar-track {
+    background: #fff;
+}
+
+.overflow-y-auto::-webkit-scrollbar-thumb {
+    background:#ccc;
+}
+
+/* Styling for the metrics table */
+
+th {
+    border: 1px solid #ccc;
+    padding: 5px;
+    text-align: center;
+    vertical-align: middle;
+    border-right: 1px solid #ccc;
+}
+
+td {
+    border: 1px solid #ccc;
+    padding: 5px;
+    text-align: center;
+    vertical-align: middle;
+    border-right: 1px solid #ccc;
+}

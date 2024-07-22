@@ -1,1 +1,1 @@
-add_subdirectory("e3nn_matrix")
+add_subdirectory("graph2mat")

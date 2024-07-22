@@ -1,0 +1,3 @@
+DM.HistoryDepth 0
+DM.UseSaveDM t
+Lua.Script {{ lua_script }}

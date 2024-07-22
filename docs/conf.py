@@ -31,9 +31,9 @@ sys.path.insert(0, str(_root))
 print("python exec:", sys.executable)
 print("sys.path:", sys.path)
 
-import e3nn_matrix
+import graph2mat
 
-print(f"Located e3nn_matrix here: {e3nn_matrix.__path__}")
+print(f"Located e3nn_matrix here: {graph2mat.__path__}")
 
 # General information about the project.
 project = "e3nn_matrix"
@@ -95,7 +95,7 @@ autosummary_generate = True
 # The version info for the project you're documenting, acts as replacement for
 # |version| and |release|, also used in various other places throughout the
 # built documents.
-version = str(e3nn_matrix.__version__)
+version = str(graph2mat.__version__)
 print(f"e3nn_matrix version {version}")
 
 
