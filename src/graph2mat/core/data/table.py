@@ -1,12 +1,12 @@
-"""Relating point types to their properties.
+"""Storage of global basis information for a group of configurations.
 
-In a dataset, different point types are represented by an integer that
-is the type index. However, there are moments in which information
-of what that type means is required. E.g. to know what's the size of
+In a dataset, different **point types are represented by an integer that
+is the type index**. However, **there are moments in which information
+of what that type means is required**. E.g. to know what's the size of
 the basis for that point or what are its irreps.
 
 All the data for the types that a model might see is stored in an object
-that we call a ``Table``.
+that we call a "Table".
 
 In a typical matrix, there will be elements that belong to connections between
 different points. Therefore, these tables also need to keep track of edge types.
@@ -22,7 +22,8 @@ import numpy as np
 import sisl
 
 from .basis import PointBasis, BasisConvention, get_change_of_basis
-            
+
+
 class BasisTableWithEdges:
     """Stores the unique types of points in the system, with their basis and the possible edges.
 
@@ -362,7 +363,8 @@ class AtomicTableWithEdges(BasisTableWithEdges):
 
     See also
     --------
-    BasisTableWithEdges: The class that actually does the work.
+    BasisTableWithEdges
+        The class that actually does the work.
     """
 
     atoms: List[sisl.Atom]
@@ -375,7 +377,12 @@ class AtomicTableWithEdges(BasisTableWithEdges):
     def __init__(self, atoms: Sequence[sisl.Atom]):
         from .matrices.physics.density_matrix import get_atomic_DM
 
-        self.atoms = list([atom if isinstance(atom, sisl.Atom) else atom.to_sisl_atom(Z=atom.type) for atom in atoms])
+        self.atoms = list(
+            [
+                atom if isinstance(atom, sisl.Atom) else atom.to_sisl_atom(Z=atom.type)
+                for atom in atoms
+            ]
+        )
 
         basis = [
             PointBasis.from_sisl_atom(atom)

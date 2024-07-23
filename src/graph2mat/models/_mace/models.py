@@ -14,7 +14,7 @@ from mace.modules.blocks import (
 from mace.modules.utils import get_edge_vectors_and_lengths
 
 from graph2mat import PointBasis
-from graph2mat.bindings.torch.data import BasisMatrixTorchData
+from graph2mat.bindings.torch.data import TorchBasisMatrixData
 
 
 class OrbitalMatrixMACE(torch.nn.Module):
@@ -33,7 +33,7 @@ class OrbitalMatrixMACE(torch.nn.Module):
         avg_num_neighbors: float,
         correlation: int,
         unique_basis: Sequence[PointBasis],
-        matrix_readout: Type, 
+        matrix_readout: Type,
         symmetric_matrix: bool,
         node_block_readout: Type[NodeBlock],
         edge_block_readout: Type[EdgeBlock],
@@ -46,7 +46,9 @@ class OrbitalMatrixMACE(torch.nn.Module):
         # Embedding
         if node_attr_irreps is None:
             node_attr_irreps = o3.Irreps([(num_elements, (0, 1))])
-        node_feats_irreps = o3.Irreps([(hidden_irreps.count(ir.ir), ir.ir) for ir in node_attr_irreps])
+        node_feats_irreps = o3.Irreps(
+            [(hidden_irreps.count(ir.ir), ir.ir) for ir in node_attr_irreps]
+        )
 
         self.node_embedding = LinearNodeEmbeddingBlock(
             irreps_in=node_attr_irreps, irreps_out=node_feats_irreps
@@ -149,7 +151,7 @@ class OrbitalMatrixMACE(torch.nn.Module):
 
     def forward(
         self,
-        data: BasisMatrixTorchData,
+        data: TorchBasisMatrixData,
         training=False,
     ) -> Dict[str, Any]:
         # Setup
@@ -187,7 +189,9 @@ class OrbitalMatrixMACE(torch.nn.Module):
             )
 
             node_feats = product(
-                node_feats=node_feats, sc=sc, node_attrs=data["node_attrs"][:, :self.num_elements]
+                node_feats=node_feats,
+                sc=sc,
+                node_attrs=data["node_attrs"][:, : self.num_elements],
             )
 
             if readout is None:

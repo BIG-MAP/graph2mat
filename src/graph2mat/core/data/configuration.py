@@ -39,9 +39,19 @@ DEFAULT_CONFIG_TYPE = "Default"
 
 @dataclass
 class BasisConfiguration:
-    """Stores a distribution of points in space, with associated basis functions.
+    """Container class to store all the information of an example.
 
+
+    Stores a distribution of points in space, with associated basis functions.
     Optionally, it can also store an associated matrix.
+
+    In a typical case, your configurations will contain the matrix as a label
+    for training, validating or testing. When doing inference, the configurations
+    will not have an associated matrix, since the matrix is what you are trying
+    to calculate.
+
+    This is a `dataclasses.dataclass`. It is purely a container for the information
+    of one example in your dataset.
 
     Parameters
     -----------
@@ -70,15 +80,36 @@ class BasisConfiguration:
         A dictionary with additional metadata related to the configuration.
     """
 
+    #: Shape (n_points,).
+    #: The type of each point. Each type can be either a string or an integer,
+    #: and it should be the type key of a `PointBasis` object in the `basis` list.
     point_types: np.ndarray
+
+    #: Shape (n_points, 3).
+    #: The positions of each point in cartesian coordinates.
     positions: Positions
+
+    #: List of `PointBasis` objects for types that are (possibly) present in the system.
     basis: Sequence[PointBasis]
+
+    #: Shape (3, 3).
+    #: The cell vectors that delimit the system, in cartesian coordinates.
     cell: Optional[Cell] = None
+
+    #: Shape (3,).
+    #: Whether the system is periodic in each cell direction.
     pbc: Optional[Pbc] = None
+
+    #: The matrix associated to the configuration.
     matrix: Optional[BasisMatrix] = None
 
-    weight: float = 1.0  # weight of config in loss
-    config_type: Optional[str] = DEFAULT_CONFIG_TYPE  # config_type of config
+    #: The weight of the configuration in the loss.
+    weight: float = 1.0
+
+    #: A string that indicates the type of configuration.
+    config_type: Optional[str] = DEFAULT_CONFIG_TYPE
+
+    #: A dictionary with additional metadata related to the configuration.
     metadata: Optional[Dict[str, Any]] = None
 
     def to_sisl_geometry(self) -> sisl.Geometry:
@@ -98,6 +129,11 @@ class OrbitalConfiguration(BasisConfiguration):
     """Stores a distribution of atoms in space, with associated orbitals.
 
     Optionally, it can also store an associated matrix.
+
+    In a typical case, your configurations will contain the matrix as a label
+    for training, validating or testing. When doing inference, the configurations
+    will not have an associated matrix, since the matrix is what you are trying
+    to calculate.
 
     This is a version of `BasisConfiguration` for atomic systems,
     where points are atoms.
@@ -129,25 +165,46 @@ class OrbitalConfiguration(BasisConfiguration):
         A dictionary with additional metadata related to the configuration.
     """
 
+    #: Shape (n_points,).
+    #: The type of each point. Each type can be either a string or an integer,
+    #: and it should be the type key of a `PointBasis` object in the `basis` list.
     point_types: np.ndarray
-    positions: Positions  # Angstrom
+
+    #: Shape (n_points, 3).
+    #: The positions of each point in cartesian coordinates.
+    positions: Positions
+
+    #: Atoms that are (possibly) present in the system.
     basis: sisl.Atoms
-    energy: Optional[float] = None  # eV
-    forces: Optional[Forces] = None  # eV/Angstrom
+
+    #: Shape (3, 3).
+    #: The cell vectors that delimit the system, in cartesian coordinates.
     cell: Optional[Cell] = None
+
+    #: Shape (3,).
+    #: Whether the system is periodic in each cell direction.
     pbc: Optional[Pbc] = None
+
+    #: The matrix associated to the configuration.
     matrix: Optional[OrbitalMatrix] = None
 
-    weight: float = 1.0  # weight of config in loss
-    config_type: Optional[str] = DEFAULT_CONFIG_TYPE  # config_type of config
+    #: The weight of the configuration in the loss.
+    weight: float = 1.0
+
+    #: A string that indicates the type of configuration.
+    config_type: Optional[str] = DEFAULT_CONFIG_TYPE
+
+    #: A dictionary with additional metadata related to the configuration.
     metadata: Optional[Dict[str, Any]] = None
 
     @property
     def atom_types(self) -> np.ndarray:
+        """Alias for point_types."""
         return self.point_types
 
     @property
     def atoms(self) -> sisl.Atoms:
+        """Alias for basis."""
         return self.basis
 
     @classmethod
@@ -157,6 +214,26 @@ class OrbitalConfiguration(BasisConfiguration):
         labels: bool = True,
         **kwargs,
     ) -> "OrbitalConfiguration":
+        """Creates a new `OrbitalConfiguration`.
+
+        This is just a dispatcher that will call the appropriate method to create
+        the object depending on the type of the input.
+
+        Parameters
+        -----------
+        obj:
+            The object from which to create the OrbitalConfiguration.
+        labels:
+            Whether to find labels (the matrix) to be assigned to the configuration.
+        **kwargs:
+            Additional arguments to be passed to the constructor of the OrbitalConfiguration.
+
+        See Also
+        ---------
+        from_geometry, from_matrix, from_run
+            The methods that are called by this dispatcher to create the new `OrbitalConfiguration`,
+            depending on the type of `obj`.
+        """
         if isinstance(obj, sisl.Geometry):
             if labels:
                 raise ValueError(
@@ -316,13 +393,15 @@ class OrbitalConfiguration(BasisConfiguration):
                     new_geometry.atoms.replace_atom(atom, basis_atom)
 
             return new_geometry
-        
+
         if isinstance(main_input, sisl.io.fdfSileSiesta):
             type_of_run = main_input.get("MD.TypeOfRun")
             if type_of_run == "qmmm":
                 pipe_file = main_input.get("QMMM.Driver.QMRegionFile")
-                #geometry_path = main_input.file.parent / (pipe_file.split(".")[0] + ".last.pdb")
-                geometry_path = main_input.file.parent / (pipe_file.split(".")[0] + ".XV")
+                # geometry_path = main_input.file.parent / (pipe_file.split(".")[0] + ".last.pdb")
+                geometry_path = main_input.file.parent / (
+                    pipe_file.split(".")[0] + ".XV"
+                )
 
         if out_matrix is not None:
             # Get the method to read the desired matrix and read it
@@ -336,7 +415,7 @@ class OrbitalConfiguration(BasisConfiguration):
             kwargs = {}
             if geometry_path is not None:
                 # If we have a geometry path, we will read the geometry from there.
-                #from ase.io import read
+                # from ase.io import read
 
                 kwargs["geometry"] = sisl.Geometry.read(geometry_path)
                 kwargs["geometry"] = _copy_basis(

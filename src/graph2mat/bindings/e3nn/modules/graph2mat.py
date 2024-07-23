@@ -1,20 +1,20 @@
 from e3nn import o3
 import torch
 
-from typing import List, Sequence, Type, Union, Optional, Dict
+from typing import Sequence, Type, Union, Optional, Dict
 
 from graph2mat import PointBasis, MatrixBlock
 
-from .matrixblock import E3nnMatrixBlock
+from graph2mat.bindings.torch import TorchGraph2Mat
+
+from .matrixblock import E3nnIrrepsMatrixBlock
 from .node_operations import E3nnSimpleNodeBlock
 from .edge_operations import E3nnSimpleEdgeBlock
 
-from ..torch import TorchGraph2Mat
-
 __all__ = ["E3nnGraph2Mat"]
 
-class E3nnGraph2Mat(TorchGraph2Mat):
 
+class E3nnGraph2Mat(TorchGraph2Mat):
     def __init__(
         self,
         unique_basis: Sequence[PointBasis],
@@ -25,18 +25,17 @@ class E3nnGraph2Mat(TorchGraph2Mat):
         preprocessing_edges_kwargs: dict = {},
         node_operation: Type = E3nnSimpleNodeBlock,
         node_operation_kwargs: dict = {},
-        edge_operation: Type  = E3nnSimpleEdgeBlock,
+        edge_operation: Type = E3nnSimpleEdgeBlock,
         edge_operation_kwargs: dict = {},
         symmetric: bool = False,
         blocks_symmetry: str = "ij",
         self_blocks_symmetry: Union[str, None] = None,
-        matrix_block_cls: Type[MatrixBlock] = E3nnMatrixBlock,
-        **kwargs
+        matrix_block_cls: Type[MatrixBlock] = E3nnIrrepsMatrixBlock,
+        **kwargs,
     ):
-        
         preprocessing_nodes_kwargs = {"irreps": irreps, **preprocessing_nodes_kwargs}
         preprocessing_edges_kwargs = {"irreps": irreps, **preprocessing_edges_kwargs}
-        
+
         node_operation_kwargs = {"irreps": irreps, **node_operation_kwargs}
         edge_operation_kwargs = {"irreps": irreps, **edge_operation_kwargs}
 
@@ -54,13 +53,14 @@ class E3nnGraph2Mat(TorchGraph2Mat):
             symmetric=symmetric,
             blocks_symmetry=blocks_symmetry,
             self_blocks_symmetry=self_blocks_symmetry,
-            **kwargs
+            **kwargs,
         )
 
-    def _get_readout_irreps(self, preprocessor, irreps: Dict[str, o3.Irreps]) -> Dict[str, o3.Irreps]:
+    def _get_readout_irreps(
+        self, preprocessor, irreps: Dict[str, o3.Irreps]
+    ) -> Dict[str, o3.Irreps]:
         """Possibly updates the irreps if there is a preprocessing step."""
         if preprocessor is not None:
-            
             irreps_out = preprocessor.irreps_out
 
             if isinstance(irreps_out, o3.Irreps):
@@ -75,17 +75,23 @@ class E3nnGraph2Mat(TorchGraph2Mat):
                 "node_feats_irreps": node_feats_irreps,
                 "edge_message_irreps": edge_message_irreps,
             }
-        
+
         return irreps
 
-    def _init_self_interactions(self, *args, preprocessor=None, irreps: Dict[str, o3.Irreps] = {}, **kwargs):
-
+    def _init_self_interactions(
+        self, *args, preprocessor=None, irreps: Dict[str, o3.Irreps] = {}, **kwargs
+    ):
         readout_irreps = self._get_readout_irreps(preprocessor, irreps)
 
-        return super()._init_self_interactions(*args, **kwargs, preprocessor=preprocessor, irreps=readout_irreps)
-    
-    def _init_interactions(self, *args, preprocessor=None, irreps: Dict[str, o3.Irreps] = {}, **kwargs):
-            
+        return super()._init_self_interactions(
+            *args, **kwargs, preprocessor=preprocessor, irreps=readout_irreps
+        )
+
+    def _init_interactions(
+        self, *args, preprocessor=None, irreps: Dict[str, o3.Irreps] = {}, **kwargs
+    ):
         readout_irreps = self._get_readout_irreps(preprocessor, irreps)
 
-        return super()._init_interactions(*args, **kwargs, preprocessor=preprocessor, irreps=readout_irreps)
+        return super()._init_interactions(
+            *args, **kwargs, preprocessor=preprocessor, irreps=readout_irreps
+        )

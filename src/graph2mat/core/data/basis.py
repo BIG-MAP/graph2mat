@@ -1,4 +1,4 @@
-"""Utilities for managing basis sets."""
+"""Utilities to describe a basis set for a point type."""
 
 from typing import Union, Literal, Tuple, Sequence
 from numbers import Number
@@ -18,6 +18,7 @@ for k, matrix in _change_of_basis_conventions.items():
     _change_of_basis_conventions[k] = (matrix, np.linalg.inv(matrix))
 
 BasisConvention = Literal["cartesian", "spherical", "siesta_spherical"]
+
 
 def get_atom_basis(atom: sisl.Atom):
     """For a given atom, returns the representation of its basis.
@@ -143,22 +144,23 @@ class PointBasis:
 
         def _get_sphericalharm_parity(l: int) -> int:
             return (-1) ** l
-        
+
         def _san_basis_spec(i, basis_spec) -> Tuple[int, int, int]:
             if isinstance(basis_spec, int):
                 return (basis_spec, i, _get_sphericalharm_parity(i))
             else:
                 return basis_spec
-        
-        return tuple( _san_basis_spec(i, basis_spec) for i, basis_spec in enumerate(basis))
-    
+
+        return tuple(
+            _san_basis_spec(i, basis_spec) for i, basis_spec in enumerate(basis)
+        )
+
     @property
     def e3nn_irreps(self):
         """Returns the irreps in the e3nn format."""
         from e3nn import o3
-        return o3.Irreps(
-            (mul, (l, p)) for mul, l, p in self.basis
-        )
+
+        return o3.Irreps((mul, (l, p)) for mul, l, p in self.basis)
 
     def copy(self, **kwargs):
         return dataclasses.replace(self, **kwargs)
@@ -175,7 +177,7 @@ class PointBasis:
     @property
     def basis_size(self) -> int:
         """Returns the number of basis functions per point."""
-        return sum(n * (2*l + 1) for n, l, _ in self.basis)
+        return sum(n * (2 * l + 1) for n, l, _ in self.basis)
 
     @property
     def num_sets(self) -> int:
@@ -242,16 +244,22 @@ class PointBasis:
 
         return sisl.Atom(Z=Z, orbitals=orbitals)
 
+
 class NoBasisAtom(sisl.Atom):
     """Placeholder for atoms without orbitals.
-    
-    This should no longer be needed once sisl allows atoms with 0 orbitals."""
+
+    This should no longer be needed once sisl allows atoms with 0 orbitals.
+
+    Atoms with no basis are for example needed for the fitting of QM/MM
+    simulations.
+    """
 
     @property
     def no(self):
+        """The number of orbitals belonging to this atom."""
         return 0
-    
+
     @property
     def q0(self):
+        """The initial charge of the orbitals of this atom."""
         return np.array([])
-    

@@ -1,11 +1,37 @@
 """Core of the data processing.
 
-The classes here are the high-level classes that are used for graph processing,
-including the management of dataset batches.
+Managing sparse matrix data in conjunction with graphs is not trivial:
+
+- **Matrices are sparse**.
+- Matrices are in a basis which is centered around the points in the graph. Therefore
+  **elements of the matrix correspond to nodes or edges of the graph**.
+- Each point might have more than one basis function, therefore **the matrix is divided
+  in blocks (not just single elements)** that correspond to nodes or edges of the graph.
+- Different point types might have different basis size, which makes **the different
+  blocks in the matrix have different shapes**.
+- **The different block sizes and the sparsity of the matrices supose and extra
+  challenge when batching** examples for machine learning.
+
+This module implements `BasisMatrixData`, a class that
+
+The tools in this submodule are agnostic to the machine learning framework
+of choice, and they are based purely on `numpy`, with the extra dependency on `sisl`
+to handle the sparse matrices. The `sisl` dependency could eventually be lift off
+if needed.
 """
 from __future__ import annotations
 
-from typing import Optional, Tuple, Union, Dict, Any, Callable, Sequence, Generator, List
+from typing import (
+    Optional,
+    Tuple,
+    Union,
+    Dict,
+    Any,
+    Callable,
+    Sequence,
+    Generator,
+    List,
+)
 from functools import cached_property
 from pathlib import Path
 import dataclasses
@@ -30,6 +56,8 @@ from .configuration import BasisConfiguration, OrbitalConfiguration, PhysicsMatr
 from .sparse import nodes_and_edges_to_sparse_orbital, nodes_and_edges_to_csr
 from .table import BasisTableWithEdges
 from .node_feats import OneHotZ
+
+__all__ = ["MatrixDataProcessor", "BasisMatrixData"]
 
 
 @dataclasses.dataclass(frozen=True)
@@ -58,7 +86,6 @@ class MatrixDataProcessor:
     sub_point_matrix: bool = True
     out_matrix: Optional[PhysicsMatrixType] = None
     node_attr_getters: List[Any] = dataclasses.field(default_factory=list)
-    
 
     def copy(self, **kwargs):
         """Create a copy of the object with the given attributes replaced."""
@@ -82,9 +109,9 @@ class MatrixDataProcessor:
         else:
             return {}
 
-    def torch_predict(self, torch_model, geometry: sisl.Geometry):  
+    def torch_predict(self, torch_model, geometry: sisl.Geometry):
         import torch
-        
+
         from ..torch import BasisMatrixTorchData
 
         with torch.no_grad():
@@ -98,12 +125,10 @@ class MatrixDataProcessor:
             out = torch_model(input_data)
 
             # And finally, we convert the output to a matrix.
-            matrix = self.matrix_from_data(
-                input_data, predictions=out
-            )
+            matrix = self.matrix_from_data(input_data, predictions=out)
 
         return matrix
-    
+
     def matrix_from_data(
         self,
         data: BasisMatrixData,
@@ -329,19 +354,24 @@ class MatrixDataProcessor:
 
     def get_point_block_rtps(self):
         from e3nn import o3
+
         basis = self.basis_table.basis
 
         symmetry = "ij=ji" if self.symmetric_matrix else "ij"
         return tuple(
-            o3.ReducedTensorProducts(symmetry, i=pb.e3nn_irreps, j=pb.e3nn_irreps) for pb in basis
+            o3.ReducedTensorProducts(symmetry, i=pb.e3nn_irreps, j=pb.e3nn_irreps)
+            for pb in basis
         )
 
     def get_edge_block_rtps(self):
         from e3nn import o3
+
         basis = self.basis_table.basis
 
         return tuple(
-            o3.ReducedTensorProducts("ij", i=basis[i].e3nn_irreps, j=basis[j].e3nn_irreps)
+            o3.ReducedTensorProducts(
+                "ij", i=basis[i].e3nn_irreps, j=basis[j].e3nn_irreps
+            )
             for i, j in self.basis_table.edge_type_to_point_types
         )
 
@@ -670,9 +700,11 @@ class MatrixDataProcessor:
         """Returns the initial features of nodes."""
         node_attr_getters = self.node_attr_getters
         if len(node_attr_getters) == 0:
-            node_attr_getters = [ OneHotZ ]
-        return np.concatenate([getter(config, self) for getter in node_attr_getters], axis=1)
-    
+            node_attr_getters = [OneHotZ]
+        return np.concatenate(
+            [getter(config, self) for getter in node_attr_getters], axis=1
+        )
+
     def one_hot_encode(self, point_types: np.ndarray) -> np.ndarray:
         """One hot encodes a vector of point types.
 
@@ -934,90 +966,95 @@ class BasisMatrixData:
     metadata :
         Contains any extra metadata that might be useful for the model or to
         postprocess outputs, for example.
-
-    Attributes
-    ------------
-    num_nodes:
-        Number of nodes in the configuration.
-    edge_index :
-        Shape (2, n_edges).
-        Array with point pairs (their index in the configuration) that form an edge.
-    neigh_isc :
-        Shape (n_edges,).
-        Array with the index of the supercell where the second point of each edge
-        is located.
-        This follows the conventions in ``sisl``
-    node_attrs :
-        Shape (n_points, n_node_feats).
-        Inputs for each point in the configuration.
-    positions :
-        Shape (n_points, 3).
-        Coordinates of each point in the configuration, in the convention specified
-        by the data processor (e.g. spherical harmonics).
-    shifts :
-        Shape (n_edges, 3).
-        Shift of the second atom in each edge with respect to its
-        image in the primary cell, in the convention specified
-        by the data processor (e.g. spherical harmonics).
-    cell :
-        Shape (3,3).
-        Lattice vectors of the unit cell in the convention specified
-        by the data processor (e.g. spherical harmonics).
-    n_supercell:
-        Total number of auxiliary cells.
-    nsc :
-        Number of auxiliary cells required in each direction to account for
-        all neighbor interactions.
-    point_labels :
-        Shape (n_point_labels,).
-        The elements of the target matrix that correspond to interactions
-        within the same node. This is flattened to deal with the fact that
-        each block might have different shape.
-
-        All values for a given block come consecutively and in row-major order.
-    edge_labels :
-        Shape (n_edge_labels,).
-        The elements of the target matrix that correspond to interactions
-        between different nodes. This is flattened to deal with the fact that
-        each block might have different shape.
-
-        All values for a given block come consecutively and in row-major order.
-
-        NOTE: These should be sorted by edge type.
-    point_types :
-        Shape (n_points,).
-        The type of each point (index in the basis table).
-    edge_types :
-        Shape (n_edges,).
-        The type of each edge as defined by the basis table.
-    edge_type_nlabels :
-        Shape (n_edge_types,).
-        Edge labels are sorted by edge type. This array contains the number of
-        labels for each edge type.
-    metadata :
-        Contains any extra metadata that might be useful for the model or to
-        postprocess outputs, for example. It includes the data processor.
     """
 
-    _node_attr_keys = ("node_attrs", "positions", "point_types")
-    _edge_attr_keys = ("edge_types", "shifts", "neigh_isc")
+    #: Sometimes it is useful to know explicitly which keys are node attributes
+    #: The list is stored in this variable.
+    _node_attr_keys: Sequence[str] = ("node_attrs", "positions", "point_types")
 
+    #: Sometimes it is useful to know explicitly which keys are edge attributes
+    #: The list is stored in this variable.
+    _edge_attr_keys: Sequence[str] = ("edge_types", "shifts", "neigh_isc")
+
+    #: Number of nodes in the configuration
     num_nodes: Optional[int]
+
+    #: Shape (2, n_edges).
+    #: Array with point pairs (their index in the configuration) that form an edge.
     edge_index: np.ndarray
+
+    #: Shape (n_edges,).
+    #: Array with the index of the supercell where the second point of each edge
+    #: is located.
+    #: This follows the conventions in ``sisl``
     neigh_isc: np.ndarray
+
+    #: Shape (n_points, n_node_feats).
+    #: Inputs for each point in the configuration.
     node_attrs: np.ndarray
+
+    #: Shape (n_points, 3).
+    #: Coordinates of each point in the configuration, **in the convention specified
+    #: by the data processor (e.g. spherical harmonics)**.
+    #: IMPORTANT: This is not necessarily in cartesian coordinates.
     positions: np.ndarray
+
+    #: Shape (n_edges, 3).
+    #: Shift of the second atom in each edge with respect to its
+    #: image in the primary cell, **in the convention specified
+    #: by the data processor (e.g. spherical harmonics)**.
+    #: IMPORTANT: This is not necessarily in cartesian coordinates.
     shifts: np.ndarray
+
+    #: Shape (3,3).
+    #: Lattice vectors of the unit cell, **in the convention specified
+    #: by the data processor (e.g. spherical harmonics)**.
+    #: IMPORTANT: This is not necessarily in cartesian coordinates.
     cell: np.ndarray
+
+    #: Total number of auxiliary cells.
     n_supercells: int
+
+    #: Number of auxiliary cells required in each direction to account for
+    #: all neighbor interactions.
     nsc: np.ndarray
+
+    #: Shape (n_point_labels,).
+    #: The elements of the target matrix that correspond to interactions
+    #: within the same node. This is flattened to deal with the fact that
+    #: each block might have different shape.
+    #:
+    #: All values for a given block come consecutively and in row-major order.
     point_labels: np.ndarray
+
+    #: Shape (n_edge_labels,).
+    #: The elements of the target matrix that correspond to interactions
+    #: between different nodes. This is flattened to deal with the fact that
+    #: each block might have different shape.
+    #:
+    #: All values for a given block come consecutively and in row-major order.
     edge_labels: np.ndarray
+
+    #: Shape (n_points,).
+    #: The type of each point (index in the basis table, i.e.
+    #: a `BasisTableWithEdges`).
     point_types: np.ndarray
+
+    #: Shape (n_edges,).
+    #: The type of each edge as defined by the basis table, i.e.
+    #: a `BasisTableWithEdges`.
     edge_types: np.ndarray
+
+    #: Shape (n_edge_types,).
+    #: Edge labels are sorted by edge type. This array contains the number of
+    #: labels for each edge type.
     edge_type_nlabels: np.ndarray
+
     labels_point_filter: np.ndarray
     labels_edge_filter: np.ndarray
+
+    #: Contains any extra metadata that might be useful for the model or to
+    #: postprocess outputs, for example. It includes the data processor.
     metadata: Dict[str, Any]
 
     def __init__(
@@ -1148,6 +1185,31 @@ class BasisMatrixData:
         labels: bool = True,
         **kwargs,
     ) -> "BasisMatrixData":
+        """Creates a new basis matrix data object.
+
+        If `obj` is a configuration, the `from_config` method is called.
+        Otherwise, we try to first create a configuration from the provided
+        arguments and then call the `from_config` method.
+
+        Parameters
+        ----------
+        obj:
+            The object to convert into this class.
+        data_processor:
+            If `obj` is not a configuration, the data processor
+            is needed to understand how to create the basis matrix
+            data object.
+            In any case, the data processor is needed to convert from
+            configuration to basis matrix data ready for models to use
+            (e.g. because it contains the basis table).
+
+        See Also
+        ----------
+        OrbitalConfiguration.new
+            The method called to initialize a configuration if `obj` is not a configuration.
+        from_config
+            The method called to initialize the basis matrix data object.
+        """
         if isinstance(obj, cls):
             return obj
         elif isinstance(obj, BasisConfiguration):
@@ -1163,6 +1225,17 @@ class BasisMatrixData:
     def from_config(
         cls, config: BasisConfiguration, data_processor: MatrixDataProcessor, nsc=None
     ) -> "BasisMatrixData":
+        """Creates a basis matrix data object from a configuration.
+
+        Parameters
+        ----------
+        config:
+            The configuration from which to create the basis matrix data object.
+        data_processor:
+            The data processor that contains all the information needed to convert
+            the configuration into the basis matrix data object. E.g. it contains
+            the basis table.
+        """
         indices = data_processor.get_point_types(config)
         node_attrs = data_processor.get_node_attrs(config)
 

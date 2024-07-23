@@ -1,11 +1,14 @@
 import numpy as np
-from typing import Any, Type, Tuple, TypeVar
+from typing import Type, Tuple, TypeVar
 from types import ModuleType
 
 from ..data.basis import PointBasis
 
-# This type will be 
+__all__ = ["MatrixBlock"]
+
+# This type will be
 ArrayType = TypeVar("ArrayType")
+
 
 class MatrixBlock:
     """Computes a fixed size matrix coming from the product of spherical harmonics.
@@ -67,13 +70,14 @@ class MatrixBlock:
         super().__init__()
         self.symm_transpose = symm_transpose
 
-        self.operation = operation_cls(i_basis=i_basis, j_basis=j_basis, **operation_kwargs)
+        self.operation = operation_cls(
+            i_basis=i_basis, j_basis=j_basis, **operation_kwargs
+        )
 
     def _compute_block(self, *args, **kwargs):
         return self.operation(*args, **kwargs)
 
     def forward(self, *args, **kwargs):
-
         if self.symm_transpose == False:
             return self._compute_block(*args, **kwargs)
         else:
@@ -92,6 +96,6 @@ class MatrixBlock:
             backward = self._compute_block(*back_args, **back_kwargs)
 
             return (forward + backward.transpose(-1, -2)) / 2
-    
+
     def __call__(self, *args, **kwargs):
         return self.forward(*args, **kwargs)

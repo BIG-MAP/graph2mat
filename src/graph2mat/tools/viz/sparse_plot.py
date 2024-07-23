@@ -8,7 +8,7 @@ import sisl
 from scipy.sparse import issparse, spmatrix
 
 from graph2mat import BasisConfiguration
-from graph2mat.core.data.irreps_tools import get_atom_irreps
+from graph2mat.bindings.e3nn.irreps_tools import get_atom_irreps
 
 
 def plot_basis_matrix(

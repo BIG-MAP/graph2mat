@@ -19,7 +19,7 @@ from torch_geometric.loader.dataloader import DataLoader
 from graph2mat.core.data.configuration import PhysicsMatrixType
 from graph2mat import BasisTableWithEdges, AtomicTableWithEdges, MatrixDataProcessor
 from graph2mat.core.data.node_feats import NodeFeature
-from graph2mat.bindings.torch.data import BasisMatrixTorchData
+from graph2mat.bindings.torch.data import TorchBasisMatrixData
 from graph2mat.bindings.torch.dataset import (
     BasisMatrixDataset,
     InMemoryData,
@@ -90,7 +90,9 @@ class MatrixDataModule(pl.LightningDataModule):
         self.basis_table = basis_table
         self.out_matrix: Optional[PhysicsMatrixType] = out_matrix
         self.symmetric_matrix = symmetric_matrix
-        self.initial_node_feats = [NodeFeature.registry[k] for k in initial_node_feats.split(" ")]
+        self.initial_node_feats = [
+            NodeFeature.registry[k] for k in initial_node_feats.split(" ")
+        ]
 
         self.train_runs = train_runs
         self.val_runs = val_runs
@@ -178,7 +180,7 @@ class MatrixDataModule(pl.LightningDataModule):
                 dataset = BasisMatrixDataset(
                     list(runs),
                     data_processor=self.data_processor,
-                    data_cls=BasisMatrixTorchData,
+                    data_cls=TorchBasisMatrixData,
                     load_labels=split != "predict",
                 )
 

@@ -3,12 +3,13 @@ from typing import List, Tuple, Optional, Union, Dict
 import torch
 from e3nn import o3, nn
 
-from graph2mat.bindings.torch import BasisMatrixTorchData
+from graph2mat.bindings.torch import TorchBasisMatrixData
 
 __all__ = [
     "E3nnInteraction",
     "E3nnEdgeMessageBlock",
 ]
+
 
 # Taken directly from the MACE repository (mace.modules.irreps_tools).
 def tp_out_irreps_with_instructions(
@@ -43,6 +44,7 @@ def tp_out_irreps_with_instructions(
 
     return irreps_out, instructions
 
+
 # Taken directly from the MACE repository (mace.tools.scatter).
 def _broadcast(src: torch.Tensor, other: torch.Tensor, dim: int):
     if dim < 0:
@@ -54,6 +56,7 @@ def _broadcast(src: torch.Tensor, other: torch.Tensor, dim: int):
         src = src.unsqueeze(-1)
     src = src.expand_as(other)
     return src
+
 
 # Taken directly from the MACE repository (mace.tools.scatter).
 def scatter_sum(
@@ -78,11 +81,11 @@ def scatter_sum(
         return out.scatter_add_(dim, index, src)
     else:
         return out.scatter_add_(dim, index, src)
-    
+
 
 class E3nnInteraction(torch.nn.Module):
     """Basically MACE's RealAgnosticResidualInteractionBlock, without reshapes.
-    
+
     This function takes a graph and returns new states for the nodes.
 
     This function can be used for the preprocessing step of both nodes and edges.
@@ -96,11 +99,11 @@ class E3nnInteraction(torch.nn.Module):
         super().__init__()
 
         node_feats_irreps = irreps["node_feats_irreps"]
-        #node_attrs_irreps = irreps["node_attrs_irreps"]
+        # node_attrs_irreps = irreps["node_attrs_irreps"]
         edge_attrs_irreps = irreps["edge_attrs_irreps"]
         edge_feats_irreps = irreps["edge_feats_irreps"]
         target_irreps = irreps["node_feats_irreps"]
-        #hidden_irreps = irreps["node_feats_irreps"]
+        # hidden_irreps = irreps["node_feats_irreps"]
 
         # First linear
         self.linear_up = o3.Linear(
@@ -142,7 +145,7 @@ class E3nnInteraction(torch.nn.Module):
 
     def forward(
         self,
-        data: BasisMatrixTorchData,
+        data: TorchBasisMatrixData,
         node_feats: torch.Tensor,
     ) -> Union[
         Tuple[torch.Tensor, torch.Tensor],
@@ -150,7 +153,7 @@ class E3nnInteraction(torch.nn.Module):
     ]:
         edge_attrs = data["edge_attrs"]
         edge_feats = data["edge_feats"]
-        
+
         sender, receiver = data["edge_index"]
         num_nodes = node_feats.shape[0]
 
@@ -167,11 +170,12 @@ class E3nnInteraction(torch.nn.Module):
         message = self.linear(message) / self.avg_num_neighbors
 
         return message
-    
+
+
 class E3nnEdgeMessageBlock(torch.nn.Module):
     """This is basically MACE's RealAgnosticResidualInteractionBlock, but only up to the part
     where it computes the partial mji messages.
-    
+
     It computes a "message" for each edge in the graph. Note that the message
     is different for the edge (i, j) and the edge (j, i).
 
@@ -229,7 +233,7 @@ class E3nnEdgeMessageBlock(torch.nn.Module):
 
     def forward(
         self,
-        data: BasisMatrixTorchData,
+        data: TorchBasisMatrixData,
         node_feats: torch.Tensor,
     ) -> Tuple[None, torch.Tensor]:
         sender, receiver = data["edge_index"]

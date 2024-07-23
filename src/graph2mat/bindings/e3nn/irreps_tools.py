@@ -1,9 +1,9 @@
-"""Utility tools to deal with irreps.
+"""Utility tools to deal with e3nn irreps.
 
 These are basically tools to convert from/to irreps.
+
+They are currently not being used anywhere in `graph2mat`.
 """
-
-
 from typing import Union, Sequence, Iterable
 
 import sisl

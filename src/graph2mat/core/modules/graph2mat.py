@@ -1,3 +1,5 @@
+"""Graph2Mat, the models' skeleton."""
+
 import itertools
 import numpy as np
 from typing import Sequence, Type, Union, Tuple, List, Dict, TypeVar, Generic, Callable
@@ -6,14 +8,24 @@ from types import ModuleType
 from ..data import BasisMatrixData
 from .matrixblock import MatrixBlock
 from ..data.basis import PointBasis
-# from .node_readouts import NodeBlock, SimpleNodeBlock
-# from .edge_readouts import EdgeBlock, SimpleEdgeBlock
 
-# This type will be 
+__all__ = ["Graph2Mat"]
+
+# This type will be
 ArrayType = TypeVar("ArrayType")
 
+
 class Graph2Mat(Generic[ArrayType]):
-    """Computes a variable size sparse matrix from a graph.
+    """Converts a graph to a sparse matrix.
+
+    The matrix that this module computes has variable size, which corresponds
+    to the size of the graph. It is built by applying a convolution of its functions
+    over the edges and nodes of the graph.
+
+    **High level architecture overview**
+
+    .. image:: /_static/images/Graph2Mat.svg
+
 
     **Design concept**
 
@@ -108,13 +120,13 @@ class Graph2Mat(Generic[ArrayType]):
         preprocessing_edges_kwargs: dict = {},
         node_operation: Type = None,
         node_operation_kwargs: dict = {},
-        edge_operation: Type  = None,
+        edge_operation: Type = None,
         edge_operation_kwargs: dict = {},
         symmetric: bool = False,
         blocks_symmetry: str = "ij",
         self_blocks_symmetry: Union[str, None] = None,
         matrix_block_cls: Type[MatrixBlock] = MatrixBlock,
-        numpy: ModuleType = np,
+        # numpy: ModuleType = np,
         self_interactions_list: Callable = list,
         interactions_dict: Callable = dict,
     ):
@@ -179,9 +191,7 @@ class Graph2Mat(Generic[ArrayType]):
 
         return self_interactions
 
-    def _init_interactions(
-        self, **kwargs
-    ) -> Dict[Tuple[int, int], MatrixBlock]:
+    def _init_interactions(self, **kwargs) -> Dict[Tuple[int, int], MatrixBlock]:
         point_type_combinations = itertools.combinations_with_replacement(
             range(len(self.unique_basis)), 2
         )
@@ -204,7 +214,9 @@ class Graph2Mat(Generic[ArrayType]):
                     # One of the involved point types has no basis functions
                     interactions[point_i, point_j, signed_edge_type] = None
                 else:
-                    interactions[point_i, point_j, signed_edge_type] = self._matrix_block_cls(
+                    interactions[
+                        point_i, point_j, signed_edge_type
+                    ] = self._matrix_block_cls(
                         i_basis=i_basis,
                         j_basis=j_basis,
                         symm_transpose=neigh_type == point_type,
@@ -287,7 +299,7 @@ class Graph2Mat(Generic[ArrayType]):
             if x.symm_transpose:
                 s += " [XY = YX.T]"
 
-            s += f" {self.get_edge_operation_summary(x)}."     
+            s += f" {self.get_edge_operation_summary(x)}."
 
         return s
 
@@ -323,7 +335,7 @@ class Graph2Mat(Generic[ArrayType]):
         Parameters
         -----------
         data:
-            The data object containing the graph information. 
+            The data object containing the graph information.
             It can also be a dictionary that mocks the `BasisMatrixData` object
             with the appropiate keys.
         node_kwargs: Dict[str, ArrayType] = {},
@@ -380,16 +392,14 @@ class Graph2Mat(Generic[ArrayType]):
             All the edge blocks, flattened and concatenated.
         """
 
-        # If there are preprocessing functions for the computation of nodes 
-        # or edges, apply them and overwrite the node_feats to be passed 
+        # If there are preprocessing functions for the computation of nodes
+        # or edges, apply them and overwrite the node_feats to be passed
         # to node/edge operations.
         # Note that preprocessing functions can return either a single value
         # (new_node_feats) or a tuple (new_node_feats, edge_messages).
         if self.preprocessing_nodes is not None:
-
             preprocessing_out = self.preprocessing_nodes(
-                data=data, node_feats=node_feats,
-                **preprocessing_nodes_kwargs
+                data=data, node_feats=node_feats, **preprocessing_nodes_kwargs
             )
 
             if isinstance(preprocessing_out, tuple):
@@ -400,18 +410,18 @@ class Graph2Mat(Generic[ArrayType]):
 
             if node_feats_for_nodes is not None:
                 node_operation_node_kwargs = {
-                    "node_feats": node_feats_for_nodes, 
-                    **node_operation_node_kwargs
+                    "node_feats": node_feats_for_nodes,
+                    **node_operation_node_kwargs,
                 }
         else:
-            node_operation_node_kwargs = {"node_feats": node_feats, **node_operation_node_kwargs}
+            node_operation_node_kwargs = {
+                "node_feats": node_feats,
+                **node_operation_node_kwargs,
+            }
 
         if self.preprocessing_edges is not None:
-
             preprocessing_out = self.preprocessing_edges(
-                data=data, 
-                node_feats=node_feats,
-                **preprocessing_edges_kwargs
+                data=data, node_feats=node_feats, **preprocessing_edges_kwargs
             )
 
             if isinstance(preprocessing_out, tuple):
@@ -423,15 +433,15 @@ class Graph2Mat(Generic[ArrayType]):
             if node_feats_for_edges is not None:
                 edge_operation_node_kwargs = {
                     "node_feats": node_feats_for_edges,
-                    **edge_operation_node_kwargs
+                    **edge_operation_node_kwargs,
                 }
             if edge_messages is not None:
-                edge_kwargs = {
-                    "edge_messages": edge_messages,
-                    **edge_kwargs
-                }
+                edge_kwargs = {"edge_messages": edge_messages, **edge_kwargs}
         else:
-            edge_operation_node_kwargs = {"node_feats": node_feats, **edge_operation_node_kwargs}
+            edge_operation_node_kwargs = {
+                "node_feats": node_feats,
+                **edge_operation_node_kwargs,
+            }
 
         # Build the arguments to pass to each kind of operation (node/edge)
         node_operation_node_kwargs = {**node_kwargs, **node_operation_node_kwargs}
@@ -493,8 +503,9 @@ class Graph2Mat(Generic[ArrayType]):
             for i, individual_output in zip(mask.nonzero(), output):
                 node_labels[i] = individual_output
 
-        return self.numpy.concatenate([labels for labels in node_labels if labels is not None])
-
+        return self.numpy.concatenate(
+            [labels for labels in node_labels if labels is not None]
+        )
 
     def _forward_interactions_init_arrays_kwargs(self, edge_types_array):
         return {}

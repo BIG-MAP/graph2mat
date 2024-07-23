@@ -1,6 +1,7 @@
 from e3nn import o3
 import torch
 
+
 class E3nnSimpleNodeBlock(torch.nn.Module):
     """Sums all node features and then passes them to a tensor square.
 

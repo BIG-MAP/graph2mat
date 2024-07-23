@@ -8,20 +8,27 @@ from mace.modules.blocks import (
 
 from graph2mat import PointBasis
 
-from graph2mat.bindings.torch import BasisMatrixTorchData
-from graph2mat.bindings.e3nn import E3nnGraph2Mat, E3nnSimpleEdgeBlock, E3nnSimpleNodeBlock, E3nnInteraction, E3nnEdgeMessageBlock
+from graph2mat.bindings.torch import TorchBasisMatrixData
+from graph2mat.bindings.e3nn import (
+    E3nnGraph2Mat,
+    E3nnSimpleEdgeBlock,
+    E3nnSimpleNodeBlock,
+    E3nnInteraction,
+    E3nnEdgeMessageBlock,
+)
 
-#from ..node_readouts import NodeBlock, SimpleNodeBlock
-#from ..edge_readouts import EdgeBlock, SimpleEdgeBlock
+# from ..node_readouts import NodeBlock, SimpleNodeBlock
+# from ..edge_readouts import EdgeBlock, SimpleEdgeBlock
 from .preprocessing import MACEInteraction, MACEEdgeMessageBlock
-#from .edge_readouts import MACEEdgeBlock
+
+# from .edge_readouts import MACEEdgeBlock
 
 __all__ = [
     "MACEGraph2Mat",
     "MACEStandaloneGraph2Mat",
 ]
 
-#wewe
+# wewe
 
 # TODO: Create an E3nnIdentityInteraction that does nothing.
 # Make E3nn interactions have a property that indicates the irreps
@@ -67,7 +74,7 @@ class MACEGraph2Mat(E3nnGraph2Mat):
         symmetric: bool = False,
         blocks_symmetry: str = "ij",
         self_blocks_symmetry: Union[str, None] = None,
-        **kwargs
+        **kwargs,
     ):
         super().__init__(
             unique_basis=unique_basis,
@@ -87,7 +94,7 @@ class MACEGraph2Mat(E3nnGraph2Mat):
 
     def forward(
         self,
-        data: BasisMatrixTorchData,
+        data: TorchBasisMatrixData,
         node_feats: torch.Tensor,
     ) -> Tuple[torch.Tensor, torch.Tensor]:
         """Computes the matrix.
@@ -97,7 +104,7 @@ class MACEGraph2Mat(E3nnGraph2Mat):
         Parameters
         -----------
         data:
-            The data object containing the graph information. 
+            The data object containing the graph information.
             It can also be a dictionary that mocks the `BasisMatrixData` object
             with the appropiate keys.
         node_feats, edge_feats, edge_attrs: torch.Tensor
@@ -115,7 +122,7 @@ class MACEGraph2Mat(E3nnGraph2Mat):
 
         edge_operation_node_kwargs = {}
         edge_operation_edge_kwargs = {}
-        if False: #self._MACE_edge_operation:
+        if False:  # self._MACE_edge_operation:
             edge_operation_node_kwargs = {"node_feats": node_feats}
             edge_operation_edge_kwargs = {
                 "edge_feats": data["edge_feats"],
@@ -198,7 +205,7 @@ class MACEStandaloneGraph2Mat(MACEGraph2Mat):
 
     def forward(
         self,
-        data: BasisMatrixTorchData,
+        data: TorchBasisMatrixData,
         node_feats: torch.Tensor,  # [n_nodes, node_feats_irreps.dim]
         edge_vectors: torch.Tensor,  # [n_edges, 3]
         edge_lengths: torch.Tensor,  # [n_edges, 1]
@@ -210,7 +217,7 @@ class MACEStandaloneGraph2Mat(MACEGraph2Mat):
         Parameters
         -----------
         data:
-            The data object containing the graph information. 
+            The data object containing the graph information.
             It can also be a dictionary that mocks the `BasisMatrixData` object
             with the appropiate keys.
         node_feats:

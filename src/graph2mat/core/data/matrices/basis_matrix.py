@@ -12,6 +12,20 @@ BasisCount = np.ndarray  # [num_points]
 
 @dataclass
 class BasisMatrix:
+    """Container to store the raw matrices as a dictionary of blocks.
+
+    The matrices are stored in this format in `BasisConfiguration`, until
+    they are converted to flat arrays for training in `BasisMatrixData`.
+
+    As a user you probably don't need to initialize these matrices explicitly,
+    they are initialized appropiately when initializing a `BasisConfiguration`
+    object using the `OrbitalConfiguration.new` method.
+    """
+
+    #: Dictionary containing the blocks of the matrix. The keys are tuples
+    #: `(i, j_uc, sc_j)` where `ì` and `j_uc` are the point indices of the block
+    #: (in the unit cell) and `sc_j` is the index of the neighboring cell where
+    # `j` is located, e.g. 0 for a unit cell connection.
     block_dict: Dict[Tuple[int, int, int], np.ndarray]
     # Size of the auxiliary supercell. This is the number of cells required
     # in each direction to account for all the interactions of the points in

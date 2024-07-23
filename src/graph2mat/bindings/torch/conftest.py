@@ -9,9 +9,14 @@ from graph2mat.data.configuration import BasisConfiguration
 
 from graph2mat.torch.modules import BasisMatrixReadout
 
-from graph2mat import PointBasis, BasisTableWithEdges, BasisConfiguration, MatrixDataProcessor
+from graph2mat import (
+    PointBasis,
+    BasisTableWithEdges,
+    BasisConfiguration,
+    MatrixDataProcessor,
+)
 
-from graph2mat.torch.data import BasisMatrixTorchData
+from graph2mat.torch.data import TorchBasisMatrixData
 from graph2mat.torch.modules import BasisMatrixReadout
 
 

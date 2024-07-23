@@ -1,7 +1,7 @@
 """Conversion between different sparse representations.
 
 Different sparse representations of a matrix are required during the different
-steps of a typical workflow using ``e3nn_matrix``.
+steps of a typical workflow using `graph2mat`.
 """
 from typing import Dict, Tuple, Type, Optional
 

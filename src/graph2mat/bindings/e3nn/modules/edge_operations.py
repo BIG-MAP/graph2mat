@@ -1,7 +1,18 @@
+"""E3nn operations to compute edge matrix blocks.
+
+In edge matrix blocks, you tipically will have, for each edge,
+a different message coming from each atom in the edge. The edge block
+will tipically not be symmetric, but it is common that.
+
+.. math::
+    B_{ij} = B_{ji}^T
+"""
+
 from e3nn import o3
 import torch
 
 from typing import Tuple
+
 
 class E3nnSimpleEdgeBlock(torch.nn.Module):
     def __init__(self, irreps_in: o3.Irreps, irreps_out: o3.Irreps):

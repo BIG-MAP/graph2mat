@@ -1,12 +1,9 @@
-"""Pytorch modules for matrices."""
+"""Wrappers for graph2mat modules in pytorch.
 
-from .graph2mat import TorchMatrixBlock, TorchGraph2Mat
+Torch does not add extra functionality to `graph2mat modules`, we just
+need to wrap the core functionality to work with `torch` tensors instead
+of `numpy`.
+"""
 
-# Import the mace submodule only if MACE is available
-try:
-    import mace as _
-except ModuleNotFoundError:
-    pass
-else:
-    pass
-    #from .mace import *
+from .graph2mat import *
+from .matrixblock import *

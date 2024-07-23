@@ -2,7 +2,7 @@
 # License, v. 2.0. If a copy of the MPL was not distributed with this
 # file, You can obtain one at https://mozilla.org/MPL/2.0/.
 #
-# e3nn_matrix documentation build configuration file, created by
+# graph2mat documentation build configuration file, created by
 # sphinx-quickstart on Wed Dec  2 19:55:34 2015.
 #
 # This file is execfile()d with the current directory set to its
@@ -33,10 +33,10 @@ print("sys.path:", sys.path)
 
 import graph2mat
 
-print(f"Located e3nn_matrix here: {graph2mat.__path__}")
+print(f"Located graph2mat here: {graph2mat.__path__}")
 
 # General information about the project.
-project = "e3nn_matrix"
+project = "graph2mat"
 author = "Pol Febrer, Peter Bjørn Jørgensen"
 
 # -- General configuration ------------------------------------------------
@@ -96,7 +96,7 @@ autosummary_generate = True
 # |version| and |release|, also used in various other places throughout the
 # built documents.
 version = str(graph2mat.__version__)
-print(f"e3nn_matrix version {version}")
+print(f"graph2mat version {version}")
 
 
 # Add __init__ classes to the documentation
@@ -131,7 +131,7 @@ add_function_parentheses = False
 show_authors = False
 
 # A list of ignored prefixes for module index sorting.
-modindex_common_prefix = ["e3nn_matrix."]
+modindex_common_prefix = ["graph2mat."]
 
 
 # -- Options for HTML output ----------------------------------------------
@@ -141,17 +141,17 @@ html_theme = "sphinx_rtd_theme"
 
 if html_theme == "furo":
     html_theme_options = {
-        "source_repository": "https://github.com/BIG-MAP/e3nn_matrix",
+        "source_repository": "https://github.com/BIG-MAP/graph2mat",
         "source_branch": "main",
         "source_directory": "docs/",
     }
 
 # The name for this set of Sphinx documents.  If None, it defaults to
 # "<project> v<release> documentation".
-html_title = f"e3nn_matrix {version}"
+html_title = f"graph2mat {version}"
 
 # A shorter title for the navigation bar.  Default is the same as html_title.
-html_short_title = "e3nn_matrix"
+html_short_title = "graph2mat"
 
 # Add any paths that contain custom static files (such as style sheets) here,
 # relative to this directory. They are copied after the builtin static files,
@@ -189,7 +189,7 @@ nbsphinx_prolog = r"""
 .. raw:: html
 
      <div align="right">
-     <a href="https://raw.githubusercontent.com/BIG-MAP/e3nn_matrix/main/{{ docname }}"><img alt="ipynb download badge" src="https://img.shields.io/badge/download-ipynb-blue.svg" style="vertical-align:text-bottom"></a>.
+     <a href="https://raw.githubusercontent.com/BIG-MAP/graph2mat/main/{{ docname }}"><img alt="ipynb download badge" src="https://img.shields.io/badge/download-ipynb-blue.svg" style="vertical-align:text-bottom"></a>.
      </div>
 
 """

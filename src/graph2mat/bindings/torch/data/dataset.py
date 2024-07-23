@@ -10,10 +10,12 @@ import sisl
 import torch.utils.data
 
 from graph2mat import BasisConfiguration, MatrixDataProcessor
-from .data import BasisMatrixTorchData 
+from .data import TorchBasisMatrixData
+
+__all__ = ["TorchBasisMatrixDataset", "InMemoryData", "RotatingPoolData"]
 
 
-class BasisMatrixDataset(torch.utils.data.Dataset):
+class TorchBasisMatrixDataset(torch.utils.data.Dataset):
     """Stores all configuration info of a dataset.
 
     Given all of its arguments, it has information to generate all the
@@ -47,7 +49,7 @@ class BasisMatrixDataset(torch.utils.data.Dataset):
         self,
         input_data: Sequence[Union[BasisConfiguration, Path, str, sisl.Geometry]],
         data_processor: MatrixDataProcessor,
-        data_cls: Type[BasisMatrixTorchData] = BasisMatrixTorchData,
+        data_cls: Type[TorchBasisMatrixData] = TorchBasisMatrixData,
         load_labels: bool = True,
     ):
         self.input_data = input_data
@@ -58,7 +60,7 @@ class BasisMatrixDataset(torch.utils.data.Dataset):
     def __len__(self):
         return len(self.input_data)
 
-    def __getitem__(self, index: int) -> BasisMatrixTorchData:
+    def __getitem__(self, index: int) -> TorchBasisMatrixData:
         item = self.input_data[index]
 
         return self.data_cls.new(
@@ -78,7 +80,7 @@ class InMemoryData(torch.utils.data.Dataset):
     """
 
     def __init__(
-        self, dataset: BasisMatrixDataset, size: Optional[int] = None, **kwargs
+        self, dataset: TorchBasisMatrixDataset, size: Optional[int] = None, **kwargs
     ):
         super().__init__(**kwargs)
         size = size or len(dataset)
@@ -87,7 +89,7 @@ class InMemoryData(torch.utils.data.Dataset):
     def __len__(self):
         return len(self.data_objects)
 
-    def __getitem__(self, index: int) -> BasisMatrixTorchData:
+    def __getitem__(self, index: int) -> TorchBasisMatrixData:
         return self.data_objects[index]
 
 
@@ -133,7 +135,7 @@ class RotatingPoolData(torch.utils.data.Dataset):
         The size of the pool to keep in memory.
     """
 
-    def __init__(self, dataset: BasisMatrixDataset, pool_size: int, **kwargs):
+    def __init__(self, dataset: TorchBasisMatrixDataset, pool_size: int, **kwargs):
         super().__init__(**kwargs)
         self.pool_size = pool_size
         self.parent_data = dataset
@@ -167,7 +169,7 @@ class RotatingPoolData(torch.utils.data.Dataset):
     def __len__(self):
         return self.pool_size
 
-    def __getitem__(self, index: int) -> BasisMatrixTorchData:
+    def __getitem__(self, index: int) -> TorchBasisMatrixData:
         return self.data_pool[index]
 
     def get_data_pool(self):

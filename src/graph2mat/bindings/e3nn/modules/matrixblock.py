@@ -4,11 +4,13 @@ from typing import Type, Dict
 import inspect
 
 from graph2mat import PointBasis
-from ..torch import TorchMatrixBlock
+from graph2mat.bindings.torch import TorchMatrixBlock
 
-__all__ = ["E3nnMatrixBlock"]
+__all__ = ["E3nnIrrepsMatrixBlock"]
 
-class E3nnMatrixBlock(TorchMatrixBlock):
+
+class E3nnIrrepsMatrixBlock(TorchMatrixBlock):
+    """Computes a matrix block by computing its irreps first."""
 
     def __init__(
         self,
@@ -67,19 +69,20 @@ class E3nnMatrixBlock(TorchMatrixBlock):
         # matrix stored on initialization.
         # n = number of nodes, i = dim of irreps, x = rows in block, y = cols in block
         return self.numpy.einsum("ni,ixy->nxy", irreducible_out, self.change_of_basis)
-    
-    def get_init_kwargs(self, irreps:Dict[str, o3.Irreps], operation_cls) -> dict:
 
+    def get_init_kwargs(self, irreps: Dict[str, o3.Irreps], operation_cls) -> dict:
         kwargs = {}
         op_sig = inspect.signature(operation_cls)
 
-        kwargs["irreps_in"] = [irrep for irrep in [irreps["node_feats_irreps"], irreps["edge_message_irreps"]] if irrep is not None]
+        kwargs["irreps_in"] = [
+            irrep
+            for irrep in [irreps["node_feats_irreps"], irreps["edge_message_irreps"]]
+            if irrep is not None
+        ]
         kwargs["irreps_out"] = self._irreps_out
 
         for k in op_sig.parameters:
             if k in irreps:
                 kwargs[k] = irreps[k]
-            
-        return kwargs
 
-    
+        return kwargs

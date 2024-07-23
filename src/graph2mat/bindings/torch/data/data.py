@@ -11,8 +11,10 @@ from torch_geometric.data.data import Data
 
 from graph2mat import BasisMatrixData
 
+__all__ = ["TorchBasisMatrixData"]
 
-class BasisMatrixTorchData(BasisMatrixData, Data):
+
+class TorchBasisMatrixData(BasisMatrixData):
     """Extension of `BasisMatrixData` to be used with pytorch models.
 
     All this class implements is the conversion of numpy arrays to torch tensors
