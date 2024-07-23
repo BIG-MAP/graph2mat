@@ -31,10 +31,9 @@ jobs:
 
       - uses: r-lib/actions/setup-pandoc@v2
 
-      - name: Install e3nn_matrix + documentation dependencies
+      - name: Install graph2mat + documentation dependencies
         run: |
           python -m pip install .[docs]
-          python -m pip install git+https://github.com/ACEsuit/mace.git
 
       - name: Build the documentation
         run: |

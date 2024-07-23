@@ -1,0 +1,61 @@
+<!doctype html>
+<html>
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <link type="text/css" href="/static/styles/styles.css" rel="stylesheet">
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script src="/static/javascript/form.js"></script>
+</head>
+<body>
+    <div class="flex flex-col h-screen bg-stone-200 w-screen">
+        {% include 'topbar.html' %}
+        <div class="flex-1 flex overflow-hidden">
+            <div class="h-full pl-4 py-4">
+                {% include 'model_picker_sidebar.html' %}
+            </div>
+            <div class="flex-1 flex">
+                {% include 'model_info_card.html' %}
+                <div class="px-8 pt-6 pb-12 w-1/2 bg-stone-100 my-4 mr-4 rounded-lg overflow-y-auto shadow-[0_4px_12px_0_rgba(0,0,0,0.07),_0_2px_4px_rgba(0,0,0,0.05)]">
+                    <h2 class="text-xl font-semibold leading-7 text-gray-900">Request form</h2>
+                    <p class="mt-1 text-sm leading-6 text-gray-600">Use this form to send requests to the model.</p>
+
+                    <p class="mt-5 mb-2 text-sm font-medium leading-6 text-gray-900">Pick an action</p>
+                    {% include 'model_action_picker.html' %}
+                    <p class="mt-1 text-sm leading-6 text-gray-600 ">{{ model_action.short_help }}</p>
+                    {% block model_action_form %}
+                    <form id="form" method="post" action="/api/models/{{model_name}}/predict" enctype="multipart/form-data" onsubmit="formSubmit(event)" onreset="formReset(event)">
+
+                        <div class="mt-6 flex items-center justify-end gap-x-6">
+                        <button type="reset" class="text-sm font-semibold leading-6 text-gray-900">Clear</button>
+                        <button id="submit_button" type="submit" class="rounded-md bg-teal-600 px-3 py-2 text-sm font-semibold text-white shadow-sm hover:bg-teal-500 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-indigo-600 disabled:opacity-25">Test</button>
+                        </div>
+                    </form>
+                    {% endblock %}
+
+                    <div id="loading" class="hidden flex justify-center w-full py-8">
+                        <div
+                        class=" h-8 w-8 animate-spin rounded-full border-4 border-solid border-current border-r-transparent align-[-0.125em] text-success motion-reduce:animate-[spin_1.5s_linear_infinite]"
+                        role="status">
+                        <span
+                            class="!absolute !-m-px !h-px !w-px !overflow-hidden !whitespace-nowrap !border-0 !p-0 ![clip:rect(0,0,0,0)]"
+                            >Loading...</span
+                        >
+                        </div>
+                    </div>
+
+                    <div id="error" class="hidden flex justify-center w-full py-8">
+                        <div class="bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded relative" role="alert">
+                            <strong class="font-bold">Error:</strong>
+                            <span id="error_message" class="block sm:inline"></span>
+                        </div>
+                    </div>
+
+                    <div id="output_div"> </div>
+
+                </div>
+            </div>
+        </div>
+    </div>
+</body>
+</html>

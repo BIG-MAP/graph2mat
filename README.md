@@ -1,4 +1,4 @@
-What is `e3nn_matrix`?
+Gra
 ----------------------
 
 It is an e3nn based package that implements output blocks to read out matrices with equivariant blocks from an equivariant neural network. An example of such matrices are orbital-orbital matrices like the **Hamiltonian** of an atomic system.
