@@ -5,6 +5,8 @@ graph2mat: Equivariant matrices meet machine learning
 
 The aim of `graph2mat` is to pave your way into meaningful science by providing the **tools to interface to common machine learning frameworks** (e3nn, pytorch) **to learn equivariant matrices.**
 
+**[Documentation](https://big-map.github.io/graph2mat/)**
+
 It also provides a **set of tools** to facilitate the training and usage of the models created using the package:
 
 - **Training tools**: It contains custom `pytorch_lightning` modules to train, validate and test the orbital matrix models.
