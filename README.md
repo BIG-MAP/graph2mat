@@ -14,11 +14,12 @@ It also provides a **set of tools** to facilitate the training and usage of the 
     models. Implemented using `fastapi`.
 - **Siesta**: A set of tools to interface the machine learning models with SIESTA. These include tools for input preparation, analysis of performance...
 
-The package also implements a **command line interface** (CLI): `e3mat`. The aim of this CLI is
-to make the usage of `e3nn_matrix`'s tools as simple as possible. It has two objectives:
-    - Make life easy for the model developers.
-    - Facilitate the usage of the models by non machine learning scientists, who just want
-      good predictions for their systems.
+The package also implements a **command line interface** (CLI): `graph2mat`. The aim of this CLI is
+to make the usage of `graph2mat`'s tools as simple as possible. It has two objectives:
+
+- Make life easy for the model developers.
+- Facilitate the usage of the models by non machine learning scientists, who just want
+  good predictions for their systems.
 
 What is an equivariant interaction matrix?
 ------------------------------
