@@ -49,7 +49,7 @@ def csr_to_block_dict(
         cols=spmat.col,
         atom_first_orb=atoms.firsto,
         orbitals=orbitals,
-        n_atoms=len(atoms.species),
+        n_atoms=len(atoms.specie),
     )
 
     orbitals = geometry_atoms.orbitals if geometry_atoms is not None else atoms.orbitals

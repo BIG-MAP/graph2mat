@@ -114,7 +114,7 @@ def plot_basis_matrix(
         atom_irreps = [get_atom_irreps(atom) for atom in geometry.atoms.atom]
 
         curr_l = 0
-        for atom_specie, atom_last_o in zip(geometry.atoms.species, geometry.lasto):
+        for atom_specie, atom_last_o in zip(geometry.atoms.specie, geometry.lasto):
             irreps = atom_irreps[atom_specie]
 
             for ir in irreps:
