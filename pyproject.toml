@@ -39,7 +39,7 @@ classifiers = [
 graph2mat = "graph2mat.tools.cli.cli:app"
 
 [build-system]
-requires = ["scikit-build-core", "cython"]
+requires = ["scikit-build-core", "cython", "numpy"]
 build-backend = "scikit_build_core.build"
 
 [tool.scikit-build]
