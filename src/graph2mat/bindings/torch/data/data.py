@@ -14,8 +14,8 @@ from graph2mat import BasisMatrixData
 __all__ = ["TorchBasisMatrixData"]
 
 
-class TorchBasisMatrixData(BasisMatrixData):
-    """Extension of `BasisMatrixData` to be used with pytorch models.
+class TorchBasisMatrixData(BasisMatrixData, Data):
+    """Extension of `BasisMatrixData` to be used within pytorch.
 
     All this class implements is the conversion of numpy arrays to torch tensors
     and back. The rest of the functionality is inherited from `BasisMatrixData`.
@@ -24,7 +24,8 @@ class TorchBasisMatrixData(BasisMatrixData):
 
     See Also
     --------
-    BasisMatrixData: The class that implements the heavy lifting of the data processing.
+    BasisMatrixData
+        The class that implements the heavy lifting of the data processing.
     """
 
     num_nodes: torch.Tensor

@@ -27,8 +27,8 @@ def setup(
     siesta: Optional[str] = None,
     inplace: bool = False,
     work_dir: Union[Path, None] = None,
-    fdf_name: str = "e3mat.fdf",
-    lua_script: str = "e3mat.lua",
+    fdf_name: str = "graph2mat.fdf",
+    lua_script: str = "graph2mat.lua",
     ml_model_name: str = "0",
     server_host: str = "localhost",
     server_port: int = 56000,
@@ -56,9 +56,9 @@ def setup(
     Parameters
     ----------
     ml:
-        Request DM predictions from an e3mat server. **See history depth specifications in the help message.**
+        Request DM predictions from an graph2mat server. **See history depth specifications in the help message.**
 
-        Notice that you will need to run a server using the `e3mat serve` command along with the SIESTA run.
+        Notice that you will need to run a server using the `graph2mat serve` command along with the SIESTA run.
     siesta:
         Use SIESTA extrapolation algorithm to calculate the DM using the previous steps.
         **See history depth specifications in the help message.**
@@ -80,9 +80,9 @@ def setup(
         Name of the ML model to request predictions from the server. By default it is "0" which
         is the name of the default model in the server.
     server_host :
-        Host where the e3mat server will be running (for ML predictions).
+        Host where the graph2mat server will be running (for ML predictions).
     server_port :
-        Port where the e3mat server will be running (for ML predictions).
+        Port where the graph2mat server will be running (for ML predictions).
     server_api_endpoint :
         API endpoint to send prediction requests (for ML predictions).
     store_interval :
@@ -129,7 +129,9 @@ def setup(
 
             if store_interval > 0:
                 _write_template(
-                    "lua/e3mat.lua", siesta_extrapolation_dir / lua_script, **lua_kwargs
+                    "lua/graph2mat.lua",
+                    siesta_extrapolation_dir / lua_script,
+                    **lua_kwargs,
                 )
 
     if ml is not None:
@@ -157,7 +159,7 @@ def setup(
                 }
             )
 
-            _write_template("lua/e3mat.lua", ml_dir / lua_script, **lua_kwargs)
+            _write_template("lua/graph2mat.lua", ml_dir / lua_script, **lua_kwargs)
 
 
 def setup_store(
@@ -197,7 +199,7 @@ def setup_store(
         "include_server_code": False,
     }
 
-    _write_template("lua/e3mat.lua", out, **lua_kwargs)
+    _write_template("lua/graph2mat.lua", out, **lua_kwargs)
 
 
 def md_guess_performance_dataframe(out_file: Union[str, Path]) -> pd.DataFrame:
@@ -214,8 +216,8 @@ def md_guess_performance_dataframe(out_file: Union[str, Path]) -> pd.DataFrame:
 
     # Read the first and last iteration of every scf loop,
     # we don't care about the iterations in the middle (for now)
-    md_scf_first = out_sile.read_scf(iscf=1, as_dataframe=True)[1:]
-    md_scf_conv = out_sile.read_scf(iscf=-1, as_dataframe=True)[1:]
+    md_scf_first = out_sile.read_scf[1:](iscf=1, as_dataframe=True)
+    md_scf_conv = out_sile.read_scf[1:](iscf=-1, as_dataframe=True)
 
     df = pd.concat(
         [
@@ -239,7 +241,7 @@ def md_guess_performance_dataframe(out_file: Union[str, Path]) -> pd.DataFrame:
 
 def md_guess_performance_dataframe_multi(
     out_files: Iterable[Union[str, Path]],
-    agg: Union[Sequence[Callable], None] = (np.mean, min, max, np.std),
+    agg: Union[Sequence[Union[Callable, str]], None] = ("mean", "min", "max", "std"),
 ) -> pd.DataFrame:
     """Returns a dataframe describing how close the first SCF step is to the converged properties.
 
@@ -309,8 +311,6 @@ def visualize_performance_table(
         If this is a path to a csv file, the dataframe is saved to a csv file
         instead.
     """
-    agg = [getattr(np, a) for a in agg]
-
     # Get the performance dataframe
     df = md_guess_performance_dataframe_multi(out_files, agg=agg)
 

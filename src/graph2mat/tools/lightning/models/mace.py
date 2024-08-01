@@ -8,10 +8,17 @@ import torch
 from graph2mat.core.data.metrics import OrbitalMatrixMetric, block_type_mse
 from graph2mat import BasisTableWithEdges
 
-from graph2mat.bindings.e3nn import E3nnSimpleNodeBlock, E3nnSimpleEdgeBlock, E3nnGraph2Mat
+from graph2mat.bindings.e3nn import (
+    E3nnSimpleNodeBlock,
+    E3nnSimpleEdgeBlock,
+    E3nnGraph2Mat,
+    E3nnInteraction,
+    E3nnEdgeMessageBlock,
+)
 
 from graph2mat.models.mace import MatrixMACE
-#from graph2mat.models._mace.models import OrbitalMatrixMACE
+
+# from graph2mat.models._mace.models import OrbitalMatrixMACE
 
 from graph2mat.tools.lightning import LitBasisMatrixModel
 
@@ -42,6 +49,8 @@ class LitMACEMatrixModel(LitBasisMatrixModel):
         correlation: int = 1,
         # unique_atoms: Sequence[sisl.Atom],
         symmetric_matrix: bool = False,
+        preprocessing_nodes: Optional[Type[torch.nn.Module]] = None,
+        preprocessing_edges: Optional[Type[torch.nn.Module]] = None,
         node_block_readout: Type[torch.nn.Module] = E3nnSimpleNodeBlock,
         edge_block_readout: Type[torch.nn.Module] = E3nnSimpleEdgeBlock,
         readout_per_interaction: bool = False,
@@ -50,10 +59,9 @@ class LitMACEMatrixModel(LitBasisMatrixModel):
         optim_lr: float = 1e-3,
         loss: Type[OrbitalMatrixMetric] = block_type_mse,
         initial_node_feats: str = "OneHotZ",
-        version: str = "new"
+        version: str = "new",
     ):
-        
-        model_cls = MatrixMACE #if version == "new" else OrbitalMatrixMACE
+        model_cls = MatrixMACE  # if version == "new" else OrbitalMatrixMACE
 
         super().__init__(
             root_dir=root_dir,
@@ -72,7 +80,6 @@ class LitMACEMatrixModel(LitBasisMatrixModel):
             edge_hidden_irreps = o3.Irreps(edge_hidden_irreps)
 
         if version == "new":
-
             mace = MACE(
                 r_max=self.basis_table.maxR() * 2,
                 num_bessel=num_bessel,
@@ -88,7 +95,7 @@ class LitMACEMatrixModel(LitBasisMatrixModel):
                 avg_num_neighbors=avg_num_neighbors,
                 atomic_numbers=torch.arange(len(self.basis_table.basis)),
                 correlation=correlation,
-                gate=None
+                gate=None,
             )
 
             self.init_model(
@@ -97,12 +104,13 @@ class LitMACEMatrixModel(LitBasisMatrixModel):
                 unique_basis=self.basis_table.basis,
                 edge_hidden_irreps=edge_hidden_irreps,
                 symmetric=symmetric_matrix,
+                preprocessing_nodes=preprocessing_nodes,
+                preprocessing_edges=preprocessing_edges,
                 node_operation=node_block_readout,
                 edge_operation=edge_block_readout,
             )
 
         else:
-
             self.init_model(
                 r_max=self.basis_table.maxR() * 2,
                 num_bessel=num_bessel,
@@ -124,8 +132,6 @@ class LitMACEMatrixModel(LitBasisMatrixModel):
                 only_last_readout=False,
                 node_attr_irreps=self.initial_node_feats_irreps,
             )
-
-        print(self.model)
 
     def configure_optimizers(self):
         model = self.model

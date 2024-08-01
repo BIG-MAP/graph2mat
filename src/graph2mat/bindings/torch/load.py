@@ -66,9 +66,9 @@ def load_from_lit_ckpt(
     ckpt = sanitize_checkpoint(ckpt)
 
     if not as_torch:
-        from graph2mat.tools.lightning.models.mace import LitOrbitalMatrixMACE
+        from graph2mat.tools.lightning.models.mace import LitMACEMatrixModel
 
-        model = LitOrbitalMatrixMACE.load_from_checkpoint(
+        model = LitMACEMatrixModel.load_from_checkpoint(
             ckpt_file,
             basis_table=ckpt["basis_table"],
             map_location="cpu" if cpu else None,

@@ -14,6 +14,3 @@ for the core functionality. So basically, the criteria for creating a new
 submodule in `bindings` is that we can't add the functionality to the core
 without requiring the framework as a dependency.
 """
-
-from . import e3nn
-from . import torch

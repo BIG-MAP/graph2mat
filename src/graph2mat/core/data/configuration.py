@@ -20,6 +20,7 @@ from dataclasses import dataclass
 
 import numpy as np
 import sisl
+from scipy.sparse import issparse, csr_array
 
 from .basis import PointBasis, NoBasisAtom
 from .matrices import OrbitalMatrix, BasisMatrix, get_matrix_cls
@@ -72,6 +73,9 @@ class BasisConfiguration:
         Whether the system is periodic in each cell direction.
     matrix:
         The matrix associated to the configuration.
+
+        It can be a numpy or scipy sparse matrix, which will be converted to a BasisMatrix
+        object.
     weight:
         The weight of the configuration in the loss.
     config_type:
@@ -111,6 +115,28 @@ class BasisConfiguration:
 
     #: A dictionary with additional metadata related to the configuration.
     metadata: Optional[Dict[str, Any]] = None
+
+    def __post_init__(self):
+        if self.matrix is not None and not isinstance(self.matrix, BasisMatrix):
+            matrix = self.matrix
+
+            if isinstance(self.matrix, np.ndarray):
+                matrix = csr_array(matrix)
+
+            if issparse(matrix):
+                matrix = sisl.SparseCSR(matrix)
+
+                if matrix.shape[0] != matrix.shape[1]:
+                    raise ValueError(
+                        f"{self.__class__.__name__} can only sanitize the provided matrix if it is square. Otherwise use `BasisConfiguration.from_matrix`"
+                    )
+
+                geometry = self.to_sisl_geometry()
+                matrix = csr_to_block_dict(
+                    matrix, geometry.atoms, nsc=(1, 1, 1), matrix_cls=BasisMatrix
+                )
+
+                object.__setattr__(self, "matrix", matrix)
 
     def to_sisl_geometry(self) -> sisl.Geometry:
         """Converts the configuration to a sisl Geometry."""
@@ -157,6 +183,9 @@ class OrbitalConfiguration(BasisConfiguration):
         Whether the system is periodic in each cell direction.
     matrix:
         The matrix associated to the configuration.
+
+        It can be a numpy or scipy sparse matrix, which will be converted to a BasisMatrix
+        object.
     weight:
         The weight of the configuration in the loss.
     config_type:

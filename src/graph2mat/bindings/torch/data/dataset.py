@@ -22,6 +22,9 @@ class TorchBasisMatrixDataset(torch.utils.data.Dataset):
     `BasisMatrixTorchData` objects. However, **the objects are created on the fly
     as they are requested**. They are not stored by this class.
 
+    `torch_geometric's` data loader can be used out of the box to load data from
+    this dataset.
+
     Parameters
     ----------
     input_data :
@@ -41,8 +44,35 @@ class TorchBasisMatrixDataset(torch.utils.data.Dataset):
 
     See Also
     --------
-    InMemoryData : A wrapper for a dataset that loads all data into memory.
-    RotatingPoolData : A wrapper for a dataset that continously loads data into a smaller pool.
+    InMemoryData
+        A wrapper for a dataset that loads all data into memory.
+    RotatingPoolData
+        A wrapper for a dataset that continously loads data into a smaller pool.
+
+    Examples
+    --------
+
+    .. code-block:: python
+
+        from graph2mat import BasisConfiguration, MatrixDataProcessor
+        from graph2mat.bindings.torch import
+
+        # Initialize basis configurations (substitute ... by appropriate arguments)
+        config_1 = BasisConfiguration(...)
+        config_2 = BasisConfiguration(...)
+
+        # Initialize data processor (substitute ... by appropriate arguments)
+        processor = MatrixDataProcessor(...)
+
+        # Initialize dataset
+        dataset = TorchBasisMatrixDataset([config_1, config_2], processor)
+
+        # Import the loader class from torch_geometric
+        from torch_geometric.loader import DataLoader
+
+        # Create a data loader from this dataset
+        loader = DataLoader(dataset, batch_size=2)
+
     """
 
     def __init__(

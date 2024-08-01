@@ -20,8 +20,8 @@ from graph2mat.core.data.configuration import PhysicsMatrixType
 from graph2mat import BasisTableWithEdges, AtomicTableWithEdges, MatrixDataProcessor
 from graph2mat.core.data.node_feats import NodeFeature
 from graph2mat.bindings.torch.data import TorchBasisMatrixData
-from graph2mat.bindings.torch.dataset import (
-    BasisMatrixDataset,
+from graph2mat.bindings.torch import (
+    TorchBasisMatrixDataset,
     InMemoryData,
     RotatingPoolData,
 )
@@ -177,7 +177,7 @@ class MatrixDataModule(pl.LightningDataModule):
                 # Contruct the dataset
                 # For predictions, we don't need to load the labels (actually we don't have them)
                 # For the other splits, we need to load the labels (target matrices)
-                dataset = BasisMatrixDataset(
+                dataset = TorchBasisMatrixDataset(
                     list(runs),
                     data_processor=self.data_processor,
                     data_cls=TorchBasisMatrixData,

@@ -1,4 +1,6 @@
-cmake_minimum_required(VERSION 3.15...3.26)
+cmake_minimum_required(VERSION 3.21)
+# We will use cmake_path for file-name manipulation
+
 project(${SKBUILD_PROJECT_NAME} LANGUAGES C)
 
 find_package(

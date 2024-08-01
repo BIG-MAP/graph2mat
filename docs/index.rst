@@ -28,9 +28,10 @@ Using ``pip``, installation is as simple as:
 I would like to...
 ------------------
 
-    - **Learn and predict** matrices using built-in models: `Application tutorials <tutorials/applications/index.rst>`_.
-    - **Develop** my own matrix-predicting model: `Low-level tutorials <tutorials/low_level/index.rst>`_.
-    - **Find documentation** for a particular function/class: `API documentation <api/index.rst>`_.
+    - **Learn and predict** matrices using built-in models: `CLI tutorials <tutorials/cli/index.rst>`_.
+    - **Develop** my own matrix-predicting model: `Python API tutorials <tutorials/python_api/index.rst>`_.
+    - Get an **overview of the python API**: `API overview <api/description.rst>`_.
+    - **Find documentation** for a particular function/class: `API documentation <api/full_api.rst>`_.
 
 Background
 -----------
@@ -59,13 +60,13 @@ powerful applications that take full advantage of the properties of these matric
    :caption: Tutorials
    :hidden:
 
-   tutorials/applications/index
-   tutorials/low_level/index
+   tutorials/cli/index
+   tutorials/python_api/index
 
-.. autosummary::
-    :toctree: api-generated/
-    :template: autosummary/custom-module-template.rst
-    :recursive:
-    :caption: Reference documentation
+.. toctree::
+   :maxdepth: 3
+   :caption: API documentation
+   :hidden:
 
-    graph2mat
+   api/description
+   api/full_api

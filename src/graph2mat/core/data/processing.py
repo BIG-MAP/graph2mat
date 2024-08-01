@@ -79,6 +79,19 @@ class MatrixDataProcessor:
 
     This data processor is agnostic to the framework of the model (e.g. pytorch) and the processing
     is divided in small functions so that it can be easily reused.
+
+    Parameters
+    ------------
+    basis_table :
+        Table containing all the basis information.
+    symmetric_matrix :
+        Whether the matrix is symmetric or not.
+    sub_point_matrix :
+        Whether the isolated point matrix is subtracted from the point labels.
+        That would mean that the model is learning a delta with respect to the
+        case where all points are isolated.
+    out_matrix :
+        Type of matrix to output. If None, the matrix is output as a `scipy` CSR matrix.
     """
 
     basis_table: BasisTableWithEdges
@@ -111,15 +124,19 @@ class MatrixDataProcessor:
 
     def torch_predict(self, torch_model, geometry: sisl.Geometry):
         import torch
+        from torch_geometric.loader import DataLoader
 
-        from ..torch import BasisMatrixTorchData
+        from graph2mat.bindings.torch import TorchBasisMatrixData
 
         with torch.no_grad():
             # USE THE MODEL
             # First, we need to process the input data, to get inputs as the model expects.
-            input_data = BasisMatrixTorchData.new(
+            input_data = TorchBasisMatrixData.new(
                 geometry, data_processor=self, labels=False
             )
+
+            input_data["ptr"] = torch.tensor([0, len(input_data["point_types"])])
+            input_data["batch"] = torch.tensor([0])
 
             # Then, we run the model.
             out = torch_model(input_data)

@@ -17,9 +17,9 @@ import pandas as pd
 
 import torch
 
-from graph2mat.data.processing import MatrixDataProcessor
-from graph2mat.torch.data import BasisMatrixData, BasisMatrixTorchData
-from graph2mat.torch.load import load_from_lit_ckpt
+from graph2mat import MatrixDataProcessor, BasisMatrixData
+from graph2mat.bindings.torch import TorchBasisMatrixData
+from graph2mat.bindings.torch.load import load_from_lit_ckpt
 
 from graph2mat.tools.server.extrapolation import create_extrapolation_app
 
@@ -228,7 +228,9 @@ def create_server_app(
         }
 
     def predict_from_geometry(model, geometry):
-        return model["data_processor"].torch_predict(model["prediction_function"], geometry)
+        return model["data_processor"].torch_predict(
+            model["prediction_function"], geometry
+        )
 
     @api.post("/models/{model_name}/predict", response_class=FileResponse)
     async def predict(

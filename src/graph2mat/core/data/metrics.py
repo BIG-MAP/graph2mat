@@ -15,6 +15,23 @@ import numpy as np
 
 from .processing import MatrixDataProcessor
 
+__all__ = [
+    "OrbitalMatrixMetric",
+    "block_type_mse",
+    "block_type_mae",
+    "block_type_mape",
+    "block_type_mapemaemix",
+    "block_type_mapemsemix",
+    "block_type_mapestdmix",
+    "elementwise_mse",
+    "node_mse",
+    "edge_mse",
+    "block_type_mse_threshold",
+    "block_type_mse_sigmoid_thresh",
+    "block_type_mae_sigmoid_thresh",
+    "normalized_density_error",
+]
+
 
 def _isnan(values):
     """NaN checking compatible with both torch and numpy"""
@@ -774,7 +791,7 @@ def normalized_density_error(
     This is the error of the density in real space divided by the number of electrons.
     """
     import sisl
-    from graph2mat.data.processing import BasisMatrixData
+    from graph2mat import BasisMatrixData
 
     # Get the errors in the density matrix. Make sure that NaNs are set to 0, which
     # basically means that they will have no influence on the error.

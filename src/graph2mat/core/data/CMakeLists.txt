@@ -8,4 +8,4 @@ add_custom_command(
 python_add_library(_sparse MODULE "${CMAKE_CURRENT_BINARY_DIR}/_sparse.c"
                    WITH_SOABI)
 
-install(TARGETS _sparse DESTINATION .)
+install(TARGETS _sparse DESTINATION ${SKBUILD_PROJECT_NAME}/core/data)

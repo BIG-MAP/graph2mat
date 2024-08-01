@@ -13,7 +13,7 @@ import sisl
 from sisl.physics.sparse import SparseOrbital
 from scipy.sparse import coo_array, csr_array
 
-from .matrices import OrbitalMatrix
+from .matrices import BasisMatrix, OrbitalMatrix
 from ._sparse import _csr_to_block_dict
 
 
@@ -22,9 +22,9 @@ def csr_to_block_dict(
     atoms: sisl.Atoms,
     nsc: np.ndarray,
     geometry_atoms: Optional[sisl.Atoms] = None,
-    matrix_cls: Type[OrbitalMatrix] = OrbitalMatrix,
-) -> OrbitalMatrix:
-    """Creates a OrbitalMatrix object from a SparseCSR matrix
+    matrix_cls: Type[BasisMatrix] = OrbitalMatrix,
+) -> BasisMatrix:
+    """Creates a BasisMatrix object from a SparseCSR matrix
 
     Parameters
     ----------
@@ -54,7 +54,10 @@ def csr_to_block_dict(
 
     orbitals = geometry_atoms.orbitals if geometry_atoms is not None else atoms.orbitals
 
-    return matrix_cls(block_dict=block_dict, nsc=nsc, orbital_count=orbitals)
+    if issubclass(matrix_cls, OrbitalMatrix):
+        return matrix_cls(block_dict=block_dict, nsc=nsc, orbital_count=orbitals)
+    else:
+        return matrix_cls(block_dict=block_dict, nsc=nsc, basis_count=orbitals)
 
 
 def block_dict_to_coo(

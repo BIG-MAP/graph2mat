@@ -1,6 +1,6 @@
 import pytest
 
-from graph2mat.data.metrics import OrbitalMatrixMetric
+from graph2mat import OrbitalMatrixMetric
 
 
 # Test that all metrics run

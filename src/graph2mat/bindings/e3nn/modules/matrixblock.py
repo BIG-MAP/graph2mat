@@ -74,12 +74,17 @@ class E3nnIrrepsMatrixBlock(TorchMatrixBlock):
         kwargs = {}
         op_sig = inspect.signature(operation_cls)
 
-        kwargs["irreps_in"] = [
+        irreps = {**irreps}
+
+        irreps["irreps_in"] = [
             irrep
-            for irrep in [irreps["node_feats_irreps"], irreps["edge_message_irreps"]]
+            for irrep in [
+                irreps["node_feats_irreps"],
+                irreps.get("edge_messages_irreps"),
+            ]
             if irrep is not None
         ]
-        kwargs["irreps_out"] = self._irreps_out
+        irreps["irreps_out"] = self._irreps_out
 
         for k in op_sig.parameters:
             if k in irreps:

@@ -25,5 +25,6 @@ from .matrices import *
 from .basis import PointBasis
 from .configuration import BasisConfiguration, OrbitalConfiguration
 from .metrics import OrbitalMatrixMetric
+from . import metrics
 from .processing import MatrixDataProcessor, BasisMatrixData
 from .table import BasisTableWithEdges, AtomicTableWithEdges

@@ -13,6 +13,17 @@ class TorchGraph2Mat(Graph2Mat, torch.nn.Module):
     It also makes `Graph2Mat` a `torch.nn.Module`,  and it makes it
     store the list of node block functions as a `torch.nn.ModuleList`
     and the dictionary of edge block functions as a `torch.nn.ModuleDict`.
+
+    Parameters
+    ----------
+    **kwargs:
+        Additional arguments passed to the `Graph2Mat` class.
+
+    See Also
+    --------
+    Graph2Mat
+        The class that `TorchGraph2Mat` extends. Its documentation contains a more
+        detailed explanation of the inner workings of the class.
     """
 
     def __init__(

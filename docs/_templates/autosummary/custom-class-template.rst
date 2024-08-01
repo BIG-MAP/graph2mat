@@ -4,18 +4,20 @@
 
 .. autoclass:: {{ objname }}
    :members:
+   :no-special-members:
    :show-inheritance:
-   :inherited-members:
+   :no-inherited-members:
 
    {% block methods %}
-   .. automethod:: __init__
 
    {% if methods %}
    .. rubric:: {{ _('Methods') }}
 
    .. autosummary::
    {% for item in methods %}
-      ~{{ name }}.{{ item }}
+   {%- if item not in inherited_members and not item.startswith("__")%}
+    ~{{ name }}.{{ item }}
+   {%- endif %}
    {%- endfor %}
    {% endif %}
    {% endblock %}
@@ -26,7 +28,9 @@
 
    .. autosummary::
    {% for item in attributes %}
+   {%- if item not in inherited_members %}
       ~{{ name }}.{{ item }}
+   {%- endif %}
    {%- endfor %}
    {% endif %}
    {% endblock %}

@@ -2,7 +2,7 @@
 import sisl
 import numpy as np
 
-from graph2mat.data.sparse import (
+from graph2mat.core.data.sparse import (
     csr_to_block_dict,
     block_dict_to_csr,
     nodes_and_edges_to_csr,

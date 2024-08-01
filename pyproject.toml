@@ -2,7 +2,7 @@
 requires-python = ">=3.8"
 
 name = "graph2mat"
-version = "0.0.1"
+version = "0.0.2"
 description = "Utility package to work with equivariant matrices and graphs."
 readme = "README.md"
 license = {text = "MIT"}
@@ -19,14 +19,11 @@ authors = [
 ]
 
 dependencies = [
-    "e3nn",
     "numpy",
     "scipy",
     "ase",
-    "sisl>=0.13.0",
-    "typer[all]",
-    "torch",
-    "torch_geometric"
+    "sisl>=0.14.0",
+    "typer",
 ]
 
 classifiers = [
@@ -65,11 +62,28 @@ analysis = [
 
 lightning = [
     "pytorch-lightning",
-    "jsonargparse"
+    "jsonargparse[signatures]"
 ]
 
 siesta = [
     "jinja2"
+]
+
+torch = [
+    "torch",
+    "torch_geometric"
+]
+
+e3nn = [
+    "torch",
+    "torch_geometric",
+    "e3nn"
+]
+
+mace = [
+    "torch",
+    "torch_geometric",
+    "mace_torch"
 ]
 
 tools = [
@@ -79,8 +93,9 @@ tools = [
     "plotly",
     "pandas",
     "pytorch-lightning",
-    "jsonargparse",
-    "jinja2"
+    "jsonargparse[signatures]",
+    "jinja2",
+    "mace_torch"
 ]
 
 docs = [
@@ -90,7 +105,7 @@ docs = [
     "plotly",
     "pandas",
     "pytorch-lightning",
-    "jsonargparse",
+    "jsonargparse[signatures]",
     "jinja2",
     "sphinx",
     "sphinx_autodoc_typehints",
@@ -108,7 +123,7 @@ test = [
     "plotly",
     "pandas",
     "pytorch-lightning",
-    "jsonargparse",
+    "jsonargparse[signatures]",
     "jinja2"
 ]
 

@@ -16,15 +16,15 @@ from collections import defaultdict, deque
 
 from e3nn import o3
 
-from graph2mat.data import (
+from graph2mat import (
     AtomicTableWithEdges,
     MatrixDataProcessor,
     OrbitalConfiguration,
     BasisMatrixData,
+    MatrixDataProcessor,
 )
-from graph2mat.data.matrices import get_matrix_cls
-from graph2mat.data.sparse import csr_to_block_dict
-from graph2mat.data.processing import MatrixDataProcessor
+from graph2mat.core.data.matrices import get_matrix_cls
+from graph2mat.core.data.sparse import csr_to_block_dict
 
 
 class DescriptorManager(ABC):
@@ -590,12 +590,13 @@ def create_extrapolation_app(
 
     @app.get("/add_step")
     def add_geometry(path: str, series: int = 0, matrix_ref: Union[str, None] = None):
-
         config = OrbitalConfiguration.from_run(path)
         time_series[series].add_next_config(config)
 
         if matrix_ref is not None:
-            time_series[series].add_last_matrix_ref(matrix_refs[matrix_ref](config.metadata["geometry"]))
+            time_series[series].add_last_matrix_ref(
+                matrix_refs[matrix_ref](config.metadata["geometry"])
+            )
 
         # geometry_xv = sisl.get_sile(Path(path).parent / "siesta.XV").read_geometry()
 
@@ -609,7 +610,9 @@ def create_extrapolation_app(
         matrix = getattr(sile, f"read_{this_series.processor.out_matrix}")()
 
         if m_0 is not None:
-            mat_0 = getattr(sisl.get_sile(m_0), f"read_{this_series.processor.out_matrix}")()
+            mat_0 = getattr(
+                sisl.get_sile(m_0), f"read_{this_series.processor.out_matrix}"
+            )()
             matrix = matrix - mat_0
 
         this_series.add_last_matrix(matrix)

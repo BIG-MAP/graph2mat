@@ -8,14 +8,9 @@ we don't have to cimport numpy. This might not be true in some
 machines (?).
 """
 
-from __future__ import annotations
-
 import numpy as np
 
-try:
-    import cython
-except:
-    pass
+import cython
 
 
 def _csr_to_block_dict(

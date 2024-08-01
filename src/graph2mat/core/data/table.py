@@ -139,12 +139,23 @@ class BasisTableWithEdges:
         ), f"The tag of each basis must be unique. Got {self.types}."
 
         # Define the basis convention and make sure that all the point basis adhere to that convention.
-        basis_convention = self.basis[0].basis_convention
+        for point_basis in self.basis:
+            if len(point_basis.basis) > 0:
+                basis_convention = point_basis.basis_convention
+                break
+        else:
+            basis_convention = "cartesian"
 
-        all_conventions = [point_basis.basis_convention for point_basis in self.basis]
-        assert (
-            len(set(all_conventions)) == 1 and all_conventions[0] == basis_convention
-        ), f"All point basis must have the same convention. Requested convention: {basis_convention}. Basis conventions {all_conventions}."
+        all_conventions = [
+            point_basis.basis_convention
+            for point_basis in self.basis
+            if len(point_basis.basis) > 0
+        ]
+        if len(all_conventions) > 0:
+            assert (
+                len(set(all_conventions)) == 1
+                and all_conventions[0] == basis_convention
+            ), f"All point basis must have the same convention. Requested convention: {basis_convention}. Basis conventions {all_conventions}."
 
         self.basis_convention = basis_convention
 
@@ -206,8 +217,18 @@ class BasisTableWithEdges:
         table = "<table><tbody>"
         table += f"<tr><th>Index</th><th>Type</th><th>Irreps</th><th>Max R</th></tr>"
 
+        def _basis_string(basis):
+            s = ""
+
+            for basis_set in basis:
+                mul, l, parity = basis_set
+                s += f"{mul}x{l}{'e' if parity == 1 else 'o'} + "
+            s = s[:-3]
+
+            return s
+
         for i, point_basis in enumerate(self.basis):
-            table += f"<tr><td>{i}</td><td>{point_basis.type}</td><td>{point_basis.basis}</td><td>{point_basis.maxR()}</td></tr>"
+            table += f"<tr><td>{i}</td><td>{point_basis.type}</td><td>{_basis_string(point_basis.basis)}</td><td>{point_basis.maxR()}</td></tr>"
 
         table += "</tbody></table>"
 

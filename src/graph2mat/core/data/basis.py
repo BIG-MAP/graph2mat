@@ -91,10 +91,14 @@ class PointBasis:
         The spherical harmonics convention used for the basis.
     basis:
         Specification of the basis set that the point type has.
-        It is a list of specifications. Each item in the list can
+        It can be a list of specifications, then each item in the list can
         be the number of sets of functions for a given l (determined
         by the position of the item in the list), or a tuple specifying
         (n_sets, l, parity).
+
+        It can also be a string representing the irreps of the basis in
+        the `e3nn` format. E.g. "3x0e+2x1o" would mean 3 `l=0` and 2 `l=1`
+        sets.
     R : Union[float, np.ndarray]
         The reach of the basis.
         If a float, the same reach is used for all functions.
@@ -127,19 +131,21 @@ class PointBasis:
 
     type: Union[str, int]
     R: Union[float, np.ndarray]
-    basis: Sequence[Union[int, Tuple[int, int, int]]] = ()
+    basis: Union[str, Sequence[Union[int, Tuple[int, int, int]]]] = ()
     basis_convention: BasisConvention = "spherical"
 
     def __post_init__(self):
-        assert isinstance(self.R, Number) or (
-            isinstance(self.R, np.ndarray) and len(self.R) == self.basis_size
-        ), f"R must be a float or an array of length {self.basis_size} (the number of functions)."
-
         basis = self._sanitize_basis(self.basis)
 
         object.__setattr__(self, "basis", basis)
 
-    def _sanitize_basis(self, basis: Sequence[int]) -> Tuple[Tuple[int, int, int], ...]:
+        assert isinstance(self.R, Number) or (
+            isinstance(self.R, np.ndarray) and len(self.R) == self.basis_size
+        ), f"R must be a float or an array of length {self.basis_size} (the number of functions)."
+
+    def _sanitize_basis(
+        self, basis: Union[Sequence[int], str]
+    ) -> Tuple[Tuple[int, int, int], ...]:
         """Sanitizes the basis ensuring that it is a tuple of tuples."""
 
         def _get_sphericalharm_parity(l: int) -> int:
@@ -151,9 +157,28 @@ class PointBasis:
             else:
                 return basis_spec
 
-        return tuple(
-            _san_basis_spec(i, basis_spec) for i, basis_spec in enumerate(basis)
-        )
+        if isinstance(basis, str):
+            san_basis = []
+
+            for irreps in basis.split("+"):
+                irreps = irreps.strip()
+
+                vals = irreps.split("x")
+                if len(vals) == 2:
+                    mul, l = vals
+                else:
+                    mul = 1
+                    l = vals[0]
+
+                l = int(l.replace("e", "").replace("o", ""))
+                mul = int(mul)
+                san_basis.append((mul, l, _get_sphericalharm_parity(l)))
+
+            return tuple(san_basis)
+        else:
+            return tuple(
+                _san_basis_spec(i, basis_spec) for i, basis_spec in enumerate(basis)
+            )
 
     @property
     def e3nn_irreps(self):

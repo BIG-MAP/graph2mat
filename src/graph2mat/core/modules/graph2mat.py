@@ -2,10 +2,21 @@
 
 import itertools
 import numpy as np
-from typing import Sequence, Type, Union, Tuple, List, Dict, TypeVar, Generic, Callable
+from typing import (
+    Sequence,
+    Type,
+    Union,
+    Tuple,
+    List,
+    Dict,
+    TypeVar,
+    Generic,
+    Callable,
+    Optional,
+)
 from types import ModuleType
 
-from ..data import BasisMatrixData
+from ..data import BasisMatrixData, BasisTableWithEdges
 from .matrixblock import MatrixBlock
 from ..data.basis import PointBasis
 
@@ -16,7 +27,7 @@ ArrayType = TypeVar("ArrayType")
 
 
 class Graph2Mat(Generic[ArrayType]):
-    """Converts a graph to a sparse matrix.
+    r"""Converts a graph to a sparse matrix.
 
     The matrix that this module computes has variable size, which corresponds
     to the size of the graph. It is built by applying a convolution of its functions
@@ -26,98 +37,215 @@ class Graph2Mat(Generic[ArrayType]):
 
     .. image:: /_static/images/Graph2Mat.svg
 
+    `Graph2mat` builds the matrix
 
-    **Design concept**
+    .. math:: M_{\nu\mu}
 
-    The module builds the matrix block by block. We define a block as a region of the matrix
-    where the rows are all the basis of a given point, and all the columns are the basis of another
-    given point. There are then two clearly different types of blocks by their origin, which might also
-    obey different symmetries:
+    block by block. We define a block as a region of the matrix where the rows are all the basis of a given point,
+    and all the columns are the basis of another given point. I.e. given two points :math:`(i, j)`:
 
-        - Self interaction blocks: These are blocks that encode the interactions between basis functions of the
-          same point. These blocks are always square matrices. They are located at the diagonal of the matrix.
+    .. math:: M_{ij} = all \space M_{\nu\mu} \space \text{where} \space \nu \in i,  \mu \in j
+
+    The shape of the basis of points :math:`i` and :math:`j` determines then the shape of the block :math:`M_{ij}`.
+    Therefore, we need a different function to produce each kind of block. There are two clearly different
+    types of blocks by their origin, which might also obey different symmetries, and therefore we can classify
+    the blocks in two categories:
+
+        - **Self interaction blocks** (:math:`f_n`): These are blocks that encode the interactions between basis functions of the
+          same point. They correspond to nodes in the graph. These blocks are always square matrices. They are located at the diagonal of the matrix.
           If the matrix is symmetric, these blocks must also be symmetric.
 
-        - Interaction blocks: All the rest of blocks, that contain interactions between basis functions from different
-          points. Even if the matrix is symmetric, these blocks do not need to be symmetric. For each pair of points `ij`,
-          there are two blocks: `ij` and `ji` However, if the matrix is symmetric, one block is the transpose of the other.
-          Therefore, we only need to compute/predict one of them.
+        - **Interaction blocks** (:math:`f_e`): All the rest of blocks that contain interactions between basis functions from different
+          points. They correspond to edges in the graph. Even if the matrix is symmetric, these blocks do not need to be symmetric.
+          For each pair of points :math:`(i, j)`, there are two blocks: :math:`M_{ij}` and :math:`M_{ji}`.
+          However, if the matrix is symmetric, one block is the transpose of the other. Therefore in that case
+          we only need to compute/predict one of them.
 
-    **How it is implemented.**
+    Node features from the graph are passed to the block producing functions. Each block producing function
+    only receives the features that correspond to the blocks that it needs to produce, as depicted in the
+    sketch.
 
-    This module is implemented as a graph neural network. Block creating functions are convolved over
-    edges and nodes to create the matrix blocks. Even though the matrix is computed with a convolution,
-    we can not use a single function. There are two type of blocks that are different in nature:
+    Optionally, one can pass preprocessing functions :math:`(p_n, p_e)` that update the graph before passing
+    it to the node/edge block producing functions. The edge preprocessing function can also return edge-wise
+    messages.
 
-        - Self interaction blocks: Convolved over nodes. Since each point type has a different basis,
-          it will produce a block of different size. Therefore, we need **one function per point type**.
+    .. note::
 
-        - Interaction blocks: Convolved over edges. For the same reason as the self interaction blocks,
-          we need one function per combination of point types.
+        `Graph2Mat` itself is not a learnable module. If you are doing machine learning, the only
+        learnable parameters will be in the node/edge operations :math:`f` and  the preprocessing
+        functions :math:`p` functions.
 
-    Each function is a `MatrixBlock` module.
+        `Graph2Mat` is just a skeleton so that you can quickly experiment with
+        different functions.
+
+    .. warning::
+
+        It is very likely that you need an extension like ``TorchGraph2Mat`` or ``E3nnGraph2Mat``
+        in practice to do machine learning, as those set the appropriate defaults
+        and add some extra things that are particular for the frameworks.
 
     Parameters
     ----------
     unique_basis:
-        A list with all the unique point basis (one for each point type) that this module
-        should be able to handle. The inputs passed on forward do not necessarily need to
-        contain all of them.
-    irreps_in:
-        Shorthand to set `irreps_in` for both `node_operation_kwargs` and `edge_operation_kwargs`.
-        It will be ignored if the `*_operation_kwargs` argument already has an `"irreps_in"`
-        key.
+        Basis of the point types that the function should be able to handle.
+        It can either be a list of the unique `PointBasis` objects
+        or a `BasisTableWithEdges` object.
+
+        Note that when using the function, each graph does not need to contain
+        all the point types.
+    preprocessing_nodes:
+        A module that preprocesses the node features before passing them to the
+        node block producing functions. This is :math:`p_n` in the sketch.
+
+        It should be a class with an `__init__` method that receives the initialization
+        arguments and a `__call__` method that receives the data to process. The data
+        will be the same that has been passed to `Graph2Mat`.
+
+        It can output either a single array (the updated node features) or a tuple
+        (updated node features, edge messages). In the second case, edge messages
+        will be disregarded, this is just so that the preprocessing functions can be
+        reused for nodes and edge processing.
+    preprocessing_nodes_kwargs:
+        Initialization arguments passed directly to the `preprocessing_nodes` class.
+    preprocessing_edges:
+        A module that preprocesses the edge features before passing them to the
+        edge block producing functions. This is :math:`p_e` in the sketch.
+
+        It should be a class with an `__init__` method that receives the initialization
+        arguments and a `__call__` method that receives the data to process. The data
+        will be the same that has been passed to `Graph2Mat`.
+
+        It can output either a single array (the updated node features) or a tuple
+        (updated node features, edge messages). In the second case, the updated node
+        features can be `None`.
+    preprocessing_edges_kwargs:
+        Initialization arguments passed directly to the `preprocessing_edges` class.
+    preprocessing_edges_reuse_nodes:
+        If there is a preprocessing function for edges and it only returns edge messages,
+        whether the un-updated node features should also be passed to the edge block producing
+        functions.
+
+        It has no effect if there is no edge preprocessing function or the edge preprocessing
+        function returns both node features and edge messages.
     node_operation:
         The operation used to compute the values for matrix blocks corresponding to
-        self interactions (nodes).
-        This is passed directly to the `MatrixBlock` class, see the `operation_cls`
-        parameter there.
+        self interactions (nodes). This is the :math:`f_n` functions in the sketch.
+
+        It should be a class with an `__init__` method that receives the initialization
+        arguments (such as `i_basis`, `j_basis` and `symmetry`) and a `__call__` method that
+        receives the data to process. It will receive the node features for the node blocks
+        that the operation must compute.
     node_operation_kwargs:
         Initialization arguments for the `node_operation` class.
-        Same as `operation_kwargs` argument in `MatrixBlock`.
     edge_operation:
         The operation used to compute the values for matrix blocks corresponding to
-        interactions between different nodes (edges).
-        This is passed directly to the `MatrixBlock` class, see the `operation_cls`.
+        interactions between different nodes (edges). This is the :math:`f_e` functions
+        in the sketch.
+
+        It should be a class with an `__init__` method that receives the initialization
+        arguments (such as `i_basis`, `j_basis` and `symmetry`) and a `__call__` method that
+        receives the data to process. It will receive:
+
+        - Node features as a tuple: (feats_senders, feats_receiver)
+        - Edge messages as a tuple: (edge_message_ij, edge_message_ji)
+
+        Each item in the tuples is an array with length `n_edges`.
+
+        The operation does not need to handle permutation of the nodes. If the matrix is symmetric,
+        permutation of nodes should lead to the transposed block, but this is handled by `Graph2Mat`.
     edge_operation_kwargs:
         Initialization arguments for the `edge_operation` class.
-        Same as `operation_kwargs` argument in `MatrixBlock`.
-    node_irreps_in:
-        The irreps that this module will accept for the node features. The order
-        of the irreps needs to be at least as high as the maximum order found in
-        the basis.
-    edge_irreps_in:
-        The irreps that this module will accept for the edge features. The order
-        of the irreps needs to be at least as high as the maximum order found in
-        the basis.
     symmetric:
         Whether the matrix is symmetric. If it is, edge blocks for edges connecting
         the same two atoms but in opposite directions will be computed only once (the
         block for the opposite direction is the transpose block).
+
+        This also determines the `symmetry` argument pass to the `node_operation`
+        on initialization.
     blocks_symmetry:
-        The symmetry that each point block must obey. By default no symmetries are assumed.
+        The symmetry that each block (both edge and node blocks) must obey. If
+        the blocks must be symmetric for example, this should be set to `"ij=ji"`.
     self_blocks_symmetry:
         The symmetry that node blocks must obey. If this is `None`:
 
           - If `symmetric` is `False`, self_blocks are assumed to have the same symmetry
             as other blocks, which is specified in the `blocks_symmetry` parameter.
           - If `symmetric` is `True`, self_blocks are assumed to be symmetric.
+    matrix_block_cls:
+        Class that wraps matrix block operations.
+    numpy:
+        Module used as `numpy`. This can for example be set to `torch`. If `None`, we use
+        `numpy`.
+    self_interactions_list:
+        Wrapper for the list of self interaction functions (:math:`f_n`, node blocks).
+
+        This is for example used in `torch` to convert the list of functions to a `torch.nn.ModuleList`.
+    interactions_dict:
+        Wrapper for the dictionary of interaction functions (:math:`f_e`, edge blocks).
+
+        This is for example used in `torch` to convert the dictionary of functions to a `torch.nn.ModuleDict`.
+
+    Examples
+    ---------
+
+    This is an example of how to use it with custom node and edge operations,
+    which will allow you to understand what the operation receives so that
+    you can tune it to your needs:
+
+    .. code-block:: python
+
+        from graph2mat import Graph2Mat, PointBasis
+
+        # Build a basis set
+        basis = [
+            PointBasis("A", R=2, basis=[1], basis_convention="cartesian"),
+            PointBasis("B", R=5, basis=[2, 1], basis_convention="cartesian")
+        ]
+
+        # Define the custom operation that just prints the arguments
+        class CustomOperation:
+
+            def __init__(self, i_basis, j_basis, symmetry):
+                print("INITIALIZING OPERATION")
+                print("I_BASIS", i_basis)
+                print("J_BASIS", j_basis)
+                print("SYMMETRY", symmetry)
+                print()
+
+            def __call__(self, **kwargs):
+                print(kwargs)
+                return kwargs
+
+        # Initialize the module
+        g2m = Graph2Mat(
+            unique_basis=basis,
+            symmetric=True,
+            node_operation=CustomOperation,
+            edge_operation=CustomOperation,
+        )
+
+        print("SUMMARY")
+        print(g2m.summary)
+
     """
+    #: The table holding all information about the basis. This is an internal
+    #: table created by the module from `unique_basis`, but it should probably
+    #: be equal to the basis table that you use to process your data.
+    basis_table: BasisTableWithEdges
 
-    unique_basis: List[PointBasis]
-
-    # List of self interaction functions (which compute node blocks).
+    #: List of self interaction functions (which compute node blocks).
     self_interactions: List[MatrixBlock]
-    # Dictionary of interaction functions (which compute edge blocks).
+    #: Dictionary of interaction functions (which compute edge blocks).
     interactions: Dict[Tuple[int, int], MatrixBlock]
 
     def __init__(
         self,
-        unique_basis: Sequence[PointBasis],
-        preprocessing_nodes: Type = None,
+        unique_basis: Union[BasisTableWithEdges, Sequence[PointBasis]],
+        preprocessing_nodes: Optional[Type] = None,
         preprocessing_nodes_kwargs: dict = {},
-        preprocessing_edges: Type = None,
+        preprocessing_edges: Optional[Type] = None,
         preprocessing_edges_kwargs: dict = {},
+        preprocessing_edges_reuse_nodes: bool = True,
         node_operation: Type = None,
         node_operation_kwargs: dict = {},
         edge_operation: Type = None,
@@ -126,7 +254,7 @@ class Graph2Mat(Generic[ArrayType]):
         blocks_symmetry: str = "ij",
         self_blocks_symmetry: Union[str, None] = None,
         matrix_block_cls: Type[MatrixBlock] = MatrixBlock,
-        # numpy: ModuleType = np,
+        numpy: Optional[ModuleType] = None,
         self_interactions_list: Callable = list,
         interactions_dict: Callable = dict,
     ):
@@ -140,21 +268,35 @@ class Graph2Mat(Generic[ArrayType]):
                 self_blocks_symmetry = blocks_symmetry
 
         self.symmetric = symmetric
-        self.unique_basis = list(unique_basis)
+        self.basis_table = (
+            unique_basis
+            if isinstance(unique_basis, BasisTableWithEdges)
+            else BasisTableWithEdges(unique_basis)
+        )
         self._matrix_block_cls = matrix_block_cls
-        self.numpy = numpy
+        self.numpy = numpy if numpy is not None else np
         self._self_interactions_list = self_interactions_list
+        self.node_operation_cls = node_operation
         self._interactions_dict = interactions_dict
+        self.edge_operation_cls = edge_operation
 
         if preprocessing_nodes is None:
             self.preprocessing_nodes = None
         else:
             self.preprocessing_nodes = preprocessing_nodes(**preprocessing_nodes_kwargs)
 
+        self.preprocessing_edges_reuse_nodes = preprocessing_edges_reuse_nodes
         if preprocessing_edges is None:
             self.preprocessing_edges = None
         else:
             self.preprocessing_edges = preprocessing_edges(**preprocessing_edges_kwargs)
+
+        assert (
+            node_operation is not None
+        ), f"{self.__class__.__name__} needs a node operation to be provided."
+        assert (
+            edge_operation is not None
+        ), f"{self.__class__.__name__} needs an edge operation to be provided."
 
         # Build all the unique self-interaction functions (interactions of a point with itself)
         self_interactions = self._init_self_interactions(
@@ -176,7 +318,7 @@ class Graph2Mat(Generic[ArrayType]):
     def _init_self_interactions(self, **kwargs) -> List[MatrixBlock]:
         self_interactions = []
 
-        for point_type_basis in self.unique_basis:
+        for point_type_basis in self.basis_table.basis:
             if len(point_type_basis.basis) == 0:
                 # The point type has no basis functions
                 self_interactions.append(None)
@@ -193,7 +335,7 @@ class Graph2Mat(Generic[ArrayType]):
 
     def _init_interactions(self, **kwargs) -> Dict[Tuple[int, int], MatrixBlock]:
         point_type_combinations = itertools.combinations_with_replacement(
-            range(len(self.unique_basis)), 2
+            range(len(self.basis_table.basis)), 2
         )
 
         interactions = {}
@@ -207,8 +349,8 @@ class Graph2Mat(Generic[ArrayType]):
                 perms.append((-edge_type, neigh_type, point_type))
 
             for signed_edge_type, point_i, point_j in perms:
-                i_basis = self.unique_basis[point_i]
-                j_basis = self.unique_basis[point_j]
+                i_basis = self.basis_table.basis[point_i]
+                j_basis = self.basis_table.basis[point_j]
 
                 if len(i_basis.basis) == 0 or len(j_basis.basis) == 0:
                     # One of the involved point types has no basis functions
@@ -225,15 +367,15 @@ class Graph2Mat(Generic[ArrayType]):
 
         return {str(k): v for k, v in interactions.items()}
 
-    def get_preprocessing_nodes_summary(self) -> str:
+    def _get_preprocessing_nodes_summary(self) -> str:
         """Returns a summary of the preprocessing nodes functions."""
         return str(self.preprocessing_nodes)
 
-    def get_preprocessing_edges_summary(self) -> str:
+    def _get_preprocessing_edges_summary(self) -> str:
         """Returns a summary of the preprocessing edges functions."""
         return str(self.preprocessing_edges)
 
-    def get_node_operation_summary(self, node_operation: MatrixBlock) -> str:
+    def _get_node_operation_summary(self, node_operation: MatrixBlock) -> str:
         """Returns a summary of the node operation."""
 
         if hasattr(node_operation, "get_summary"):
@@ -244,7 +386,7 @@ class Graph2Mat(Generic[ArrayType]):
             except AttributeError:
                 return str(node_operation)
 
-    def get_edge_operation_summary(self, edge_operation: MatrixBlock) -> str:
+    def _get_edge_operation_summary(self, edge_operation: MatrixBlock) -> str:
         """Returns a summary of the edge operation."""
         if hasattr(edge_operation, "get_summary"):
             return edge_operation.get_summary()
@@ -264,13 +406,13 @@ class Graph2Mat(Generic[ArrayType]):
 
         s = ""
 
-        s += f"Preprocessing nodes: {self.get_preprocessing_nodes_summary()}\n"
+        s += f"Preprocessing nodes: {self._get_preprocessing_nodes_summary()}\n"
 
-        s += f"Preprocessing edges: {self.get_preprocessing_edges_summary()}\n"
+        s += f"Preprocessing edges: {self._get_preprocessing_edges_summary()}\n"
 
         s += "Node operations:"
         for i, x in enumerate(self.self_interactions):
-            point = self.unique_basis[i]
+            point = self.basis_table.basis[i]
 
             if x is None:
                 s += f"\n ({point.type}) No basis functions."
@@ -281,14 +423,14 @@ class Graph2Mat(Generic[ArrayType]):
             if x.symm_transpose:
                 s += " [XY = YX.T]"
 
-            s += f" {self.get_node_operation_summary(x)}"
+            s += f" {self._get_node_operation_summary(x)}"
 
         s += "\nEdge operations:"
         for k, x in self.interactions.items():
             point_type, neigh_type, edge_type = map(int, k[1:-1].split(","))
 
-            point = self.unique_basis[point_type]
-            neigh = self.unique_basis[neigh_type]
+            point = self.basis_table.basis[point_type]
+            neigh = self.basis_table.basis[neigh_type]
 
             if x is None:
                 s += f"\n ({point.type}, {neigh.type}) No basis functions."
@@ -299,7 +441,7 @@ class Graph2Mat(Generic[ArrayType]):
             if x.symm_transpose:
                 s += " [XY = YX.T]"
 
-            s += f" {self.get_edge_operation_summary(x)}."
+            s += f" {self._get_edge_operation_summary(x)}."
 
         return s
 
@@ -319,18 +461,18 @@ class Graph2Mat(Generic[ArrayType]):
     ) -> Tuple[ArrayType, ArrayType]:
         """Computes the matrix elements.
 
-        **VERY IMPORTANT NOTE**
+        .. note::
 
-        Edges are assumed to be sorted in a very specific way:
+            Edges are assumed to be sorted in a very specific way:
 
-          - Opposite directions of the same edge should come consecutively.
-          - The direction that has a positive edge type should come first. The "positive" direction
-            in an edge {i, j}, between point types "type_i" and "type_j" is the direction from the
-            smallest point type to the biggest point type.
-          - Sorted by edge type within the same structure. That is, edges where the same two species interact should
-            be grouped within each structure in the batch. These groups should be ordered by edge type.
+            - Opposite directions of the same edge should come consecutively.
+            - The direction that has a positive edge type should come first. The "positive" direction
+              in an edge {i, j}, between point types "type_i" and "type_j" is the direction from the
+              smallest point type to the biggest point type.
+            - Sorted by edge type within the same structure. That is, edges where the same two species interact should
+              be grouped within each structure in the batch. These groups should be ordered by edge type.
 
-        This is all taken care of by `BasisMatrixData`, so if you use it you don't need to worry about it.
+            This is all taken care of by `BasisMatrixData`, so if you use it you don't need to worry about it.
 
         Parameters
         -----------
@@ -430,6 +572,9 @@ class Graph2Mat(Generic[ArrayType]):
                 node_feats_for_edges = preprocessing_out
                 edge_messages = None
 
+            if node_feats_for_edges is None and self.preprocessing_edges_reuse_nodes:
+                node_feats_for_edges = node_feats
+
             if node_feats_for_edges is not None:
                 edge_operation_node_kwargs = {
                     "node_feats": node_feats_for_edges,
@@ -459,6 +604,7 @@ class Graph2Mat(Generic[ArrayType]):
 
         # Compute edge blocks using the interaction functions.
         edge_labels = self._forward_interactions(
+            data=data,
             edge_types=data["edge_types"],
             edge_index=data["edge_index"],
             edge_type_nlabels=data["edge_type_nlabels"],
@@ -512,6 +658,7 @@ class Graph2Mat(Generic[ArrayType]):
 
     def _forward_interactions(
         self,
+        data: BasisMatrixData,
         edge_types: ArrayType,
         edge_index: ArrayType,
         edge_type_nlabels: ArrayType,
@@ -538,6 +685,11 @@ class Graph2Mat(Generic[ArrayType]):
             dtype=self.numpy.get_default_dtype(),
             **init_arrays_kwargs,
         )
+
+        edge_kwargs = {**edge_kwargs}
+        edge_requirements = getattr(self.edge_operation_cls, "_data_get_edge_args", ())
+        for key in edge_requirements:
+            edge_kwargs[key] = data[key]
 
         # Call each unique interaction function with only the features
         # of edges that correspond to that type.
@@ -614,3 +766,102 @@ class Graph2Mat(Generic[ArrayType]):
 
     def __call__(self, *args, **kwargs):
         return self.forward(*args, **kwargs)
+
+    def _forward_interactions_with_resorting(
+        self,
+        edge_types: ArrayType,
+        edge_index: ArrayType,
+        edge_type_nlabels: ArrayType,
+        node_kwargs: Dict[str, ArrayType] = {},
+        edge_kwargs: Dict[str, ArrayType] = {},
+        global_kwargs: dict = {},
+    ):
+        """Experimental interactions forward by building a resorting array with cython. (NOT USED FOR NOW)
+
+        The resorting indices don't need gradients, so we can just compute them with cython.
+
+        For the tests that I have done it doesn't show a speedup (i.e. the resorting is not a bottleneck)
+        """
+
+        outputs = []
+
+        # Call each unique interaction function with only the features
+        # of edges that correspond to that type.
+        for module_key, func in self.interactions.items():
+            if func is None:
+                # Case where one of the point types has no basis functions.
+                continue
+
+            # The key of the module is the a tuple (int, int, int) converted to a string.
+            point_type, neigh_type, edge_type = map(int, module_key[1:-1].split(","))
+
+            # Get a mask to select the edges that belong to this type.
+            mask = abs(edge_types) == abs(edge_type)
+            if not mask.any():
+                continue
+
+            # Then, for all features, select only the edges of this type.
+            filtered_edge_kwargs = {
+                key: value[mask] for key, value in edge_kwargs.items()
+            }
+            type_edge_index = edge_index[:, mask]
+
+            # Edges between the same points but in different directions are stored consecutively.
+            # So we can select every 2 features to get the same direction for all edges.
+            # For a block ij, we assume that the wanted direction is i -> j.
+            # We always pass first the direction that the function is supposed to evaluate.
+            if edge_type > 0:
+                i_edges = slice(0, None, 2)
+                j_edges = slice(1, None, 2)
+            else:
+                i_edges = slice(1, None, 2)
+                j_edges = slice(0, None, 2)
+
+            # Create the tuples of edge features. Each tuple contains the two directions of the
+            # edge. The first item contains the "forward" direction, the second the "reverse" direction.
+            filtered_edge_kwargs = {
+                key: (value[i_edges], value[j_edges])
+                for key, value in filtered_edge_kwargs.items()
+            }
+
+            # For the node arguments we need to filter them and create pairs, such that a tuple
+            # (sender, receiver) is built for each node argument.
+            filtered_node_kwargs = {
+                key: (
+                    value[type_edge_index[0, i_edges]],
+                    value[type_edge_index[1, i_edges]],
+                )
+                for key, value in node_kwargs.items()
+            }
+
+            # Compute the outputs.
+            # The output will be of shape [n_edges, i_basis_size, j_basis_size]. That is, one
+            # matrix block per edge, where the shape of the block is determined by the edge type.
+            output = func(
+                **filtered_edge_kwargs, **filtered_node_kwargs, **global_kwargs
+            )
+
+            # Since each edge type has a different block shape, we need to flatten the blocks (and even
+            # the n_edges dimension) to put them all in a single array.
+            output = output.ravel()
+
+            outputs.append(output)
+
+        unsorted_edge_labels = self.numpy.concatenate(outputs)
+
+        sort_indices = self._get_interactions_resort_index(edge_types)
+
+        return unsorted_edge_labels[sort_indices]
+
+    def _get_interactions_resort_index(self, edge_types, **kwargs):
+        """Experimental resorting array building with cython. NOT USED FOR NOW"""
+        from ._labels_resort import get_edgelabels_resorting_array
+
+        edge_types = edge_types[::2].numpy(force=True)
+
+        sizes = self.basis_table.edge_block_size
+
+        indices = get_edgelabels_resorting_array(edge_types.astype(int), sizes)
+
+        indices = self.numpy.from_numpy(indices, **kwargs)
+        return indices

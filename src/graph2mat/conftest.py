@@ -4,11 +4,9 @@ import sisl
 from numpy.random import RandomState
 import numpy as np
 
-from graph2mat.data.sparse import csr_to_block_dict
-from graph2mat.data.processing import MatrixDataProcessor
-from graph2mat.data.configuration import OrbitalConfiguration
-from graph2mat.torch.data import BasisMatrixTorchData
-from graph2mat.data.table import AtomicTableWithEdges
+from graph2mat.core.data.sparse import csr_to_block_dict
+from graph2mat import MatrixDataProcessor, OrbitalConfiguration, AtomicTableWithEdges
+from graph2mat.bindings.torch import TorchBasisMatrixData
 
 
 @pytest.fixture(scope="session", params=[True, False])
@@ -106,6 +104,6 @@ def density_config(density_matrix):
 
 @pytest.fixture(scope="session")
 def density_data(density_config, density_data_processor):
-    return BasisMatrixTorchData.from_config(
+    return TorchBasisMatrixData.from_config(
         density_config, data_processor=density_data_processor
     )
