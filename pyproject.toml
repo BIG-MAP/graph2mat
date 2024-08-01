@@ -117,7 +117,10 @@ docs = [
     "sphinx_rtd_theme",
     "nbsphinx",
     "ipykernel",
-    "mace_torch"
+    "e3nn",
+    "torch",
+    "mace_torch",
+    "torch_geometric"
 ]
 
 test = [
