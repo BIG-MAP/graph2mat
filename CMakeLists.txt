@@ -6,6 +6,7 @@ project(${SKBUILD_PROJECT_NAME} LANGUAGES C)
 find_package(
   Python
   COMPONENTS Interpreter Development.Module
+  NumPy
   REQUIRED)
 
 find_program(CYTHON "cython")
