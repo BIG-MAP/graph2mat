@@ -39,7 +39,7 @@ pip install graph2mat[tools,e3nn]
 
 You can also ask for
 
-What is an equivariant interaction matrix?
+What is an equivariant matrix?
 ------------------------------
 
 ![water_equivariant_matrix](https://raw.githubusercontent.com/BIG-MAP/graph2mat/main/docs/_static/images/water_equivariant_matrix.png)
