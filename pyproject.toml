@@ -2,7 +2,7 @@
 requires-python = ">=3.9"
 
 name = "graph2mat"
-version = "0.0.3"
+version = "0.0.4"
 description = "Utility package to work with equivariant matrices and graphs."
 readme = "README.md"
 license = {text = "MIT"}
@@ -125,8 +125,6 @@ docs = [
 test = [
     "pytest",
     "pyyaml",
-    "fastapi",
-    "uvicorn",
     "plotly",
     "pandas",
     "pytorch-lightning",
@@ -134,10 +132,13 @@ test = [
     "jinja2"
 ]
 
+#"fastapi", "uvicorn"
+
 [tool.cibuildwheel]
 build-verbosity = 3
 skip = [
     "pp*",
+    "*i686",
     "*musllinux*",
 ]
 
