@@ -43,3 +43,14 @@ What is an equivariant interaction matrix?
 ------------------------------
 
 ![water_equivariant_matrix](https://raw.githubusercontent.com/BIG-MAP/graph2mat/main/docs/_static/images/water_equivariant_matrix.png)
+
+
+Contributions
+--------------
+
+We are very open to suggestions, contributions, discussions...
+
+- If you have questions or want do discuss an idea, please [start a discussion](https://github.com/BIG-MAP/graph2mat/discussions)
+- If you have a feature suggestion or bug report, please [open an issue](https://github.com/BIG-MAP/graph2mat/issues)
+
+We look forward to your contributions!
