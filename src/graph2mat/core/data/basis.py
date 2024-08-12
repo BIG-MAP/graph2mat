@@ -63,7 +63,9 @@ def get_atom_basis(atom: sisl.Atom):
     return atom_irreps
 
 
-def get_change_of_basis(convention: BasisConvention) -> Tuple[np.ndarray, np.ndarray]:
+def get_change_of_basis(
+    original: BasisConvention, target: BasisConvention
+) -> Tuple[np.ndarray, np.ndarray]:
     """Change of basis matrix for the given convention.
 
     Parameters
@@ -76,7 +78,19 @@ def get_change_of_basis(convention: BasisConvention) -> Tuple[np.ndarray, np.nda
     change_of_basis_matrix
     inverse_change_of_basis
     """
-    return _change_of_basis_conventions[convention]
+    if original == target:
+        return np.eye(3), np.eye(3)
+
+    elif original == "cartesian":
+        return _change_of_basis_conventions[target]
+    else:
+        orig_from_cartesian, orig_to_cartesian = _change_of_basis_conventions[original]
+        target_from_cartesian, target_to_cartesian = _change_of_basis_conventions[
+            target
+        ]
+        return (orig_to_cartesian.T @ target_from_cartesian.T).T, (
+            target_to_cartesian.T @ orig_from_cartesian.T
+        ).T
 
 
 @dataclasses.dataclass(frozen=True)

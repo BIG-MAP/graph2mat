@@ -161,7 +161,7 @@ class BasisTableWithEdges:
 
         # For the basis convention, get the matrices to change from cartesian to our convention.
         self.change_of_basis, self.change_of_basis_inv = get_change_of_basis(
-            self.basis_convention
+            "cartesian", self.basis_convention
         )
 
         n_types = len(self.types)

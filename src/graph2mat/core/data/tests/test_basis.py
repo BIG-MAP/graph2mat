@@ -1,11 +1,12 @@
 import pytest
 
 import numpy as np
+import itertools
 
 import sisl
 
 from graph2mat import PointBasis
-from graph2mat.core.data.basis import get_atom_basis
+from graph2mat.core.data.basis import get_atom_basis, get_change_of_basis
 
 
 def test_simplest():
@@ -95,3 +96,34 @@ def test_get_atom_basis():
     atom_basis = get_atom_basis(atom)
 
     assert atom_basis == [(1, 0, 1), (2, 1, -1)]
+
+
+def test_change_of_basis_consistent():
+    conventions = ["spherical", "siesta_spherical", "cartesian"]
+    for original, target in itertools.combinations_with_replacement(conventions, 2):
+        a, b = get_change_of_basis(original, target)
+        c, d = get_change_of_basis(target, original)
+
+        assert np.allclose(a, d), f"{original}-{target}"
+        assert np.allclose(b, c), f"{original}-{target}"
+
+
+def test_change_of_basis_works():
+    """Check that we can go through different basis, go back
+    to the original basis and get the original array."""
+
+    array = np.random.rand(4, 3)
+
+    cob, _ = get_change_of_basis("cartesian", "siesta_spherical")
+
+    in_siesta = array @ cob.T
+
+    cob, _ = get_change_of_basis("siesta_spherical", "spherical")
+
+    spherical = in_siesta @ cob.T
+
+    cob, _ = get_change_of_basis("spherical", "cartesian")
+
+    array_again = spherical @ cob.T
+
+    assert np.allclose(array, array_again)

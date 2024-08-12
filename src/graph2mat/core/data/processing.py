@@ -51,6 +51,7 @@ except ImportError:
         pass
 
 
+from .basis import get_change_of_basis
 from .neighborhood import get_neighborhood
 from .configuration import BasisConfiguration, OrbitalConfiguration, PhysicsMatrixType
 from .sparse import nodes_and_edges_to_sparse_orbital, nodes_and_edges_to_csr
