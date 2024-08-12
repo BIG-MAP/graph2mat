@@ -744,7 +744,7 @@ class Graph2Mat(Generic[ArrayType]):
             # The output will be of shape [n_edges, i_basis_size, j_basis_size]. That is, one
             # matrix block per edge, where the shape of the block is determined by the edge type.
             output = func(
-                **filtered_edge_kwargs, **filtered_node_kwargs, **global_kwargs
+                **filtered_node_kwargs, **filtered_edge_kwargs, **global_kwargs
             )
 
             # Since each edge type has a different block shape, we need to flatten the blocks (and even
