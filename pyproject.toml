@@ -2,7 +2,7 @@
 requires-python = ">=3.9"
 
 name = "graph2mat"
-version = "0.0.5"
+version = "0.0.6"
 description = "Utility package to work with equivariant matrices and graphs."
 readme = "README.md"
 license = {text = "MIT"}
@@ -128,6 +128,10 @@ test = [
     "plotly",
     "pandas",
     "pytorch-lightning",
+    "e3nn",
+    "torch",
+    "mace_torch",
+    "torch_geometric",
     "jsonargparse[signatures]",
     "jinja2"
 ]
