@@ -37,8 +37,6 @@ If you want to use `graph2mat` with e3nn you can also ask for the `e3nn` extra d
 pip install graph2mat[tools,e3nn]
 ```
 
-You can also ask for
-
 What is an equivariant matrix?
 ------------------------------
 
