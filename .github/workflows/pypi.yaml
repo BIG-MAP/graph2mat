@@ -119,11 +119,6 @@ jobs:
         os: [ubuntu-latest, macos-latest]
 
     steps:
-      - uses: actions/download-artifact@v4
-        with:
-          name: artifact
-          path: dist
-
       - name: Python installation
         uses: actions/setup-python@v5
         with:
@@ -155,7 +150,7 @@ jobs:
     steps:
       - uses: actions/download-artifact@v4
         with:
-          name: artifact
           path: dist
+          merge-multiple: True
 
       - uses: pypa/gh-action-pypi-publish@v1.8.11
