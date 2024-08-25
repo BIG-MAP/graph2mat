@@ -51,6 +51,7 @@ class LitMACEMatrixModel(LitBasisMatrixModel):
         symmetric_matrix: bool = False,
         preprocessing_nodes: Optional[Type[torch.nn.Module]] = None,
         preprocessing_edges: Optional[Type[torch.nn.Module]] = None,
+        preprocessing_edges_reuse_nodes: bool = True,
         node_block_readout: Type[torch.nn.Module] = E3nnSimpleNodeBlock,
         edge_block_readout: Type[torch.nn.Module] = E3nnSimpleEdgeBlock,
         readout_per_interaction: bool = False,
@@ -106,6 +107,7 @@ class LitMACEMatrixModel(LitBasisMatrixModel):
                 symmetric=symmetric_matrix,
                 preprocessing_nodes=preprocessing_nodes,
                 preprocessing_edges=preprocessing_edges,
+                preprocessing_edges_reuse_nodes=preprocessing_edges_reuse_nodes,
                 node_operation=node_block_readout,
                 edge_operation=edge_block_readout,
             )
