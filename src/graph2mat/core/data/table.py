@@ -247,7 +247,7 @@ class BasisTableWithEdges:
     def group(
         self, grouping: Literal["basis_shape", "point_type", "max"]
     ) -> tuple["BasisTableWithEdges", np.ndarray, np.ndarray, Optional[np.ndarray]]:
-        """Groups the basis in this table and creates a new table.
+        r"""Groups the basis in this table and creates a new table.
 
         It also returns useful objects to convert between the ungrouped
         and the grouped basis tables.
