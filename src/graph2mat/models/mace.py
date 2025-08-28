@@ -1,21 +1,13 @@
-import torch
-from e3nn import o3
 from copy import copy
 
+import torch
+from e3nn import o3
 from mace.modules import MACE
+from mace.modules.utils import get_edge_vectors_and_lengths
 
 from graph2mat import Graph2Mat
 from graph2mat.bindings.e3nn import E3nnGraph2Mat
 from graph2mat.bindings.torch.data import TorchBasisMatrixData
-
-import torch
-from e3nn import o3
-
-from mace.modules import MACE
-
-from mace.modules.utils import (
-    get_edge_vectors_and_lengths,
-)
 
 
 class MatrixMACE(torch.nn.Module):
@@ -123,6 +115,11 @@ class MatrixMACE(torch.nn.Module):
         edge_feats = self.mace.radial_embedding(
             lengths, data["node_attrs"], data["edge_index"], self.mace.atomic_numbers
         )
+
+        if isinstance(edge_feats, tuple):
+            # From MACE 0.3.14, the radial embedding returns a tuple, with the second
+            # element being the cutoff.
+            edge_feats = edge_feats[0]
 
         data_for_readout = copy(data)
 
