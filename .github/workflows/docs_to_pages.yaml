@@ -33,6 +33,8 @@ jobs:
 
       - name: Install graph2mat + documentation dependencies
         run: |
+          # We have to install mace first to avoid its pin of e3nn==0.4.4 (very annoying)
+          python -m pip install .[mace]
           python -m pip install .[docs]
 
       - name: Build the documentation

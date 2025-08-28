@@ -122,9 +122,8 @@ docs = [
     "sphinx_rtd_theme",
     "nbsphinx",
     "ipykernel",
-    "e3nn",
-    "torch<=2.5", # MACE pins e3nn to 0.4.4, which doesn't work with torch 2.6
-    "mace_torch",
+    "torch",
+    "e3nn>=0.5.0", # This is because MACE still pins the e3nn version to 0.4.4, which is very annoying
     "torch_geometric"
 ]
 
