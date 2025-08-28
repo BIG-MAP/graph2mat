@@ -111,7 +111,7 @@ docs = [
     "pyyaml",
     "fastapi",
     "uvicorn",
-    "plotly<6", # Until https://github.com/plotly/plotly.py/issues/5056 is fixed
+    "plotly>6",
     "pandas",
     "pytorch-lightning",
     "jsonargparse[signatures]",

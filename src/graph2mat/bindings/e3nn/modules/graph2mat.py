@@ -1,15 +1,15 @@
-from e3nn import o3
+from typing import Dict, Literal, Optional, Sequence, Type, Union
+
 import torch
+from e3nn import o3
 
-from typing import Sequence, Type, Union, Optional, Dict, Literal
-
-from graph2mat import PointBasis, MatrixBlock
-
+from graph2mat import MatrixBlock, PointBasis
 from graph2mat.bindings.torch import TorchGraph2Mat
 
+from .edge_operations import E3nnSimpleEdgeBlock
 from .matrixblock import E3nnIrrepsMatrixBlock
 from .node_operations import E3nnSimpleNodeBlock
-from .edge_operations import E3nnSimpleEdgeBlock
+from .preprocessing import E3nnEdgeMessageBlock
 
 __all__ = ["E3nnGraph2Mat"]
 
@@ -86,6 +86,10 @@ class E3nnGraph2Mat(TorchGraph2Mat):
         It can output either a single array (the updated node features) or a tuple
         (updated node features, edge messages). In the second case, the updated node
         features can be `None`.
+
+        NOTE: The default for this argument has changed from `None` to `E3nnEdgeMessageBlock`.
+        This means that if you were relying on the default behavior, you will now have
+        to explicitly set `preprocessing_edges=None`.
     preprocessing_edges_kwargs:
         Initialization arguments passed directly to the `preprocessing_edges` class.
     preprocessing_edges_reuse_nodes:
@@ -208,9 +212,9 @@ class E3nnGraph2Mat(TorchGraph2Mat):
         basis_grouping: Literal["point_type", "basis_shape", "max"] = "point_type",
         preprocessing_nodes: Optional[Type[torch.nn.Module]] = None,
         preprocessing_nodes_kwargs: dict = {},
-        preprocessing_edges: Optional[Type[torch.nn.Module]] = None,
+        preprocessing_edges: Optional[Type[torch.nn.Module]] = E3nnEdgeMessageBlock,
         preprocessing_edges_kwargs: dict = {},
-        preprocessing_edges_reuse_nodes: bool = True,
+        preprocessing_edges_reuse_nodes: bool = False,
         node_operation: Type = E3nnSimpleNodeBlock,
         node_operation_kwargs: dict = {},
         edge_operation: Type = E3nnSimpleEdgeBlock,
@@ -228,6 +232,17 @@ class E3nnGraph2Mat(TorchGraph2Mat):
 
         node_operation_kwargs = {"irreps": irreps, **node_operation_kwargs}
         edge_operation_kwargs = {"irreps": irreps, **edge_operation_kwargs}
+
+        if (
+            preprocessing_edges == E3nnEdgeMessageBlock
+            and "edge_attrs_irreps" not in irreps
+        ):
+            raise ValueError(
+                "If using E3nnEdgeMessageBlock as edge processing, 'edge_attrs_irreps' and "
+                "'edge_feats_irreps' must be specified in the 'irreps' argument. You might "
+                "be getting this error because the defaults of `E3nnGraph2Mat` have changed. "
+                "In that case, use `preprocessing_edges=None` to get the previous behavior."
+            )
 
         super().__init__(
             unique_basis=unique_basis,

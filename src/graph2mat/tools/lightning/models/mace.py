@@ -1,26 +1,23 @@
-from typing import Type, Union, Optional, Literal
+from typing import Literal, Optional, Type, Union
 
+import torch
 from e3nn import o3
 from mace.modules import MACE, InteractionBlock, RealAgnosticResidualInteractionBlock
-import torch
+
+from graph2mat import BasisTableWithEdges
+from graph2mat.bindings.e3nn import (
+    E3nnEdgeMessageBlock,
+    E3nnGraph2Mat,
+    E3nnSimpleEdgeBlock,
+    E3nnSimpleNodeBlock,
+)
 
 # from context import mace
 from graph2mat.core.data.metrics import OrbitalMatrixMetric, block_type_mse
-from graph2mat import BasisTableWithEdges
-
-from graph2mat.bindings.e3nn import (
-    E3nnSimpleNodeBlock,
-    E3nnSimpleEdgeBlock,
-    E3nnGraph2Mat,
-    E3nnInteraction,
-    E3nnEdgeMessageBlock,
-)
-
 from graph2mat.models.mace import MatrixMACE
+from graph2mat.tools.lightning import LitBasisMatrixModel
 
 # from graph2mat.models._mace.models import OrbitalMatrixMACE
-
-from graph2mat.tools.lightning import LitBasisMatrixModel
 
 
 class LitMACEMatrixModel(LitBasisMatrixModel):
@@ -53,8 +50,8 @@ class LitMACEMatrixModel(LitBasisMatrixModel):
         symmetric_matrix: bool = False,
         basis_grouping: Literal["point_type", "basis_shape", "max"] = "point_type",
         preprocessing_nodes: Optional[Type[torch.nn.Module]] = None,
-        preprocessing_edges: Optional[Type[torch.nn.Module]] = None,
-        preprocessing_edges_reuse_nodes: bool = True,
+        preprocessing_edges: Optional[Type[torch.nn.Module]] = E3nnEdgeMessageBlock,
+        preprocessing_edges_reuse_nodes: bool = False,
         node_block_readout: Type[torch.nn.Module] = E3nnSimpleNodeBlock,
         edge_block_readout: Type[torch.nn.Module] = E3nnSimpleEdgeBlock,
         readout_per_interaction: bool = False,
