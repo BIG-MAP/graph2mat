@@ -23,7 +23,7 @@ complex and relevant use cases.
 
     .. code-block:: bash
 
-        conda install -c conda-forge siesta
+        conda install -c conda-forge siesta=5.0.0
 
     It also assumes that you have installed ``graph2mat`` with
     all its optional dependencies, which can be done with ``pip install graph2mat[tools,mace]``.
