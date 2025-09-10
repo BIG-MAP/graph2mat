@@ -1,26 +1,27 @@
 """Graph2Mat, the models' skeleton."""
 
 import itertools
-import numpy as np
-from typing import (
-    Sequence,
-    Type,
-    Union,
-    Tuple,
-    List,
-    Dict,
-    TypeVar,
-    Generic,
-    Callable,
-    Optional,
-    Literal,
-)
 from types import ModuleType
+from typing import (
+    Callable,
+    Dict,
+    Generic,
+    List,
+    Literal,
+    Optional,
+    Sequence,
+    Tuple,
+    Type,
+    TypeVar,
+    Union,
+)
+
+import numpy as np
 
 from ..data import BasisMatrixData, BasisTableWithEdges
-from .matrixblock import MatrixBlock
 from ..data.basis import PointBasis
 from ._labels_resort import get_labels_resorting_array
+from .matrixblock import MatrixBlock
 
 __all__ = ["Graph2Mat"]
 
@@ -444,7 +445,7 @@ class Graph2Mat(Generic[ArrayType]):
                     ] = self._matrix_block_cls(
                         i_basis=i_basis,
                         j_basis=j_basis,
-                        symm_transpose=neigh_type == point_type,
+                        symm_transpose=(self.symmetric and neigh_type == point_type),
                         **kwargs,
                     )
 
@@ -778,8 +779,16 @@ class Graph2Mat(Generic[ArrayType]):
             # For a block ij, we assume that the wanted direction is i -> j.
             # We always pass first the direction that the function is supposed to evaluate.
             if point_type == neigh_type:
-                i_edges = slice(0, None, 2)
-                j_edges = slice(1, None, 2)
+                if self.symmetric:
+                    i_edges = slice(0, None, 2)
+                    j_edges = slice(1, None, 2)
+                else:
+                    # The case of an interaction of a point type with itself is special.
+                    # There is no "positive" or "negative" direction, since the points can
+                    # be permuted at will in the inputs. Therefore, there is a single edge
+                    # computing function that computes all edges. We select all edges of this type.
+                    i_edges = slice(None)
+                    j_edges = slice(None)
             else:
                 i_edges = graph2mat_edge_types[mask] == edge_type
                 j_edges = ~i_edges
