@@ -1,9 +1,11 @@
-from e3nn import o3
-import torch
-from typing import Type, Dict
 import inspect
+from typing import Dict, Type
+
+import torch
+from e3nn import o3
 
 from graph2mat import PointBasis
+from graph2mat.bindings.e3nn.irreps_tools import ReducedTensorProducts
 from graph2mat.bindings.torch import TorchMatrixBlock
 
 __all__ = ["E3nnIrrepsMatrixBlock"]
@@ -54,7 +56,7 @@ class E3nnIrrepsMatrixBlock(TorchMatrixBlock):
         # The block is a i_irreps.dim X j_irreps.dim matrix, with possible symmetries that can
         # reduce the number of degrees of freedom. We indicate this to the ReducedTensorProducts,
         # which we only use as a helper.
-        reduced_tp = o3.ReducedTensorProducts(symmetry, i=i_irreps, j=j_irreps)
+        reduced_tp = ReducedTensorProducts(symmetry, i=i_irreps, j=j_irreps)
         self._irreps_out = reduced_tp.irreps_out
 
         # We also store the change of basis, a matrix that will bring us from the irreps_out

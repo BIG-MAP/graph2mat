@@ -4,12 +4,14 @@ These are basically tools to convert from/to irreps.
 
 They are currently not being used anywhere in `graph2mat`.
 """
-from typing import Union, Sequence, Iterable
+from typing import Iterable, Sequence, Union
 
-import sisl
 import numpy as np
-
+import sisl
+import torch
 from e3nn import o3
+
+from graph2mat.bindings.e3nn._stored_rtps import ALL_RTPS
 
 
 def get_atom_irreps(atom: sisl.Atom):
@@ -84,3 +86,124 @@ def get_atom_from_irreps(
         }
 
     return sisl.Atom(*atom_args, orbitals=orbitals, **kwargs)
+
+
+def expand_irreps(irreps: Union[o3.Irreps, str]) -> o3.Irreps:
+    """Expands an irreps representation to have all irreps with multiplicity 1.
+
+    For example, "2x0e + 1x1o" becomes "0e + 0e + 1o".
+
+    Parameters
+    ----------
+    irreps:
+        The irreps to expand.
+    """
+    irreps = o3.Irreps(irreps)
+    expanded_irreps = o3.Irreps()
+
+    for irrep in irreps:
+        expanded_irreps += sum([irrep.ir] * irrep.mul, o3.Irreps())
+
+    return expanded_irreps
+
+
+class ReducedTensorProducts:
+    """Class to initialize reduced tensor products much faster than e3nn.
+
+    Here we take advantage of the fact that we only need to support a few
+    cases, and we use possibly precomputed reduced tensor products to accelerate
+    the initialization dramatically.
+
+    The interface is exactly the same as e3nn.o3.ReducedTensorProducts.
+    """
+
+    def __new__(cls, formula, **kwargs):
+        if formula not in ("ij", "ij=ji") or any(k not in kwargs for k in "ij"):
+            return o3.ReducedTensorProducts(formula, **kwargs)
+
+        return super().__new__(cls)
+
+    def __init__(self, formula, i, j):
+        # Expand the irreps so that we have all irreps with multiplicity 1
+        i_irreps = expand_irreps(i)
+        j_irreps = expand_irreps(j)
+
+        # Check that the formula is compatible with the irreps
+        if formula == "ij=ji" and i != j:
+            raise ValueError(
+                f"Formula ij=ji requires irreps of i ({i}) == irreps of j ({j})"
+            )
+
+        # Init the variables where we will accumulate all the RTPs
+        all_change_of_basis = []
+        irreps_out = o3.Irreps("")
+
+        # Loop through rows and columns of the tensor product
+        row = 0
+        for i, i_irrep in enumerate(i_irreps):
+            col = 0
+            for j, j_irrep in enumerate(j_irreps):
+                # If ij=ji, we only compute the upper triangular part
+                if formula == "ij=ji" and i > j:
+                    col += j_irrep.dim
+                    continue
+
+                # Get the RTP for this pair of irreps
+                if formula == "ij=ji" and i == j:
+                    rtp = ALL_RTPS[str(i_irrep.ir), str(j_irrep.ir), "ij=ji"]
+                else:
+                    rtp = ALL_RTPS[str(i_irrep.ir), str(j_irrep.ir), "ij"]
+
+                # Loop through all the output irreps and store the corresponding change of basis
+                # We need to separate the change of basis for each output irrep because we will need
+                # to re-order them at the end.
+                ir_start = 0
+                for out_ir in rtp["irreps_out"]:
+                    ir_end = ir_start + out_ir.dim
+
+                    all_change_of_basis.append(
+                        (
+                            (row, row + i_irrep.dim, col, col + j_irrep.dim),
+                            rtp["change_of_basis"][ir_start:ir_end],
+                        )
+                    )
+
+                    ir_start = ir_end
+
+                # Accumulate the output irreps
+                irreps_out += rtp["irreps_out"]
+
+                col += j_irrep.dim
+
+            row += i_irrep.dim
+
+        # Sort and simplify the output irreps
+        irreps_sort = irreps_out.sort()
+        self.irreps_out = irreps_sort.irreps.simplify()
+
+        # And then sort accordingly the change of basis, and put everything in a single tensor
+        change_of_basis = torch.zeros(
+            irreps_out.dim, i_irreps.dim, j_irreps.dim, dtype=torch.get_default_dtype()
+        )
+        start_index = 0
+        for i_irrep in irreps_sort.inv:
+            (row, end_row, col, end_col), ir_change_of_basis = all_change_of_basis[
+                i_irrep
+            ]
+
+            end_index = start_index + ir_change_of_basis.shape[0]
+
+            change_of_basis[
+                start_index:end_index, row:end_row, col:end_col
+            ] = ir_change_of_basis
+
+            start_index = end_index
+
+        # Symmetrize (and normalize) the change of basis in case that the tensor product is symmetric
+        if formula == "ij=ji":
+            change_of_basis = change_of_basis + change_of_basis.transpose(1, 2)
+            change_of_basis = change_of_basis / torch.linalg.norm(
+                change_of_basis, dim=(1, 2)
+            ).reshape(-1, 1, 1)
+
+        self.change_of_basis = change_of_basis

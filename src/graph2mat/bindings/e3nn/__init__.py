@@ -19,4 +19,6 @@ This interface has two goals:
 
 """
 
+from ._stored_rtps._gen_rtps import store_precomputed_rtps
+from .irreps_tools import ReducedTensorProducts
 from .modules import *

@@ -28,3 +28,6 @@ docs/api/conversions.rst
 
 # Jupyter notebook checkpoints
 **/.ipynb_checkpoints
+
+# Precomputed reduced tensor products
+src/graph2mat/bindings/e3nn/_stored_rtps/_stored_rtps.py

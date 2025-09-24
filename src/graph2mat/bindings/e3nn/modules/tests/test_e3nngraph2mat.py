@@ -1,20 +1,18 @@
-import pytest
-
-from e3nn import o3
-import numpy as np
-import torch
-
 import copy
 
+import numpy as np
+import pytest
+import torch
+from e3nn import o3
+
 from graph2mat import (
-    PointBasis,
+    BasisConfiguration,
     BasisTableWithEdges,
     MatrixDataProcessor,
-    BasisConfiguration,
+    PointBasis,
+    conversions,
 )
 from graph2mat.bindings.e3nn import E3nnGraph2Mat
-
-from graph2mat import conversions
 
 
 @pytest.fixture(scope="module", params=["point_type", "basis_shape", "max"])
@@ -70,6 +68,7 @@ def test_equivariance(basis_grouping, symmetric, with_no_basis):
     )
 
     g2m = E3nnGraph2Mat(
+        preprocessing_edges=None,
         unique_basis=table,
         irreps={"node_feats_irreps": o3.Irreps("0e + 1o")},
         symmetric=symmetric,
