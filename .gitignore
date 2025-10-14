@@ -30,4 +30,4 @@ docs/api/conversions.rst
 **/.ipynb_checkpoints
 
 # Precomputed reduced tensor products
-src/graph2mat/bindings/e3nn/_stored_rtps/_stored_rtps.py
+#src/graph2mat/bindings/e3nn/_stored_rtps/_stored_rtps.py
