@@ -618,6 +618,9 @@ class Graph2Mat(Generic[ArrayType]):
             All the edge blocks, flattened and concatenated.
         """
 
+        if hasattr(self, "basis_change"):
+            node_feats = self.basis_change(node_feats, data["point_types"])
+
         # If there are preprocessing functions for the computation of nodes
         # or edges, apply them and overwrite the node_feats to be passed
         # to node/edge operations.

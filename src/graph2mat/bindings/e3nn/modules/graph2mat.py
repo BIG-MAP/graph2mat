@@ -1,3 +1,4 @@
+import os
 from typing import Dict, Literal, Optional, Sequence, Type, Union
 
 import torch
@@ -12,6 +13,28 @@ from .node_operations import E3nnSimpleNodeBlock
 from .preprocessing import E3nnEdgeMessageBlock
 
 __all__ = ["E3nnGraph2Mat"]
+
+
+class E3nnAtomTypeLinear(torch.nn.Module):
+    def __init__(
+        self,
+        irreps_in: o3.Irreps,
+        irreps_out: o3.Irreps,
+        num_atom_types: int,
+        n_embeddings: int,
+    ):
+        super().__init__()
+        self.embed = torch.nn.Embedding(num_atom_types, n_embeddings)
+        self.linear = o3.FullyConnectedTensorProduct(
+            f"{n_embeddings}x0e", irreps_in, irreps_out
+        )
+
+    def forward(
+        self, node_feats: torch.Tensor, atom_types: torch.Tensor
+    ) -> torch.Tensor:
+        atom_embeds = self.embed(atom_types)
+        output = self.linear(atom_embeds, node_feats)
+        return output
 
 
 class E3nnGraph2Mat(TorchGraph2Mat):
@@ -262,6 +285,15 @@ class E3nnGraph2Mat(TorchGraph2Mat):
             self_blocks_symmetry=self_blocks_symmetry,
             **kwargs,
         )
+
+        if os.environ.get("G2M_BASIS_CHANGE", "0") != "0":
+            n_embeddings = int(os.environ.get("G2M_BASIS_CHANGE"))
+            self.basis_change = E3nnAtomTypeLinear(
+                irreps_in=irreps["node_feats_irreps"],
+                irreps_out=irreps["node_feats_irreps"],
+                num_atom_types=len(unique_basis),
+                n_embeddings=n_embeddings,
+            )
 
     def _get_readout_irreps(
         self,
