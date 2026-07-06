@@ -69,3 +69,11 @@ class TorchGraph2Mat(Graph2Mat, torch.nn.Module):
             indices = self.numpy.from_numpy(indices)
 
         return indices
+    
+    def _forward_self_interactions(self, *args, **kwargs):
+        with torch.profiler.record_function("G2M::self_interactions_forward"):
+            return super()._forward_self_interactions(*args, **kwargs)
+
+    def _forward_interactions(self, *args, **kwargs):
+        with torch.profiler.record_function("G2M::interactions_forward"):
+            return super()._forward_interactions(*args, **kwargs)

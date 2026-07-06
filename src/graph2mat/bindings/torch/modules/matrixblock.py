@@ -10,3 +10,7 @@ class TorchMatrixBlock(MatrixBlock, torch.nn.Module):
     """Wrapper for matrix block to make it use torch instead of numpy."""
 
     numpy = torch
+
+    def forward(self, *args, **kwargs):
+        with torch.profiler.record_function("G2M::matrix_block_forward"):
+            return super().forward(*args, **kwargs)

@@ -942,7 +942,8 @@ class Graph2Mat(Generic[ArrayType]):
                     original_types[:, None, None] < 0, filts.transpose(0, 2, 1), filts
                 )
                 mask = filts.ravel()
-            return mask
+
+            return np.where(mask)[0]
         else:
             indices = get_labels_resorting_array(
                 types,
