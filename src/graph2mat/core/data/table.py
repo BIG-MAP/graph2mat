@@ -489,7 +489,7 @@ class BasisTableWithEdges:
             which they appear in the flattened matrix.
         """
         pointers = np.zeros(len(edge_types) + 1, dtype=np.int32)
-        np.cumsum(self.edge_block_size[edge_types], out=pointers[1:])
+        np.cumsum(self.edge_block_size[np.abs(edge_types)], out=pointers[1:])
         return pointers
 
     def get_sisl_atoms(self) -> List[sisl.Atom]:
