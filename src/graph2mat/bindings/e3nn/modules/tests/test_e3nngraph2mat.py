@@ -8,6 +8,7 @@ from e3nn import o3
 from graph2mat import (
     BasisConfiguration,
     BasisTableWithEdges,
+    BasisTableWithEdges,
     MatrixDataProcessor,
     PointBasis,
     conversions,

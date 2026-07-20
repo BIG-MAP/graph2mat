@@ -27,5 +27,5 @@ from .configuration import BasisConfiguration, OrbitalConfiguration
 from .metrics import OrbitalMatrixMetric
 from . import metrics
 from .processing import MatrixDataProcessor, BasisMatrixData, BasisMatrixDataBase
-from .table import BasisTableWithEdges, AtomicTableWithEdges
+from .table import BasisTableWithEdges, AtomicTableWithEdges, BasisTableWithEdges_rowcol  # BORRAR el ultimo
 from .formats import Formats, conversions, ConversionManager

@@ -15,7 +15,7 @@ different points. Therefore, these tables also need to keep track of edge types.
 import itertools
 from io import StringIO
 from pathlib import Path
-from typing import Callable, Generator, List, Literal, Optional, Sequence, Union
+from typing import Callable, Generator, List, Literal, Optional, Sequence, Union, Tuple
 
 import numpy as np
 import sisl
@@ -23,7 +23,7 @@ import sisl
 from .basis import BasisConvention, PointBasis, get_change_of_basis
 
 
-class BasisTableWithEdges:
+class BasisTableWithEdges_rowcol:
     """Stores the unique types of points in the system, with their basis and the possible edges.
 
     It also knows the size of the blocks, and other type dependent variables.
@@ -137,31 +137,9 @@ class BasisTableWithEdges:
 
         self.basis_convention = basis_convention
 
-        # For the basis convention, get the matrices to change from cartesian to our convention.
-        self.change_of_basis, self.change_of_basis_inv = get_change_of_basis(
-            "cartesian", self.basis_convention
-        )
-
-        n_types = len(self.types)
-        # Array to get the edge type from point types.
-        point_types_to_edge_types = np.empty((n_types, n_types), dtype=np.int32)
-        edge_type = 0
-        for i in range(n_types):
-            # The diagonal edge type, always positive
-            point_types_to_edge_types[i, i] = edge_type
-            edge_type += 1
-
-            # The non diagonal edge types, which are negative for the lower triangular part,
-            # to account for the fact that the direction is different.
-            for j in range(i + 1, n_types):
-                point_types_to_edge_types[i, j] = edge_type
-                point_types_to_edge_types[j, i] = -edge_type
-                edge_type += 1
-
-        self.edge_type = point_types_to_edge_types
-
         # Get the point matrix for each type. This is the matrix that a point would
         # have if it was the only one in the system, and it depends only on the type.
+        # TODO: pass this to the non-square(to Sara_)
         if get_point_matrix is None:
             self.point_matrix = None
         else:
@@ -177,16 +155,16 @@ class BasisTableWithEdges:
             [basis.basis_size for basis in self.basis], dtype=np.int32
         )
 
-        # And also the sizes of the blocks.
-        self.point_block_shape = np.array([self.basis_size, self.basis_size])
-        self.point_block_size = self.basis_size**2
+        # BORRAR
+        # print(f"Basis sizes: {self.basis_size}")
 
-        point_types_combinations = np.array(
-            list(itertools.combinations_with_replacement(range(n_types), 2))
-        ).T
-        self.edge_type_to_point_types = point_types_combinations.T
-        self.edge_block_shape = self.basis_size[point_types_combinations]
-        self.edge_block_size = self.edge_block_shape.prod(axis=0)
+        # SN: MOVED THIS TO BasisTableWithEdges BUT I AM NOT SURE OF HOW IT WORKS
+        # point_types_combinations = np.array(
+        #     list(itertools.combinations_with_replacement(range(n_types), 2))
+        # ).T
+        # self.edge_type_to_point_types = point_types_combinations.T
+        # self.edge_block_shape = self.basis_size[point_types_combinations]
+        # self.edge_block_size = self.edge_block_shape.prod(axis=0)
 
     def __repr__(self):
         return f"{self.__class__.__name__}({self.basis_convention}, basis={self.basis})"
@@ -246,7 +224,7 @@ class BasisTableWithEdges:
 
     def group(
         self, grouping: Literal["basis_shape", "point_type", "max"]
-    ) -> tuple["BasisTableWithEdges", np.ndarray, np.ndarray, Optional[np.ndarray]]:
+    ) -> tuple["BasisTableWithEdges_rowcol", np.ndarray, np.ndarray, Optional[np.ndarray]]:
         r"""Groups the basis in this table and creates a new table.
 
         It also returns useful objects to convert between the ungrouped
@@ -312,12 +290,17 @@ class BasisTableWithEdges:
         if grouping == "point_type":
             new_table = self
 
-            class A:
-                def __getitem__(self, key):
-                    return key
+            # class A:
+            #     def __getitem__(self, key):
+            #         return key
+            #     def __eq__(self, other):
+            #         return isinstance(other, A)
 
-            point_type_conversion = A()
-            edge_type_conversion = A()
+            # point_type_conversion = A()
+            # edge_type_conversion = A()
+            point_type_conversion = IdentityConversion()
+            edge_type_conversion = IdentityConversion()
+
         elif grouping == "basis_shape":
             # Get all basis sizes:
             basis_sizes = np.zeros((len(self.basis), 5), dtype=int)
@@ -405,6 +388,284 @@ class BasisTableWithEdges:
         """
         return self.types[index]
 
+    def maxR(self) -> float:
+        """Maximum cutoff radius in the basis."""
+        return self.R.max()
+
+    def get_sisl_atoms(self) -> List[sisl.Atom]:
+        """Returns a list of sisl atoms corresponding to the basis.
+
+        If the basis does not contain atoms, `PointBasis` objects are
+        converted to atoms.
+        """
+        if hasattr(self, "atoms"):
+            return self.atoms
+        else:
+            return [point.to_sisl_atom() for point in self.basis]
+
+
+class BasisTableWithEdges:
+    """Storing point information accounting for different row and column point types."""
+    def __init__(self, basis: Sequence[PointBasis], get_point_matrix: Optional[Callable] = None):
+        self.is_square = all(b.matrix_role is None for b in basis)
+
+        # BORRAR
+        # print(f"BasisTableWithEdges: is_square = {self.is_square}")
+        # print(f"BasisTableWithEdges: all matrix roles = {[b.matrix_role for b in basis]}")
+    
+        row_basis, col_basis = self._process_basis_rows_cols(basis)
+        self.row = (BasisTableWithEdges_rowcol(row_basis, get_point_matrix)
+                    if len(row_basis) > 0 else None)
+        self.col = (BasisTableWithEdges_rowcol(col_basis, get_point_matrix)
+                    if len(col_basis) > 0 else None)
+
+        if (self.row is None)^(self.col is None):
+            raise ValueError("If one of row or column basis is None, the other must be None too.") 
+
+        # Check, in the case of non square matrix, properties match as they should
+        if not self.is_square:
+            self.check_nonsquare_properties()
+
+        self.basis_convention = self.row.basis_convention if self.row is not None else None
+
+        # For the basis convention, get the matrices to change from cartesian to our convention.
+        self.change_of_basis, self.change_of_basis_inv = get_change_of_basis(
+            "cartesian", self.basis_convention
+        )
+
+        self.types = self.row.types if self.row is not None else None
+
+        n_types = len(self.types)
+
+        if self.is_square:
+            self.R = self.row.R
+        else:
+            # Each row and column point type can have a different cutoff radius.
+            # Warn if they are different, and take the maximum of the two.
+            if not np.allclose(self.row.R, self.col.R):
+                print(f"Warning: Row and column point types have different cutoff radii. Taking the maximum of the two.")
+            # BORRAR
+            # print(f"Row cutoff radii: {self.row.R}")
+            # print(f"Col cutoff radii: {self.col.R}")
+            # print(f"Max cutoff radius: {np.max([self.row.R, self.col.R], axis=0)}")
+
+            self.R = np.max([self.row.R, self.col.R], axis=0)
+
+        # Array to get the edge type from point types.
+        point_types_to_edge_types = np.empty((n_types, n_types), dtype=np.int32)
+        edge_type = 0
+        for i in range(n_types):
+            # The diagonal edge type, always positive
+            point_types_to_edge_types[i, i] = edge_type
+            edge_type += 1
+            # The non diagonal edge types, which are negative for the lower triangular part,
+            # to account for the fact that the direction is different.
+            for j in range(i + 1, n_types):
+                point_types_to_edge_types[i, j] = edge_type
+                point_types_to_edge_types[j, i] = -edge_type
+                edge_type += 1
+
+            # For non square matrices, we don't have a symmetric lower triangular part,
+            # but the change in sign will still be used to indicate the direction of the edge. 
+
+        self.edge_type = point_types_to_edge_types
+
+
+        # And also the sizes of the blocks.
+        # SN: Here we have all possible blocks
+        self.point_block_shape = np.array([self.row.basis_size, self.col.basis_size])
+        self.point_block_size = self.row.basis_size * self.col.basis_size
+
+        # BORRAR
+        # print("In BasisTableWithEdges: ")
+        # print(f"self.edge_type == point_types_to_edge_types:\n{self.edge_type}")
+        # print(f"self.point_block_shape:\n{self.point_block_shape}")
+        # print(f"self.point_block_size:\n{self.point_block_size}")
+
+        point_types_combinations = np.array(
+                list(itertools.combinations_with_replacement(range(n_types), 2))).T
+        # Even if its not sqare, we take each direction once : we define the inverse shape, where we pass from (Ar, Bc) to (Ac, Br)
+        if self.is_square:
+
+            
+            self.edge_type_to_point_types = point_types_combinations.T
+            self.edge_block_shape = self.row.basis_size[point_types_combinations]
+            self.edge_block_shape_inv = self.row.basis_size[point_types_combinations]
+            self.edge_block_size = self.edge_block_shape.prod(axis=0)
+            self.edge_block_size_inv = self.edge_block_shape_inv.prod(axis=0)
+
+            # BORRAR
+            # print(f"Point type to edge type:\n{self.edge_type}")
+            # print(f"Edge type to point types:\n{self.edge_type_to_point_types}")
+            # print(f"Edge block shape:\n{self.edge_block_shape}")
+            # print(f"Edge block size:\n{self.edge_block_size}")
+
+        else:
+            # Store the sizes of each point's basis — now separate for rows and cols.
+            row_basis_size = self.row.basis_size
+            col_basis_size = self.col.basis_size
+
+            # BORRAR
+            # print(f"Row basis sizes: {row_basis_size}")
+            # print(f"Col basis sizes: {col_basis_size}")
+
+            self.edge_type_to_point_types = point_types_combinations.T
+
+            # TODO: comprobe if this is okay for non-square matrices
+            # BORRAR
+            # print(f"Point type to edge type:\n{self.edge_type}")
+            # print(f"Edge type to point types:\n{self.edge_type_to_point_types}")
+
+            row_type_indices = point_types_combinations[0]   # which row-type each combo refers to
+            col_type_indices = point_types_combinations[1]   # which col-type each combo refers to
+
+            # Block shape: (row_basis_size[i], col_basis_size[j]) for each edge type (i, j).
+            self.edge_block_shape = np.array([
+                row_basis_size[row_type_indices],
+                col_basis_size[col_type_indices],
+            ])                                          # shape: (2, n_combos)
+            self.edge_block_shape_inv = np.array([
+                row_basis_size[col_type_indices],
+                col_basis_size[row_type_indices],
+            ])                                          # shape: (2, n_combos)
+
+            # BORRAR
+            # print(f"Edge block shape:\n{self.edge_block_shape}")
+            # print(f"Edge block shape inv:\n{self.edge_block_shape_inv}")
+
+            self.edge_block_size = self.edge_block_shape.prod(axis=0)  # shape: (n_combos,)
+            self.edge_block_size_inv = self.edge_block_shape_inv.prod(axis=0)  # shape: (n_combos,)
+
+    @staticmethod
+    def _process_basis_rows_cols(basis: Union[List[PointBasis], BasisTableWithEdges_rowcol]) \
+        -> Tuple[List[PointBasis], List[PointBasis]]:
+        """Processes the basis to determine which basis is used for rows and which for columns.
+
+        If the basis has a `matrix_role` attribute, it will be used to determine the role of each basis.
+        If not, the first basis will be used for rows and the second for columns.
+
+        Parameters
+        ----------
+        basis: List[PointBasis]
+            The list of point bases.
+
+        Returns
+        -------
+        i_basis: List[PointBasis]
+            The list of point bases for rows.
+        j_basis: List[PointBasis]
+            The list of point bases for columns.
+        """
+        if isinstance(basis, BasisTableWithEdges_rowcol):
+            basis = basis.basis
+        i_basis = []
+        j_basis = []
+        for b in basis:
+            if b.matrix_role == "row":
+                i_basis.append(b)
+            elif b.matrix_role == "col":
+                j_basis.append(b)
+            else:
+                # If None, it is a square matrix: same basis for rows and columns
+                i_basis.append(b)
+                j_basis.append(b)
+        assert len(i_basis) == len(j_basis), "The number of row and column bases must be the same."
+        # Make sure order if correct
+        # If it is correct, return the basis as is. If not, reorder the basis to match the order of the other basis.
+        # Quick check if already correctly ordered
+        if all(a.type == b.type for a, b in zip(i_basis, j_basis)):
+            return i_basis, j_basis
+        print("Reordering basis to match rows and columns.")
+
+        type_to_index = {}
+        for idx, elem in enumerate(j_basis):
+            if elem.type in type_to_index:
+                raise ValueError(f"Duplicate type '{elem.type}' found in j_basis")
+            type_to_index[elem.type] = idx
+        # Reorder basis: check that the point type is the same for i_basis[k] and j_basis[k]
+        ordered_j_basis = []
+        for elem in i_basis:
+            idx = type_to_index.get(elem.type)
+            if idx is None:
+                raise ValueError(f"Type '{elem.type}' not found in j_basis")
+            ordered_j_basis.append(j_basis[idx])
+        return i_basis, ordered_j_basis
+
+    def check_nonsquare_properties(self):
+
+        basis_convention_row = self.row.basis_convention if self.row is not None else None
+        basis_convention_col = self.col.basis_convention if self.col is not None else None
+
+        assert basis_convention_row == basis_convention_col, \
+            f"Row and column basis conventions must be the same. \
+Got {basis_convention_row} and {basis_convention_col}."
+
+        types_row = self.row.types if self.row is not None else None
+        types_col = self.col.types if self.col is not None else None
+
+        assert types_row == types_col, \
+            f"Row and column basis types must be the same. \
+Got {types_row} and {types_col}."
+
+    def group(
+        self, grouping: Literal["basis_shape", "point_type", "max"]
+    ) -> tuple["BasisTableWithEdges_rowcol", np.ndarray, np.ndarray, Optional[np.ndarray]]:
+
+        "TODO: define this for nonsquare in this scheme"
+
+        # SN: changed the output: returns a tuple of two tables, one for rows and one for columns
+        if self.is_square:
+            new_table, point_type_conversion, edge_type_conversion, filters = self.row.group(grouping)
+            return (new_table, new_table), point_type_conversion, edge_type_conversion, filters
+        else:
+            if grouping == "point_type":
+                new_table_row, point_type_conversion_row, edge_type_conversion_row, filters_row = self.row.group(grouping)
+                new_table_col, point_type_conversion_col, edge_type_conversion_col, filters_col = self.col.group(grouping)
+                if point_type_conversion_row != point_type_conversion_col:
+                    raise ValueError(f"Row and column point type conversions must be the same for non-square matrices. Got {point_type_conversion_row} and {point_type_conversion_col}.")
+                if edge_type_conversion_row != edge_type_conversion_col:
+                    raise ValueError(f"Row and column edge type conversions must be the same for non-square matrices. Got {edge_type_conversion_row} and {edge_type_conversion_col}.")
+                # TODO: for the filters ?
+                return  (new_table_row, new_table_col), point_type_conversion_row, edge_type_conversion_row, filters_row
+            else:
+                raise NotImplementedError(f"Grouping for non-square matrices \
+with grouping {grouping} is not implemented yet.")
+
+    def _repr_html_(self):
+        if self.is_square:
+            return self.row._repr_html_()
+        else:
+            # TODO: comprobar
+            table = "<table><tbody>"
+            table += f"<tr><th>Row Basis</th><th>Column Basis</th></tr>"
+            for i in range(len(self.row.basis)):
+                table += f"<tr><td>{self.row.basis[i]}</td><td>{self.col.basis[i]}</td></tr>"
+            table += "</tbody></table>"
+            return table
+
+    def __str__(self):
+        if self.is_square:
+            return str(self.row)
+        else:
+            return f"Row basis:\n{self.row}\nColumn basis:\n{self.col}"
+
+    def __len__(self):
+        if self.is_square:
+            return len(self.row)
+        else:
+            if len(self.col) != len(self.row):
+                raise ValueError("Row and column basis have different lengths.")
+            return len(self.row)
+
+    def __eq__(self, other):
+        if not isinstance(other, self.__class__):
+            return False
+        same = self.is_square == other.is_square
+        same &= self.row == other.row
+        same &= self.col == other.col
+        return same
+    
+    # SN: moved from the old BasisTableWithEdges_rowcol class to here
     def type_to_index(self, point_type: Union[str, int]) -> int:
         """Converts from the type ID to the index of the point type in the table.
 
@@ -415,6 +676,7 @@ class BasisTableWithEdges:
         """
         return self.types.index(point_type)
 
+    # SN: moved from the old BasisTableWithEdges_rowcol class to here
     def types_to_indices(self, types: Sequence) -> np.ndarray:
         """Converts from an array of types IDs to their indices in the basis table.
 
@@ -438,6 +700,7 @@ class BasisTableWithEdges:
         # And reconstruct the original array, which is now an array of indices instead of types
         return unique_indices[inverse_indices]
 
+    # SN: moved from the old BasisTableWithEdges_rowcol class to here
     def point_type_to_edge_type(self, point_type: np.ndarray) -> Union[int, np.ndarray]:
         """Converts pairs of point types to edge types.
 
@@ -449,10 +712,7 @@ class BasisTableWithEdges:
         """
         return self.edge_type[point_type[0], point_type[1]]
 
-    def maxR(self) -> float:
-        """Maximum cutoff radius in the basis."""
-        return self.R.max()
-
+    # SN: moved from the old BasisTableWithEdges_rowcol class to here
     def point_block_pointer(self, point_types: Sequence[int]) -> np.ndarray:
         """Pointers to the beggining of node blocks in a flattened matrix.
 
@@ -470,8 +730,15 @@ class BasisTableWithEdges:
         """
         pointers = np.zeros(len(point_types) + 1, dtype=np.int32)
         np.cumsum(self.point_block_size[point_types], out=pointers[1:])
+        # BORRAR
+        # print(f"In BasisTableWithEdges.point_block_pointer:")
+        # print(f"  point_types = {point_types}")
+        # print(f"  point_block_size = {self.point_block_size}")
+        # print(f"  pointers = {pointers}")
+
         return pointers
 
+    # SN: moved from the old BasisTableWithEdges_rowcol class to here
     def edge_block_pointer(self, edge_types: Sequence[int]):
         """Pointers to the beggining of edge blocks in a flattened matrix.
 
@@ -489,19 +756,30 @@ class BasisTableWithEdges:
             which they appear in the flattened matrix.
         """
         pointers = np.zeros(len(edge_types) + 1, dtype=np.int32)
-        np.cumsum(self.edge_block_size[np.abs(edge_types)], out=pointers[1:])
-        return pointers
-
-    def get_sisl_atoms(self) -> List[sisl.Atom]:
-        """Returns a list of sisl atoms corresponding to the basis.
-
-        If the basis does not contain atoms, `PointBasis` objects are
-        converted to atoms.
-        """
-        if hasattr(self, "atoms"):
-            return self.atoms
+        if self.is_square:
+            np.cumsum(self.edge_block_size[np.abs(edge_types)], out=pointers[1:])
         else:
-            return [point.to_sisl_atom() for point in self.basis]
+            # In non-square case, the edge block size is not symmetric, so for 
+            # negative values of
+            # New conditional selection:
+            sizes = np.where(edge_types > 0,
+                            self.edge_block_size[edge_types],          # positive → forward size
+                            self.edge_block_size_inv[-edge_types])     # non‑positive → backward size (use absolute index)
+
+            np.cumsum(sizes, out=pointers[1:])
+
+        # BORRAR
+        # print(f"In BasisTableWithEdges.edge_block_pointer:")
+        # print(f"  edge_types = {edge_types}")
+        # print(f"  edge_block_size = {self.edge_block_size}")
+        # print(f"  pointers = {pointers}")
+
+        return pointers
+    
+    # SN: the max R must be the max among rows and cols
+    def maxR(self) -> float:
+        """Maximum cutoff radius in the basis."""
+        return max(self.row.maxR(), self.col.maxR())
 
 
 class AtomicTableWithEdges(BasisTableWithEdges):
@@ -666,3 +944,12 @@ class AtomicTableWithEdges(BasisTableWithEdges):
             self._set_state_by_filecontents(file_names, file_contents)
         else:
             self._set_state_by_atoms(d["atoms"])
+
+# SN: defined this outside to be able to compare the poijnt type conversions 
+# for nonsquare correclty: it should be fulfilled by default, but porsiacaso.
+class IdentityConversion:
+    def __getitem__(self, key):
+        return key
+    
+    def __eq__(self, other):
+        return isinstance(other, IdentityConversion)

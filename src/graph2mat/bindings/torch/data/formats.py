@@ -37,6 +37,8 @@ def _csr_to_dense(csr: torch.sparse_csr_tensor) -> torch.Tensor:
 
 @converter
 def _torch_to_numpy(tensor: torch.Tensor) -> np.ndarray:
+    if isinstance(tensor, np.ndarray):
+        return tensor
     return tensor.numpy(force=True)
 
 
@@ -53,7 +55,8 @@ def nodes_and_edges_to_coo(
     node_vals: torch.Tensor,
     edge_vals: torch.Tensor,
     edge_index: torch.Tensor,
-    orbitals: torch.Tensor,
+    orbitals_row: torch.Tensor,
+    orbitals_col: torch.Tensor,
     n_supercells: int = 1,
     edge_neigh_isc: Optional[torch.Tensor] = None,
     threshold: Optional[float] = None,
@@ -100,7 +103,8 @@ def nodes_and_edges_to_coo(
         node_vals=node_vals,
         edge_vals=edge_vals,
         edge_index=edge_index,
-        orbitals=orbitals,
+        orbitals_row=orbitals_row,
+        orbitals_col=orbitals_col,
         n_supercells=n_supercells,
         edge_neigh_isc=edge_neigh_isc,
         threshold=threshold,

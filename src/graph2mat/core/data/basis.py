@@ -149,6 +149,10 @@ class PointBasis:
         with optional minus signs, e.g. ``"xyz"``, ``"-yz-x"``, ``"z-x-y"``.
         You can also use the aliases that we provide, such as ``"cartesian"`` or
         ``"spherical"``.
+    matrix_role:
+        role that the specified basis plays in the output matrix. It can be 'row'
+        or 'col'. If None, assumes the matrix is square and the basis is used for
+        both rows and columns.
 
 
     Examples
@@ -175,11 +179,19 @@ class PointBasis:
     R: Union[float, np.ndarray]
     basis: Union[str, Sequence[Union[int, Tuple[int, int, int]]]] = ()
     basis_convention: BasisConvention = "spherical"
+    matrix_role: Union[Literal["row", "col"], None] = None
 
     def __post_init__(self):
         basis = self._sanitize_basis(self.basis)
 
         object.__setattr__(self, "basis", basis)
+
+        if self.matrix_role is not None:
+            assert self.matrix_role in ["row", "col"], "matrix_role must be 'row', 'col' or None."
+            print(
+                f"Defined {self.matrix_role} for type {self.type} with basis {self.basis} and reach {self.R}."
+            )
+        object.__setattr__(self, "matrix_role", self.matrix_role)
 
         assert isinstance(self.R, Number) or (
             isinstance(self.R, np.ndarray) and len(self.R) == self.basis_size
