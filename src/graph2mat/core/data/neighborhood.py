@@ -29,9 +29,6 @@ def get_neighborhood(
     assert len(pbc) == 3 and all(isinstance(i, (bool, np.bool_)) for i in pbc)
     assert cell.shape == (3, 3)
 
-    # BORRAR
-    # print('Cutoff:', cutoff)
-
     sender, receiver, unit_shifts = ase.neighborlist.primitive_neighbor_list(
         quantities="ijS",
         pbc=pbc,

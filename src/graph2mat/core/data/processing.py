@@ -198,10 +198,7 @@ class MatrixDataProcessor:
 
         if is_batch is None:
             is_batch = isinstance(data, Batch)
-        # BORRAR
-        # print("In processing.py matrix_from_data:")
-        # print("data:", data)
-        # print("is_batch:", is_batch)
+
         if is_batch:
             return tuple(
                 self.yield_from_batch(
@@ -272,12 +269,6 @@ class MatrixDataProcessor:
             # Types for both atoms and edges.
             point_types = arrays.point_types
             edge_types = arrays.edge_types
-            
-            # BORRAR
-            # print("In MatrixDataProcessor.yield_from_batch:")
-            # print("arrays=data.numpy_arrays():", arrays)
-            # print("atom_ptr:", atom_ptr)
-            # print("edge_ptr:", edge_ptr)
 
             # Get the values for the node blocks and the pointer to the start of each block.
             node_labels_ptr = self.basis_table.point_block_pointer(point_types)
@@ -307,17 +298,6 @@ class MatrixDataProcessor:
                 new_edge_label = edge_labels[
                     edge_labels_ptr[edge_start] : edge_labels_ptr[edge_end]
                 ]
-
-                # BORRAR
-                # print(f"example {i} (batch):")
-                # print("  atom_start:", atom_start)
-                # print("  atom_end:", atom_end)
-                # print("  edge_start:", edge_start)
-                # print("  edge_end:", edge_end)
-                # print("  new_edge_label = edge_labels[edge_labels_ptr[edge_start]: edge_labels_ptr[edge_end]]:")
-                # print(f" this takes the edge labels from edge_labels_ptr[edge_start] = edge_labels_ptr[{edge_start}] = {edge_labels_ptr[edge_start]}")
-                # print(f" to edge_labels_ptr[edge_end] = edge_labels_ptr[{edge_end}] = {edge_labels_ptr[edge_end]}")
-                # print(f"  len(new_edge_label) = {len(new_edge_label)}")
 
                 if getattr(example, "point_labels", None) is not None:
                     assert len(new_atom_label) == len(example.point_labels)
@@ -544,12 +524,6 @@ class MatrixDataProcessor:
         # Get the supercell index of the neighbor in each interaction
         isc = isc_off[sc_shifts[0], sc_shifts[1], sc_shifts[2]]
 
-        # BORRAR
-        # print("In sort_edge_index:")
-        # print("isc_off:", isc_off)
-        # print("sc_shifts:", sc_shifts)
-        # print("isc:", isc)
-
         # Find unique edges:
         #  - For edges that are between different supercells: We get just connections from
         #   the unit cell to half of the supercells. One can then reproduce all the connections
@@ -681,15 +655,8 @@ class MatrixDataProcessor:
         """
 
         if isinstance(self.basis_table.R, float):
-            # BORRAR
-            # print('self.basis_table.R is a float:', self.basis_table.R)
-
             return self.basis_table.R * 2
         else:
-            # BORRAR
-            # print('self.basis_table.R is an array:', self.basis_table.R)
-            # print('point_types:', point_types)
-            # print('self.basis_table.R[point_types]:', self.basis_table.R[point_types])
             return self.basis_table.R[point_types]
 
     def get_nlabels_per_edge_type(self, edge_types: np.ndarray) -> np.ndarray:
@@ -862,16 +829,6 @@ class MatrixDataProcessor:
             edge_index = edge_index[:, ::2]
             edge_types = edge_types[::2]
             neigh_isc = neigh_isc[::2]
-        # BORRAR
-        # print("In labels_to: of MatrixDataProcessor")
-        # print("data_format:", data_format)
-        # print("out_format:", out_format)
-        # print("len node_labels:", len(node_labels))
-        # print("len edge_labels:", len(edge_labels))
-        # print("edge_index:", edge_index)
-        # print("neigh_isc:", neigh_isc)
-        # print("self.symmetric_matrix:", self.symmetric_matrix)
-        # print("calling conversions.get_converter with data_format:", data_format, "and out_format:", out_format)
 
         # Construct the matrix.
         matrix = conversions.get_converter(data_format, out_format)(
@@ -1404,28 +1361,14 @@ class BasisMatrixDataBase(Generic[ArrayType]):
         # array that converts from sc shifts (3D) to a single supercell index. This is isc_off.
         supercell = sisl.Lattice(config.cell, nsc=nsc)
 
-        # BORRAR
-        # print('IN BasisMatrixData.from_config:')
-        # print('all indices:', indices)
-        # print('edge_index:', edge_index)
-        # Get the edge types
         edge_types = data_processor.basis_table.point_type_to_edge_type(
             indices[edge_index]
         )
-
-        # BORRAR
-        # print('In BasisMatrixData.from_config 1:')
-        # print('edge_index:', edge_index)
-        # print('edge_types:', edge_types)
 
         # Sort the edges to make it easier for the reading routines
         data_processor.sort_edge_index(
             edge_index, sc_shifts, shifts.T, edge_types, supercell.isc_off, inplace=True,
         )
-        # BORRAR
-        # print('In BasisMatrixData.from_config 2:')
-        # print('edge_index:', edge_index)
-        # print('edge_types:', edge_types)
 
         # Then, get the supercell index of each interaction.
         neigh_isc = supercell.isc_off[sc_shifts[0], sc_shifts[1], sc_shifts[2]]
@@ -1434,11 +1377,6 @@ class BasisMatrixDataBase(Generic[ArrayType]):
         point_labels, edge_labels = data_processor.get_labels_from_types_and_edges(
             config, point_types=indices, edge_index=edge_index, neigh_isc=neigh_isc
         )
-
-        # BORRAR
-        # print('In BasisMatrixData.from_config 3:')
-        # print('edge_index:', edge_index)
-        # print('edge_types:', edge_types)
 
         return cls(
             edge_index=edge_index,
