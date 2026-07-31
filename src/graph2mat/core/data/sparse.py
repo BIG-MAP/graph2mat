@@ -192,7 +192,6 @@ def _blockmatrix_coo_coords(
         shape (2, n_edges), for each edge the indices of the atoms
         that participate. If `symmetrize_edges` is `True`, this must
         ONLY contain the edges in one of the directions.
-        # TODO: verify this work with non sym in the non-square case.
     n_supercells:
         number of supercells in the matrix.
     edge_neigh_isc:
@@ -273,17 +272,7 @@ def _blockmatrix_coo_coords(
             cols_symm.extend(opp_block_cols)
         elif symmetrize_edges and not is_square:
             raise ValueError(
-                "SN: TODO - I think thsi not work as I intended to... maybe it cannot be")
-            # We assume that the edge_index contains only the edges in one direction,
-            # but as it it not square, we cannot assume that the opposite direction is just the transpose of the
-            # original edge.
-            i_start_symm = first_orb_row[j_at]
-            i_end_symm = i_start_symm + orbitals_row[j_at]
-            j_start_symm = first_orb_col[i_at]
-            j_end_symm = j_start_symm + orbitals_col[i_at]
-            block_rows_symm, block_cols_symm = np.mgrid[i_start_symm:i_end_symm, j_start_symm:j_end_symm].reshape(2, -1)
-            rows_symm.extend(block_rows_symm)
-            cols_symm.extend(block_cols_symm)
+                "We cannot use symmetrized edges for non-square matrices (contractions).")
     # Add coordinates of symmetrized edges to the list of coordinates.
     rows.extend(rows_symm)
     cols.extend(cols_symm)
@@ -357,7 +346,6 @@ def _nodes_and_edges_to_coo(
         edge_neigh_isc=edge_neigh_isc,
         symmetrize_edges=symmetrize_edges,
     )
-
     if symmetrize_edges:
         sparse_data = concatenate([node_vals, edge_vals, edge_vals])
     else:

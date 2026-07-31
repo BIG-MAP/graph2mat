@@ -398,8 +398,8 @@ This is inconsistent. If symmetric, all basis must have matrix_role=None. If not
             self.basis_filters,
         ) = self.basis_table.group(self.basis_grouping)
 
-        self.graph2mat_table_row = graph2mat_tables[0]
-        self.graph2mat_table_col = graph2mat_tables[1]
+        self.graph2mat_table_rowb = graph2mat_tables.row_basis
+        self.graph2mat_table_colb = graph2mat_tables.col_basis
 
         # Prepare the filters to mask the output of the operations
         # Currently self.basis_filters is only not None when
@@ -423,9 +423,9 @@ This is inconsistent. If symmetric, all basis must have matrix_role=None. If not
     def _init_self_interactions(self, **kwargs) -> List[MatrixBlock]:
         self_interactions = []
 
-        for i_point_type_basis in range(len(self.graph2mat_table_row.basis)):
-            row_basis = self.graph2mat_table_row.basis[i_point_type_basis]
-            col_basis = self.graph2mat_table_col.basis[i_point_type_basis]
+        for i_point_type_basis in range(len(self.graph2mat_table_rowb)):
+            row_basis = self.graph2mat_table_rowb[i_point_type_basis]
+            col_basis = self.graph2mat_table_colb[i_point_type_basis]
             if len(row_basis.basis) == 0 or len(col_basis.basis) == 0:
                 # The point type has no basis functions
                 self_interactions.append(None)
@@ -442,7 +442,7 @@ This is inconsistent. If symmetric, all basis must have matrix_role=None. If not
 
     def _init_interactions(self, **kwargs) -> Dict[Tuple[int, int], MatrixBlock]:
         point_type_combinations = itertools.combinations_with_replacement(
-            range(len(self.graph2mat_table_row.basis)), 2   # row and col basis have the same length, so we can use either one
+            range(len(self.graph2mat_table_rowb)), 2   # row and col basis have the same length, so we can use either one
         )
 
         interactions = {}
@@ -456,8 +456,8 @@ This is inconsistent. If symmetric, all basis must have matrix_role=None. If not
                 perms.append((-edge_type, neigh_type, point_type))
 
             for signed_edge_type, point_i, point_j in perms:
-                i_basis = self.graph2mat_table_row.basis[point_i]
-                j_basis = self.graph2mat_table_col.basis[point_j]
+                i_basis = self.graph2mat_table_rowb[point_i]
+                j_basis = self.graph2mat_table_colb[point_j]
 
                 if len(i_basis.basis) == 0 or len(j_basis.basis) == 0:
                     # One of the involved point types has no basis functions
@@ -522,8 +522,8 @@ This is inconsistent. If symmetric, all basis must have matrix_role=None. If not
                     raise ValueError(
                         f"Node operation {i} is symmetric transpose, but the matrix is NOT square. This is not allowed."
                     )
-                point_r = self.graph2mat_table_row.basis[i]
-                point_c = self.graph2mat_table_col.basis[i]
+                point_r = self.graph2mat_table_rowb[i]
+                point_c = self.graph2mat_table_colb[i]
 
                 if x is None:
                     s += f"\n ({point_r.type}, {point_c.type}) No basis functions."
@@ -548,8 +548,8 @@ This is inconsistent. If symmetric, all basis must have matrix_role=None. If not
                 
                 point_type, neigh_type, edge_type = map(int, k[1:-1].split(","))
 
-                point = self.graph2mat_table_row.basis[point_type]
-                neigh = self.graph2mat_table_col.basis[neigh_type]
+                point = self.graph2mat_table_rowb[point_type]
+                neigh = self.graph2mat_table_colb[neigh_type]
 
                 if x is None:
                     s += f"\n ({point.type}, {neigh.type}) No basis functions."

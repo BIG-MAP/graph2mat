@@ -37,8 +37,8 @@ def _csr_to_dense(csr: torch.sparse_csr_tensor) -> torch.Tensor:
 
 @converter
 def _torch_to_numpy(tensor: torch.Tensor) -> np.ndarray:
-    if isinstance(tensor, np.ndarray):
-        return tensor
+    # if isinstance(tensor, np.ndarray):
+    #     return tensor
     return tensor.numpy(force=True)
 
 

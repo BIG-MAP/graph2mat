@@ -5,7 +5,7 @@ from typing import Dict, Tuple, Union
 from dataclasses import dataclass
 import numpy as np
 
-from ..table import BasisTableWithEdges, BasisTableWithEdges
+from ..table import BasisTableWithEdges
 
 BasisCount = np.ndarray  # [num_points]
 

@@ -88,7 +88,7 @@ def get_labels_resorting_array(
     # Count the number of entries of each type
     for i_edge in range(n_entries):
         type: cython.int = types[i_edge]
-        type_nlabels[type + ntypes_int - 1] += sizes[type]
+        type_nlabels[type + ntypes_int - 1] += sizes[type + ntypes_int - 1]
 
     # Cumsum of type_nlabels to understand where do the labels for
     # each type start.
@@ -97,7 +97,8 @@ def get_labels_resorting_array(
     for type in range(1, ntypes_int):  # Here we just range in n_types, but this takes the negatives
         offset[type + ntypes_int - 1] = offset[prev_type] + type_nlabels[prev_type]  # >0
         offset[-type + ntypes_int - 1] = offset[type + ntypes_int - 1] + type_nlabels[type + ntypes_int - 1]  # < 0
-         # We have to continue from the negative type, because the next positive type will be after it.
+
+        # We have to continue from the negative type, because the next positive type will be after it.
         prev_type = -type + ntypes_int - 1 
 
     # Initialize the indices array.
