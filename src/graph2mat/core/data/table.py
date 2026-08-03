@@ -111,7 +111,10 @@ class BasisTableWithEdges:
     #: If the basis was read from files, this might store the contents of the files.
     #: For saving/loading purposes.
     file_contents: Optional[List[str]]
-    def __init__(self, basis: Sequence[PointBasis], get_point_matrix: Optional[Callable] = None):
+    def __init__(
+            self, basis: Sequence[PointBasis] | dict[Literal["row", "col"], Sequence[PointBasis]],
+            get_point_matrix: Optional[Callable] = None
+        ):
         self._init_args = {"atoms": basis, "get_point_matrix": get_point_matrix}
 
         # Non-square matrices are allowed, but only if the basis is passed as a dict with keys "row" and "col".
@@ -183,9 +186,6 @@ class BasisTableWithEdges:
                 point_types_to_edge_types[j, i] = -edge_type
                 edge_type += 1
 
-            # For non square matrices, we don't have a symmetric lower triangular part,
-            # but the change in sign will still be used to indicate the direction of the edge. 
-
         self.edge_type = point_types_to_edge_types
 
         # Store the sizes of each point's basis.
@@ -204,7 +204,7 @@ class BasisTableWithEdges:
 
         point_types_combinations = np.array(
                 list(itertools.combinations_with_replacement(range(n_types), 2))).T
-    
+
         # Store the sizes of each point's basis
         # Even if its not square, we take each direction once:
         # we define the inverse shape, where we pass from (Ar, Bc) to (Ac, Br)
@@ -215,20 +215,23 @@ class BasisTableWithEdges:
         col_type_indices = point_types_combinations[1]   # which col-type each combo refers to
 
         # Block shape: (row_basis_size[i], col_basis_size[j]) for each edge type (i, j).
-        self.edge_block_shape = np.array([
+        edge_block_shape = np.array([
             row_basis_size[row_type_indices],
             col_basis_size[col_type_indices],
         ])                                          # shape: (2, n_combos)
 
         # Define the inverse block shape: (row_basis_size[j], col_basis_size[i]) for each edge type (i, j).
         # This is befause for non-square, (Ac, Br) != (Bc, Ar) in general.
-        self.edge_block_shape_inv = np.array([
+        edge_block_shape_inv = np.array([
             row_basis_size[col_type_indices],
             col_basis_size[row_type_indices],
         ])                                          # shape: (2, n_combos)
+        # We add this at the end on edge_block shape, so that edge_block_shape_inv[i] = edge_block_shape[-i]
+        # then, we can access the negative edge types with that index.
+        edge_block_shape_inv_inverted = np.flip(edge_block_shape_inv[:, 1:], axis=1) 
+        self.edge_block_shape = np.concatenate([edge_block_shape, edge_block_shape_inv_inverted], axis=1)
 
         self.edge_block_size = self.edge_block_shape.prod(axis=0)  # shape: (n_combos,)
-        self.edge_block_size_inv = self.edge_block_shape_inv.prod(axis=0)  # shape: (n_combos,)
 
     @staticmethod
     def _process_basis_rows_cols(basis: Union[List[PointBasis], dict[str, List[PointBasis]]]) \
@@ -267,7 +270,6 @@ class BasisTableWithEdges:
         # Quick check if already correctly ordered
         if all(a.type == b.type for a, b in zip(i_basis, j_basis)):
             return i_basis, j_basis
-        print("Reordering basis to match rows and columns.")
 
         type_to_index = {}
         for idx, elem in enumerate(j_basis):
@@ -282,6 +284,7 @@ class BasisTableWithEdges:
                 raise ValueError(f"Type '{elem.type}' not found in j_basis")
             ordered_j_basis.append(j_basis[idx])
         return i_basis, ordered_j_basis
+
 
     def get_R(self) -> np.ndarray:
         """Returns the cutoff radii in the correct format."""
@@ -358,7 +361,7 @@ class BasisTableWithEdges:
         """
 
         "TODO: define this for nonsquare in this scheme"
-        # SN: fix I did: for non square, raises error if its not point type.
+        # For non-square, raises error if its not point type.
         # Hence, the square grouping takes only row_basis, and does the same as before.
 
         if not self.is_square and grouping != "point_type":
@@ -642,12 +645,10 @@ class BasisTableWithEdges:
             np.cumsum(self.edge_block_size[np.abs(edge_types)], out=pointers[1:])
         else:
             # In non-square case, the edge block size is not symmetric, so for 
-            # negative values of
+            # negative values of edge types, we take them from the end of the array,
+            # as edge_block_size has been defined as the concatenation of the forward and backward sizes.
             # New conditional selection:
-            sizes = np.where(edge_types > 0,
-                            self.edge_block_size[edge_types],          # positive → forward size
-                            self.edge_block_size_inv[-edge_types])     # non‑positive → backward size (use absolute index)
-
+            sizes = self.edge_block_size[edge_types]
             np.cumsum(sizes, out=pointers[1:])
         return pointers
 
@@ -820,103 +821,9 @@ class AtomicTableWithEdges(BasisTableWithEdges):
         else:
             self._set_state_by_atoms(d["atoms"])
 
-# SN: defined this outside to be able to compare the poijnt type conversions 
-# for nonsquare correclty: it should be fulfilled by default, but porsiacaso.
 class IdentityConversion:
     def __getitem__(self, key):
         return key
     
     def __eq__(self, other):
         return isinstance(other, IdentityConversion)
-
-
-# OLD CODE:
-
-# SN: I just copied how to do it for a single basis, so that the changes are minimal,
-# and I do not mess up the grouping
-def group(self, grouping: Literal["basis_shape", "point_type", "max"]) \
-                    -> tuple["BasisTableWithEdges",
-                    np.ndarray, np.ndarray, Optional[np.ndarray]]:
-    filters = None
-    if grouping == "point_type":
-        new_table = self
-
-        point_type_conversion = IdentityConversion()
-        edge_type_conversion = IdentityConversion()
-
-    elif grouping == "basis_shape":
-        # Get all basis sizes:
-        basis_sizes = np.zeros((len(self.basis), 5), dtype=int)
-        for i, point_type_basis in enumerate(self.basis):
-            for n, l, _ in point_type_basis.basis:
-                basis_sizes[i, l] += n
-
-        # Get the unique basis sizes
-        unique_sizes, unique_indices, pseudo_types = np.unique(
-            basis_sizes, axis=0, return_index=True, return_inverse=True
-        )
-
-        # Create the new table with the unique basis sizes. Here we just
-        # take the first point type that has that basis size, but perhaps
-        # it would be better to create a new point type that represents
-        # that basis size (e.g. so that the name of the type is not misleading).
-        new_table = self.__class__([self.basis[i] for i in unique_indices])
-        point_type_conversion = pseudo_types
-
-        # Get conversions
-        old_edgetypes_to_new_point_types = point_type_conversion[
-            self.edge_type_to_point_types
-        ]
-        edge_type_conversion = new_table.edge_type[
-            old_edgetypes_to_new_point_types[:, 0],
-            old_edgetypes_to_new_point_types[:, 1],
-        ]
-        # For edge type conversions handle the case in which the edge type
-        # is negative.
-        edge_type_conversion = np.concatenate(
-            [edge_type_conversion, -1 * np.flip(edge_type_conversion[1:])]
-        )
-    elif grouping == "max":
-        # Get all basis sizes:
-        basis_sizes = np.zeros((len(self.basis), 5), dtype=int)
-        for i, point_type_basis in enumerate(self.basis):
-            for n, l, _ in point_type_basis.basis:
-                basis_sizes[i, l] += n
-
-        # Maximum sizes:
-        max_sizes = basis_sizes.max(axis=0)
-
-        # Build the new point basis
-        max_basis = PointBasis(
-            "all",
-            R=self.maxR(),
-            basis=[(int(n), l, (-1) ** l) for l, n in enumerate(max_sizes)],
-            basis_convention=self.basis_convention,
-        )
-        # Create the new table with only one type.
-        new_table = self.__class__([max_basis])
-
-        # For each original point type, compute a mask that allows us to
-        # select the values of the new basis that correspond to that point type.
-        # (i.e. discard the values that are not present in that original point type).
-        missing_ls = max_sizes - basis_sizes
-        filters = np.zeros((len(self.basis), max_basis.basis_size), dtype=bool)
-        i = 0
-        for l, n in enumerate(max_sizes):
-            if n == 0:
-                continue
-
-            for i_point, point_missing_ls in enumerate(missing_ls[:, l]):
-                filters[i_point, i : i + (n - point_missing_ls) * (2 * l + 1)] = 1
-
-            i += (2 * l + 1) * n
-
-        # Point and edge type conversions, just map any type to 0.
-        point_type_conversion = np.zeros(len(self.basis), dtype=int)
-        edge_type_conversion = np.zeros(
-            len(self.edge_type_to_point_types), dtype=int
-        )
-    else:
-        raise NotImplementedError(f"Grouping by {grouping} is not implemented.")
-
-    return new_table, point_type_conversion, edge_type_conversion, filters

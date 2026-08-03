@@ -272,7 +272,8 @@ def _blockmatrix_coo_coords(
             cols_symm.extend(opp_block_cols)
         elif symmetrize_edges and not is_square:
             raise ValueError(
-                "We cannot use symmetrized edges for non-square matrices (contractions).")
+                "In order to symmetrize edges, the matrix must be square. \
+                For non-square matrices, the opposite edge is not guaranteed to be the transpose of the original edge.")
     # Add coordinates of symmetrized edges to the list of coordinates.
     rows.extend(rows_symm)
     cols.extend(cols_symm)
@@ -346,6 +347,7 @@ def _nodes_and_edges_to_coo(
         edge_neigh_isc=edge_neigh_isc,
         symmetrize_edges=symmetrize_edges,
     )
+
     if symmetrize_edges:
         sparse_data = concatenate([node_vals, edge_vals, edge_vals])
     else:

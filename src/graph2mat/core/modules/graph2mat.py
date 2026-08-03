@@ -386,11 +386,6 @@ This is inconsistent. If symmetric, all basis must have matrix_role=None. If not
 
     def _init_center_types(self, basis_grouping):
         self.basis_grouping = basis_grouping
-
-        # TODO: cambiar -- hacerlo para rows y cols
-        # Do the grouping
-        # SN: Done separately for rows and columns because the basis
-        # can be different for rows and columns.
         (
             graph2mat_tables,
             self.types_to_graph2mat,
@@ -557,9 +552,6 @@ This is inconsistent. If symmetric, all basis must have matrix_role=None. If not
                 if self.is_square:
                     s += f"\n ({point.type}, {neigh.type})"
                 else:
-                    # SN: the pairs should contain all the combinations
-                    # of the edge types, so we just have to add the specification of row/col
-                    # TODO: review this in nonsym case
                     s += f"\n ({point.type}r, {neigh.type}c)"
 
                 if x.symm_transpose:
@@ -899,8 +891,7 @@ This is inconsistent. If symmetric, all basis must have matrix_role=None. If not
         return self._get_labels_resort_index(
             types=types,
             original_types=original_types,
-            shapes=self.basis_table.point_block_shape,  # SN: changed: the full info is in basis_table, graph2mat table has row and col.
-            shapes_inv=self.basis_table.point_block_shape,
+            shapes=self.basis_table.point_block_shape,
             filters=self.node_filters,
             # original_sizes=self.basis_table.point_block_size,
             transpose_neg=False,
@@ -935,7 +926,6 @@ This is inconsistent. If symmetric, all basis must have matrix_role=None. If not
             types=types,
             original_types=original_types,
             shapes=self.basis_table.edge_block_shape,
-            shapes_inv=self.basis_table.edge_block_shape_inv,
             filters=self.edge_filters,
             transpose_neg=self.symmetric and self.basis_grouping == "basis_shape",
             **kwargs,
@@ -945,7 +935,6 @@ This is inconsistent. If symmetric, all basis must have matrix_role=None. If not
         self,
         types: np.ndarray,
         shapes: np.ndarray,
-        shapes_inv: np.ndarray,
         original_types: ArrayType,
         filters: ArrayType,
         transpose_neg: bool = False,
@@ -989,12 +978,11 @@ This is inconsistent. If symmetric, all basis must have matrix_role=None. If not
 
             return np.where(mask)[0]
         else:
+
             indices = get_labels_resorting_array(
                 types,
                 shapes=shapes.astype(types.dtype),
-                shapes_inv=shapes_inv.astype(types.dtype),
                 transpose_neg=transpose_neg,
                 **kwargs,
             )
-
         return indices

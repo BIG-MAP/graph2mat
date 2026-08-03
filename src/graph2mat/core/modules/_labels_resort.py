@@ -2,13 +2,11 @@ import numpy as np
 
 import cython
 
-
 @cython.boundscheck(False)
-# @cython.wraparound(False)
+@cython.wraparound(False)
 def get_labels_resorting_array(
     types: cython.integral[:],
     shapes: cython.integral[:, :],
-    shapes_inv: cython.integral[:, :] = None, # SN: for cases where is not square is needed: the shape of edge i ! = -i
     transpose_neg: cython.bint = False,
 ):
     """
@@ -56,8 +54,13 @@ def get_labels_resorting_array(
     one direction is predicted.
     """
     n_entries = types.shape[0]
-    n_types: cython.int = shapes.shape[1]*2-1 # positive and negative : with shape_inv
-    ntypes_int: cython.int = shapes.shape[1] # this is the number of integers >=0 we have.
+    if any(type < 0 for type in types):  # case of edges
+        n_types: cython.int = shapes.shape[1]  # number of types, including negative ones
+        ntypes_int: cython.int = n_types // 2 + 1  # number of types >=0
+    else:  # case of nodes
+        ntypes_int: cython.int = shapes.shape[1]  # number of types, excluding negative ones
+        n_types: cython.int = ntypes_int*2 - 1  # number of types, including negative ones
+
 
     type: cython.int
     rows: cython.int
@@ -65,25 +68,22 @@ def get_labels_resorting_array(
     jrow: cython.int
     jcol: cython.int
 
-    type_nlabels: cython.long[:] = np.zeros(n_types, dtype=int)
+    # Always fill positive and negative types, even if they are not present in the unique types, due to the logic used by the function
+    type_nlabels: cython.long[:] = np.zeros(n_types, dtype=int)  
     offset: cython.long[:] = np.zeros(n_types, dtype=int)
 
-    if shapes_inv is None:
-        shapes_inv = shapes
-
-    # Check node 0 shape is the same - it should be ALWAYS.
-    i: cython.int
-    for i in range(shapes.shape[0]):
-        if shapes[i, 0] != shapes_inv[i, 0]:
-            raise ValueError(
-                "For nodes, they must have the same shape, so shapes[:,0] == shapes_inv[:,0]"
-            )
 
     # Compute the sizes for each type
     sizes: cython.int[:] = np.zeros(n_types, dtype=np.int32)
-    for type in range(ntypes_int):
+
+    sizes[ntypes_int-1] = shapes[0, 0] * shapes[1, 0]  # type 0
+    for type in range(1, ntypes_int):  # skip type 0, already done
         sizes[type + ntypes_int - 1] = shapes[0, type] * shapes[1, type]
-        sizes[-type + ntypes_int - 1] = shapes_inv[0, type] * shapes_inv[1, type]
+
+        # The ones for th enegative types are stored in the second half of the sizes array,
+        # As we cannot have negative indexes: shape[-type] = shape[ntypes - type]
+        # so we access them with ntypes_int - type
+        sizes[-type + ntypes_int - 1] = shapes[0, n_types - type] * shapes[1, n_types - type]
 
     # Count the number of entries of each type
     for i_edge in range(n_entries):
@@ -103,7 +103,6 @@ def get_labels_resorting_array(
 
     # Initialize the indices array.
     # (for each label value, index of the unsorted array where it is located)
-    # The +1 is to avoid that ntypes_int=n means that we have n-1 integers types, avoiding 0.
     indices: cython.long[:] = np.empty(
         offset[0] + type_nlabels[0], dtype=int
     )
