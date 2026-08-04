@@ -510,9 +510,6 @@ class MatrixDataProcessor:
         inplace: bool, optional
             Whether the output should be placed in the input arrays, otherwise
             new arrays are created.
-        is_square: bool, optional
-            Whether the matrix is square or not. If it is not square, the edge types
-            are not signed, and therefore ther will not be negative edge types.
 
         Return
         ---------
@@ -1359,13 +1356,14 @@ class BasisMatrixDataBase(Generic[ArrayType]):
         # array that converts from sc shifts (3D) to a single supercell index. This is isc_off.
         supercell = sisl.Lattice(config.cell, nsc=nsc)
 
+        # Get the edge types
         edge_types = data_processor.basis_table.point_type_to_edge_type(
             indices[edge_index]
         )
 
         # Sort the edges to make it easier for the reading routines
         data_processor.sort_edge_index(
-            edge_index, sc_shifts, shifts.T, edge_types, supercell.isc_off, inplace=True,
+            edge_index, sc_shifts, shifts.T, edge_types, supercell.isc_off, inplace=True
         )
 
         # Then, get the supercell index of each interaction.

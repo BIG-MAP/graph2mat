@@ -150,6 +150,7 @@ class PointBasis:
         You can also use the aliases that we provide, such as ``"cartesian"`` or
         ``"spherical"``.
 
+
     Examples
     ----------
 
