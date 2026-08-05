@@ -2,7 +2,6 @@ import numpy as np
 
 import cython
 
-
 @cython.boundscheck(False)
 @cython.wraparound(False)
 def get_labels_resorting_array(
@@ -55,7 +54,13 @@ def get_labels_resorting_array(
     one direction is predicted.
     """
     n_entries = types.shape[0]
-    n_types: cython.int = shapes.shape[1]
+    if any(type < 0 for type in types):  # case of edges
+        n_types: cython.int = shapes.shape[1]  # number of types, including negative ones
+        ntypes_int: cython.int = n_types // 2 + 1  # number of types >=0
+    else:  # case of nodes
+        ntypes_int: cython.int = shapes.shape[1]  # number of types, excluding negative ones
+        n_types: cython.int = ntypes_int*2 - 1  # number of types, including negative ones
+
 
     type: cython.int
     rows: cython.int
@@ -63,29 +68,43 @@ def get_labels_resorting_array(
     jrow: cython.int
     jcol: cython.int
 
-    type_nlabels: cython.long[:] = np.zeros(n_types, dtype=int)
+    # Always fill positive and negative types, even if they are not present in the unique types, due to the logic used by the function
+    type_nlabels: cython.long[:] = np.zeros(n_types, dtype=int)  
     offset: cython.long[:] = np.zeros(n_types, dtype=int)
+
 
     # Compute the sizes for each type
     sizes: cython.int[:] = np.zeros(n_types, dtype=np.int32)
-    for type in range(n_types):
-        sizes[type] = shapes[0, type] * shapes[1, type]
+
+    sizes[ntypes_int-1] = shapes[0, 0] * shapes[1, 0]  # type 0
+    for type in range(1, ntypes_int):  # skip type 0, already done
+        sizes[type + ntypes_int - 1] = shapes[0, type] * shapes[1, type]
+
+        # The ones for th enegative types are stored in the second half of the sizes array,
+        # As we cannot have negative indexes: shape[-type] = shape[ntypes - type]
+        # so we access them with ntypes_int - type
+        sizes[-type + ntypes_int - 1] = shapes[0, n_types - type] * shapes[1, n_types - type]
 
     # Count the number of entries of each type
     for i_edge in range(n_entries):
-        type: cython.int = abs(types[i_edge])
-
-        type_nlabels[type] += sizes[type]
+        type: cython.int = types[i_edge]
+        type_nlabels[type + ntypes_int - 1] += sizes[type + ntypes_int - 1]
 
     # Cumsum of type_nlabels to understand where do the labels for
     # each type start.
-    for type in range(1, n_types):
-        offset[type] = offset[type - 1] + type_nlabels[type - 1]
+
+    prev_type: cython.int = ntypes_int - 1  # Start from the position that corresponds to type 0
+    for type in range(1, ntypes_int):  # Here we just range in n_types, but this takes the negatives
+        offset[type + ntypes_int - 1] = offset[prev_type] + type_nlabels[prev_type]  # >0
+        offset[-type + ntypes_int - 1] = offset[type + ntypes_int - 1] + type_nlabels[type + ntypes_int - 1]  # < 0
+
+        # We have to continue from the negative type, because the next positive type will be after it.
+        prev_type = -type + ntypes_int - 1 
 
     # Initialize the indices array.
     # (for each label value, index of the unsorted array where it is located)
     indices: cython.long[:] = np.empty(
-        offset[n_types - 1] + type_nlabels[n_types - 1], dtype=int
+        offset[0] + type_nlabels[0], dtype=int
     )
 
     type_i: cython.long[:] = np.zeros_like(sizes, dtype=int)
@@ -95,8 +114,8 @@ def get_labels_resorting_array(
         type = types[i_edge]
         abs_type: cython.int = abs(type)
 
-        block_size: cython.int = sizes[abs_type]
-        start: cython.int = offset[abs_type] + type_i[abs_type]
+        block_size: cython.int = sizes[type + ntypes_int - 1]
+        start: cython.int = offset[type + ntypes_int - 1] + type_i[type + ntypes_int - 1]
 
         if transpose_neg and type < 0:
             # Get the transposed shape
@@ -105,13 +124,12 @@ def get_labels_resorting_array(
                 for jcol in range(cols):
                     indices[i] = start + jcol * rows + jrow
                     i += 1
-
         else:
             for j in range(start, start + block_size):
                 indices[i] = j
                 i += 1
 
-        type_i[abs_type] += block_size
+        type_i[type + ntypes_int - 1] += block_size
 
     return np.asarray(indices)
 

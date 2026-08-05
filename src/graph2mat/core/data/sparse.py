@@ -155,7 +155,8 @@ def block_dict_to_coo(
 
 
 def _blockmatrix_coo_coords(
-    orbitals: ArrayLike,
+    orbitals_row: ArrayLike,
+    orbitals_col: ArrayLike,
     edge_index: ArrayLike,
     n_supercells: int = 1,
     edge_neigh_isc: Optional[ArrayLike] = None,
@@ -182,8 +183,11 @@ def _blockmatrix_coo_coords(
 
     Parameters
     ----------
-    orbitals:
-        for each atom, the amount of orbitals it has.
+    orbitals_row / orbitals_col:
+        for each atom, the amount of orbitals it has. In case of contracted basis sets,
+        rows represent the original basis, and columns the contracted basis. In case of
+        non-contracted basis sets, both are equal.
+
     edge_index:
         shape (2, n_edges), for each edge the indices of the atoms
         that participate. If `symmetrize_edges` is `True`, this must
@@ -202,17 +206,22 @@ def _blockmatrix_coo_coords(
     # Initialize the arrays to store the coordinates.
     rows = []
     cols = []
+    is_square = np.array_equal(orbitals_row, orbitals_col)
 
     # Store index of first orbital for each atom, as well as total number of orbitals.
-    first_orb = np.cumsum([0, *orbitals])
-    no = first_orb[-1]
+    first_orb_row = np.cumsum([0, *orbitals_row])
+    first_orb_col = np.cumsum([0, *orbitals_col])
+    no_row = first_orb_row[-1]  # Total number of orbitals in the row.
+    no_col = first_orb_col[-1]  # Total number of orbitals in the column.
 
     # First, compute the coordinates for the node blocks.
-    for i_at, dim in enumerate(orbitals):
-        i_start = first_orb[i_at]
-        i_end = i_start + dim
+    for dim in range(len(orbitals_row)):
+        i_start_row = first_orb_row[dim]
+        i_end_row = i_start_row + orbitals_row[dim]
+        j_start_col = first_orb_col[dim]
+        j_end_col = j_start_col + orbitals_col[dim]
 
-        block_rows, block_cols = np.mgrid[i_start:i_end, i_start:i_end].reshape(2, -1)
+        block_rows, block_cols = np.mgrid[i_start_row:i_end_row, j_start_col:j_end_col].reshape(2, -1)
 
         rows.extend(block_rows)
         cols.extend(block_cols)
@@ -232,19 +241,23 @@ def _blockmatrix_coo_coords(
 
     for i_edge, ((i_at, j_at), neigh_isc) in enumerate(
         zip(edge_index.T, edge_neigh_isc)
-    ):
-        i_start = first_orb[i_at]
-        i_end = i_start + orbitals[i_at]
-        j_start = first_orb[j_at]
-        j_end = j_start + orbitals[j_at]
+    ): 
+        if neigh_isc != 0 and not is_square:
+            raise NotImplementedError(
+                "Supercell interactions are not yet implemented for non-square matrices (contractions)."
+            )
+        i_start = first_orb_row[i_at]
+        i_end = i_start + orbitals_row[i_at]
+        j_start = first_orb_col[j_at]
+        j_end = j_start + orbitals_col[j_at]
 
         block_rows, block_cols = np.mgrid[i_start:i_end, j_start:j_end].reshape(2, -1)
-        sc_block_cols = block_cols + no * neigh_isc
+        sc_block_cols = block_cols + no_col * neigh_isc
 
         rows.extend(block_rows)
         cols.extend(sc_block_cols)
 
-        if symmetrize_edges:
+        if symmetrize_edges and is_square:
             # Columns and rows are easy to determine if the connection is in the unit
             # cell, as the opposite block is in the transposed location.
             opp_block_cols = block_rows
@@ -253,16 +266,19 @@ def _blockmatrix_coo_coords(
             if neigh_isc != 0:
                 # For supercell connections we need to find out what is the the supercell
                 # index of the neighbor in the opposite connection.
-                opp_block_cols += no * (n_supercells - neigh_isc)
+                opp_block_cols += no_col * (n_supercells - neigh_isc)
 
             rows_symm.extend(opp_block_rows)
             cols_symm.extend(opp_block_cols)
-
+        elif symmetrize_edges and not is_square:
+            raise ValueError(
+                "In order to symmetrize edges, the matrix must be square. \
+                For non-square matrices, the opposite edge is not guaranteed to be the transpose of the original edge.")
     # Add coordinates of symmetrized edges to the list of coordinates.
     rows.extend(rows_symm)
     cols.extend(cols_symm)
 
-    return np.array(rows), np.array(cols), (no, no * n_supercells)
+    return np.array(rows), np.array(cols), (no_row, no_col * n_supercells)
 
 
 def _nodes_and_edges_to_coo(
@@ -271,7 +287,8 @@ def _nodes_and_edges_to_coo(
     node_vals: ArrayLike,
     edge_vals: ArrayLike,
     edge_index: ArrayLike,
-    orbitals: ArrayLike,
+    orbitals_row: ArrayLike,
+    orbitals_col: ArrayLike,
     n_supercells: int = 1,
     edge_neigh_isc: Optional[ArrayLike] = None,
     threshold: Optional[float] = None,
@@ -306,8 +323,10 @@ def _nodes_and_edges_to_coo(
     edge_index
         Array of shape (2, n_edges) containing the indices of the atoms
         that participate in each edge.
-    orbitals
+    orbitals_row / orbitals_col
         Array of shape (n_nodes, ) containing the number of orbitals for each atom.
+        For contracted basis sets, rows represent the original basis, and columns the
+        contracted basis. For non-contracted basis sets, both are equal.
     n_supercells
         Number of auxiliary supercells.
     edge_neigh_isc
@@ -320,9 +339,9 @@ def _nodes_and_edges_to_coo(
         whether for each edge only one direction is provided. The edge block for the
         opposite direction is then created as the transpose.
     """
-
     rows, cols, shape = _blockmatrix_coo_coords(
-        orbitals=orbitals,
+        orbitals_row=orbitals_row,
+        orbitals_col=orbitals_col,
         edge_index=edge_index,
         n_supercells=n_supercells,
         edge_neigh_isc=edge_neigh_isc,
@@ -352,7 +371,8 @@ def nodes_and_edges_to_coo(
     node_vals: np.ndarray,
     edge_vals: np.ndarray,
     edge_index: np.ndarray,
-    orbitals: np.ndarray,
+    orbitals_row: np.ndarray,
+    orbitals_col: np.ndarray,
     n_supercells: int = 1,
     edge_neigh_isc: Optional[np.ndarray] = None,
     threshold: Optional[float] = None,
@@ -373,8 +393,10 @@ def nodes_and_edges_to_coo(
     edge_index
         Array of shape (2, n_edges) containing the indices of the atoms
         that participate in each edge.
-    orbitals
+    orbitals_row / orbitals_col
         Array of shape (n_nodes, ) containing the number of orbitals for each atom.
+        For contracted basis sets, rows represent the original basis, and columns the
+        contracted basis. For non-contracted basis sets, both are equal.
     n_supercells
         Number of auxiliary supercells.
     edge_neigh_isc
@@ -397,7 +419,8 @@ def nodes_and_edges_to_coo(
         node_vals=node_vals,
         edge_vals=edge_vals,
         edge_index=edge_index,
-        orbitals=orbitals,
+        orbitals_row=orbitals_row,
+        orbitals_col=orbitals_col,
         n_supercells=n_supercells,
         edge_neigh_isc=edge_neigh_isc,
         threshold=threshold,

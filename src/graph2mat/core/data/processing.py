@@ -804,8 +804,10 @@ class MatrixDataProcessor:
         else:
             kwargs["n_supercells"] = nsc.prod()
 
-            n_orbitals = [point.basis_size for point in self.basis_table.basis]
-            kwargs["orbitals"] = [n_orbitals[at_type] for at_type in point_types]
+            n_orbitals_row = [point.basis_size for point in self.basis_table.row_basis]
+            n_orbitals_col = [point.basis_size for point in self.basis_table.col_basis]
+            kwargs["orbitals_row"] = [n_orbitals_row[at_type] for at_type in point_types]
+            kwargs["orbitals_col"] = [n_orbitals_col[at_type] for at_type in point_types]
 
         # Add back atomic contributions to the node blocks in case they were removed
         if self.sub_point_matrix:
