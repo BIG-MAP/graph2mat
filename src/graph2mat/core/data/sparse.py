@@ -228,7 +228,7 @@ def _blockmatrix_coo_coords(
     if edge_neigh_isc is None:
         edge_neigh_isc = itertools.repeat(0)
     else:
-        edge_neigh_isc = np.array(edge_neigh_isc)
+        edge_neigh_isc = np.asarray(edge_neigh_isc)
 
     for i_edge, ((i_at, j_at), neigh_isc) in enumerate(
         zip(edge_index.T, edge_neigh_isc)

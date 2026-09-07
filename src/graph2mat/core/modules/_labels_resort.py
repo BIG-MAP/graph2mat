@@ -73,9 +73,9 @@ def get_labels_resorting_array(
 
     # Count the number of entries of each type
     for i_edge in range(n_entries):
-        type: cython.int = abs(types[i_edge])
+        edge_type: cython.int = abs(types[i_edge])
 
-        type_nlabels[type] += sizes[type]
+        type_nlabels[type] += sizes[edge_type]
 
     # Cumsum of type_nlabels to understand where do the labels for
     # each type start.
