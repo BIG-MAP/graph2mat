@@ -296,6 +296,8 @@ def _nodes_and_edges_to_coo(
         - The matrix values (as returned by ``concatenate``).
         - The rows corresponding to the matrix values.
         - The columns corresponding to the matrix values.
+        - A mask to apply to the values, rows and columns to remove elements
+          below the threshold or that are NaN.
         - The shape of the matrix.
     node_vals
         Flat array containing the values of the node blocks.
@@ -340,11 +342,7 @@ def _nodes_and_edges_to_coo(
         # Remove NaNs
         mask = sparse_data == sparse_data
 
-    sparse_data = sparse_data[mask]
-    rows = rows[mask]
-    cols = cols[mask]
-
-    return init_coo(sparse_data, rows, cols, shape)
+    return init_coo(sparse_data, rows, cols, mask, shape)
 
 
 @converter(Formats.NODESEDGES, Formats.SCIPY_COO)
@@ -388,8 +386,8 @@ def nodes_and_edges_to_coo(
         opposite direction is then created as the transpose.
     """
 
-    def _init_coo(data, rows, cols, shape):
-        return coo_array((data, (rows, cols)), shape)
+    def _init_coo(data, rows, cols, mask, shape):
+        return coo_array((data[mask], (rows[mask], cols[mask])), shape)
 
     return _nodes_and_edges_to_coo(
         concatenate=np.concatenate,

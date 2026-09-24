@@ -89,9 +89,11 @@ def nodes_and_edges_to_coo(
         opposite direction is then created as the transpose.
     """
 
-    def _init_coo(data, rows, cols, shape):
+    def _init_coo(data, rows, cols, mask, shape):
+        rows = torch.tensor(rows, device=data.device)
+        cols = torch.tensor(cols, device=data.device)
         return torch.sparse_coo_tensor(
-            torch.stack([torch.tensor(rows), torch.tensor(cols)]), data, shape
+            torch.stack([torch.tensor(rows[mask]), torch.tensor(cols[mask])]), data[mask], shape
         )
 
     return _nodes_and_edges_to_coo(
