@@ -93,7 +93,7 @@ def nodes_and_edges_to_coo(
         rows = torch.tensor(rows, device=data.device)
         cols = torch.tensor(cols, device=data.device)
         return torch.sparse_coo_tensor(
-            torch.stack([torch.tensor(rows[mask]), torch.tensor(cols[mask])]), data[mask], shape
+            torch.stack([rows[mask], cols[mask]]), data[mask], shape
         )
 
     return _nodes_and_edges_to_coo(
