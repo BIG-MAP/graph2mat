@@ -396,7 +396,7 @@ def nodes_and_edges_to_coo(
         edge_vals=edge_vals,
         edge_index=edge_index,
         orbitals=orbitals,
-        n_supercells=n_supercells,
+        n_supercells=int(n_supercells),
         edge_neigh_isc=edge_neigh_isc,
         threshold=threshold,
         symmetrize_edges=symmetrize_edges,
