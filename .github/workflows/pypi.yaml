@@ -35,35 +35,23 @@ jobs:
       # If one of the jobs fails, continue with the others.
       fail-fast: false
       matrix:
-        os: [macos-latest, ubuntu-latest]
+        os: [ubuntu-latest, ubuntu-24.04-arm, windows-latest, windows-11-arm, macos-15-intel, macos-latest]
 
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
         with:
           fetch-depth: 0
           submodules: false
 
+      # Used to host cibuildwheel
+      - uses: actions/setup-python@v6
+
       # We use the cibuildwheel action to take care of everything
-      - name: Build wheels (Mac)
-        if: runner.os == 'macOS'
+      - name: Build wheels (${{ matrix.os }})
         uses: pypa/cibuildwheel@v4.3.5
-
-      - name: Build wheels (Linux)
-        if: runner.os == 'Linux'
-        uses: pypa/cibuildwheel@v4.3.5
-
-      - name: Build wheels (Windows)
-        if: runner.os == 'Windows'
-        uses: pypa/cibuildwheel@v4.3.5
-        env:
-          # when building with windows the Cython generated sources lacks linking
-          # against -lpythonX.Y, I don't know why, or how to bypass this problem.
-          # Nothing apparent on the web... :(
-          CMAKE_GENERATOR: MinGW Makefiles
-          PIP_NO_CLEAN: "yes"
 
       # Upload the wheel to the action's articfact.
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7
         with:
           name: artifact-${{ matrix.os }}
           path: ./wheelhouse/*.whl
@@ -73,7 +61,7 @@ jobs:
     name: Build source distribution
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
         with:
           fetch-depth: 0
           submodules: false
@@ -81,7 +69,7 @@ jobs:
       - name: Build sdist
         run: pipx run build --sdist
 
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7
         with:
           path: dist/*.tar.gz
 
@@ -149,9 +137,9 @@ jobs:
     # alternatively, to publish when a GitHub Release is created, use the following rule:
     # if: github.event_name == 'release' && github.event.action == 'published'
     steps:
-      - uses: actions/download-artifact@v4
+      - uses: actions/download-artifact@v7
         with:
           path: dist
           merge-multiple: True
 
-      - uses: pypa/gh-action-pypi-publish@v1.8.11
+      - uses: pypa/gh-action-pypi-publish@v1.14.3
